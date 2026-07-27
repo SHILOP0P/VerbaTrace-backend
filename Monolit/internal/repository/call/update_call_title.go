@@ -26,6 +26,7 @@ func (r *Repository) UpdateCallTitle(ctx context.Context, id uuid.UUID, userID u
 	          title,
 	          status,
 	          audio_path,
+	          asr_cache_path,
 	          original_filename,
 	          mime_type,
 	          size_bytes,

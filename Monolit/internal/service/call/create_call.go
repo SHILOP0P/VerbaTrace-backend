@@ -21,6 +21,18 @@ func (s *Service) CreateCall(ctx context.Context, input models.CreateCallInput) 
 		s.log.Warn(ctx, "create call failed", zap.String("reason", "upload_forbidden"), zap.String("user_id", input.UploadedByUserUUID.String()), zap.String("visibility_scope", string(input.VisibilityScope)), zap.Error(err))
 		return models.Call{}, err
 	}
+	if input.FolderUUID.Valid {
+		if s.callFolderRepository == nil {
+			return models.Call{}, models.ErrCallFolderNotFound
+		}
+		folder, folderErr := s.callFolderRepository.GetVisibleByUUID(ctx, input.FolderUUID.UUID, input.UploadedByUserUUID)
+		if folderErr != nil {
+			return models.Call{}, folderErr
+		}
+		if !folderMatchesPlacement(folder, input) {
+			return models.Call{}, models.ErrCallFolderScopeMismatch
+		}
+	}
 
 	callUUID, err := uuid.NewV7()
 	if err != nil {
@@ -56,6 +68,7 @@ func (s *Service) CreateCall(ctx context.Context, input models.CreateCallInput) 
 		return models.Call{}, err
 	}
 	call.DurationSeconds = durationSeconds
+	call.FolderUUID = input.FolderUUID
 
 	if err := s.checkUploadMinutes(ctx, input, durationSeconds); err != nil {
 		_ = s.audioStorage.Delete(context.Background(), savedFile.Path)
@@ -95,6 +108,21 @@ func (s *Service) CreateCall(ctx context.Context, input models.CreateCallInput) 
 	)
 
 	return createdCall, nil
+}
+
+func folderMatchesPlacement(folder models.CallFolder, input models.CreateCallInput) bool {
+	switch input.VisibilityScope {
+	case models.CallVisibilityScopePersonal:
+		return folder.Scope == models.CallFolderScopePersonal && folder.UserUUID.Valid &&
+			folder.UserUUID.UUID == input.UploadedByUserUUID
+	case models.CallVisibilityScopeCompany:
+		return folder.Scope == models.CallFolderScopeCompany && folder.CompanyUUID == input.CompanyUUID
+	case models.CallVisibilityScopeDepartment:
+		return folder.Scope == models.CallFolderScopeDepartment &&
+			folder.CompanyUUID == input.CompanyUUID && folder.DepartmentUUID == input.DepartmentUUID
+	default:
+		return false
+	}
 }
 
 func (s *Service) checkUploadMinutes(ctx context.Context, input models.CreateCallInput, durationSeconds int) error {

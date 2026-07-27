@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -309,6 +310,73 @@ func TestNormalizeAnalysisResultLegacyCriteriaCompatibility(t *testing.T) {
 	criterion := payload["criteria_results"].([]any)[0].(map[string]any)
 	if criterion["code"] != "custom_instruction_match" || criterion["status"] != "unclear" || criterion["points_max"] != float64(0) {
 		t.Fatalf("legacy criterion = %#v", criterion)
+	}
+}
+
+func TestNormalizeAnalysisResultPreservesComposedPromptCriterion(t *testing.T) {
+	result, err := normalizeAnalysisResult(models.AnalysisResult{ResultJSON: []byte(`{
+		"summary":"ok",
+		"criteria_results":[{
+			"code":"follow_up_date",
+			"title":"Согласование даты следующего контакта",
+			"status":"needs_review",
+			"points_awarded":3,
+			"points_max":5,
+			"issue":"Дата не подтверждена.",
+			"recommendation":"Согласовать дату.",
+			"evidence_quotes":[]
+		}]
+	}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	criterion := decodeAnalysisPayload(t, result)["criteria_results"].([]any)[0].(map[string]any)
+	if criterion["code"] != "follow_up_date" || criterion["status"] != "needs_review" || criterion["points_max"] != float64(5) {
+		t.Fatalf("composed criterion was changed: %#v", criterion)
+	}
+	if criterion["topic"] != "Согласование даты следующего контакта" || criterion["quote"] != "Не указано" || criterion["explanation"] != "Дата не подтверждена." || criterion["score"] != float64(60) {
+		t.Fatalf("criterion card fields = %#v", criterion)
+	}
+}
+
+func TestNormalizeAnalysisResultUnwrapsJSONFromSummary(t *testing.T) {
+	nested := `{"schema_version":2,"summary":"Краткий итог.","criteria_results":[{"code":"greeting","title":"Приветствие","status":"met","points_awarded":10,"points_max":10,"evidence_quotes":["Здравствуйте"],"issue":"Проблема не выявлена.","recommendation":"Рекомендация не требуется."}]}`
+	result, err := normalizeAnalysisResult(models.AnalysisResult{ResultJSON: []byte(`{"summary":` + strconv.Quote(nested) + `}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := decodeAnalysisPayload(t, result)
+	if payload["summary"] != "Краткий итог." {
+		t.Fatalf("summary = %#v", payload["summary"])
+	}
+	criterion := payload["criteria_results"].([]any)[0].(map[string]any)
+	if criterion["quote"] != "Здравствуйте" || criterion["topic"] != "Приветствие" || criterion["score"] != float64(100) {
+		t.Fatalf("unwrapped criterion = %#v", criterion)
+	}
+}
+
+func TestNormalizeAnalysisResultRejectsBrokenJSONInSummary(t *testing.T) {
+	broken := `{"schema_version":2,"summary":"Оборванный ответ"`
+	_, err := normalizeAnalysisResult(models.AnalysisResult{ResultJSON: []byte(`{"schema_version":2,"summary":` + strconv.Quote(broken) + `}`)})
+	if err == nil {
+		t.Fatal("expected invalid nested structured JSON to be rejected")
+	}
+	if !strings.Contains(err.Error(), "invalid nested structured JSON") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestNormalizeAnalysisResultAlwaysUsesReadableSummaryAsResultText(t *testing.T) {
+	rawText := `{"schema_version":2,"summary":"Краткий итог."}`
+	result, err := normalizeAnalysisResult(models.AnalysisResult{
+		ResultJSON: []byte(rawText),
+		ResultText: &rawText,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ResultText == nil || *result.ResultText != "Краткий итог." {
+		t.Fatalf("result text = %#v", result.ResultText)
 	}
 }
 

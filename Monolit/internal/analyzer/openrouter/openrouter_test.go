@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"calllens/monolit/internal/models"
 
@@ -30,13 +29,13 @@ func TestNewRequiresModel(t *testing.T) {
 	}
 }
 
-func TestNewUsesExtendedHTTPTimeout(t *testing.T) {
+func TestNewDoesNotImposeHTTPTimeout(t *testing.T) {
 	analyzer, err := New("sk-or-v1-test", "google/gemini-2.5-flash")
 	if err != nil {
 		t.Fatalf("new analyzer: %v", err)
 	}
-	if analyzer.client.Timeout < 5*time.Minute {
-		t.Fatalf("timeout = %s, want at least 5m", analyzer.client.Timeout)
+	if analyzer.client.Timeout != 0 {
+		t.Fatalf("timeout = %s, want no client deadline", analyzer.client.Timeout)
 	}
 }
 
@@ -63,11 +62,20 @@ func TestAnalyzeSendsTranscriptionAndInstructions(t *testing.T) {
 		if req.Temperature == nil || *req.Temperature != 0 {
 			t.Fatalf("temperature = %v", req.Temperature)
 		}
+		if req.MaxTokens != 8192 {
+			t.Fatalf("max tokens = %d", req.MaxTokens)
+		}
 		if req.ResponseFormat.Type != "json_schema" || req.ResponseFormat.JSONSchema.Name != "call_analysis" {
 			t.Fatalf("response format = %#v", req.ResponseFormat)
 		}
 		if !req.ResponseFormat.JSONSchema.Strict {
 			t.Fatal("response schema is not strict")
+		}
+		criteria := req.ResponseFormat.JSONSchema.Schema["properties"].(map[string]any)["criteria_results"].(map[string]any)
+		criterionItems := criteria["items"].(map[string]any)["properties"].(map[string]any)
+		criterionCode := criterionItems["code"].(map[string]any)
+		if _, restricted := criterionCode["enum"]; restricted {
+			t.Fatalf("criterion code must allow composed prompt criteria: %#v", criterionCode)
 		}
 		assertResponseSchemaV2(t, req.ResponseFormat.JSONSchema.Schema)
 		if len(req.Messages) != 2 {
@@ -270,9 +278,21 @@ func TestAnalyzeWrapsNonJSONResponse(t *testing.T) {
 	}
 }
 
+func TestNormalizeAnalysisContentRejectsIncompleteStructuredJSON(t *testing.T) {
+	_, _, err := normalizeAnalysisContent(`{"schema_version":2,"summary":"unfinished`)
+	if err == nil {
+		t.Fatal("expected incomplete structured JSON to be rejected")
+	}
+	if !strings.Contains(err.Error(), "incomplete structured JSON") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestUserPromptMarksMissingInstructionsNotApplicable(t *testing.T) {
 	got := userPrompt(uuid.NewString(), "Менеджер: Здравствуйте.", nil)
 	for _, want := range []string{
+		"Персонализация не задана",
+		"Анализируй разговор универсально",
 		"Загруженные инструкции не выбраны",
 		"custom_instruction_match верни со status not_applicable",
 	} {
@@ -378,7 +398,7 @@ func assertResponseSchemaV2(t *testing.T, schema map[string]any) {
 	if !ok {
 		t.Fatalf("criteria item required = %#v", item["required"])
 	}
-	for _, want := range []string{"code", "title", "status", "points_awarded", "points_max", "evidence_quotes", "issue", "recommendation"} {
+	for _, want := range []string{"code", "title", "topic", "status", "points_awarded", "points_max", "score", "quote", "evidence_quotes", "issue", "explanation", "recommendation"} {
 		if !containsString(itemRequired, want) {
 			t.Fatalf("criteria item required missing %q: %#v", want, itemRequired)
 		}

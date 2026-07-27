@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"calllens/monolit/internal/API/dto"
@@ -321,6 +322,10 @@ func createRequestToInput(req dto.CreateCallFolderRequest, userID uuid.UUID) (mo
 	if err != nil {
 		return models.CreateCallFolderInput{}, err
 	}
+	instructionIDs, err := parseUUIDs(req.InstructionUUIDs)
+	if err != nil {
+		return models.CreateCallFolderInput{}, err
+	}
 	return models.CreateCallFolderInput{
 		UserID:         userID,
 		Scope:          models.CallFolderScope(req.Scope),
@@ -329,7 +334,57 @@ func createRequestToInput(req dto.CreateCallFolderRequest, userID uuid.UUID) (mo
 		Name:           req.Name,
 		Description:    req.Description,
 		Color:          req.Color,
+		InstructionIDs: instructionIDs,
 	}, nil
+}
+
+func (h *Handler) ReplaceInstructions(w http.ResponseWriter, r *http.Request) {
+	userID, ok := userIDFromRequest(r)
+	if !ok {
+		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+	folderID, err := folderIDFromRequest(r)
+	if err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallFolderInput, "invalid call folder uuid")
+		return
+	}
+	var body struct {
+		InstructionUUIDs []string `json:"instruction_uuids"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(&body); err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidRequestBody, "invalid request body")
+		return
+	}
+	ids, err := parseUUIDs(body.InstructionUUIDs)
+	if err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallFolderInput, "invalid instruction uuid")
+		return
+	}
+	if err = h.service.ReplaceInstructions(r.Context(), userID, folderID, ids); err != nil {
+		writeFolderError(w, err, response.CodeFailedToUpdateCallFolder)
+		return
+	}
+	folder, err := h.service.Get(r.Context(), folderID, userID)
+	if err != nil {
+		writeFolderError(w, err, response.CodeFailedToUpdateCallFolder)
+		return
+	}
+	_ = response.WriteJSON(w, http.StatusOK, converter.CallFolderModelToAPI(folder))
+}
+
+func parseUUIDs(values []string) ([]uuid.UUID, error) {
+	result := make([]uuid.UUID, 0, len(values))
+	for _, value := range values {
+		id, err := uuid.Parse(strings.TrimSpace(value))
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, id)
+	}
+	return result, nil
 }
 
 func parseListInput(r *http.Request, userID uuid.UUID) (models.ListCallFoldersInput, error) {

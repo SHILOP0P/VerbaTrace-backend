@@ -61,12 +61,18 @@ func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Media:                  fileHeader,
 		CompanyUUID:            r.FormValue("company_uuid"),
 		DepartmentUUID:         r.FormValue("department_uuid"),
+		FolderUUID:             r.FormValue("folder_uuid"),
 		SkipCustomInstructions: parseSkipCustomInstructions(r.FormValue("use_custom_instructions"), r.FormValue("skip_custom_instructions")),
 	}
 
 	companyUUID, departmentUUID, visibilityScope, err := parseCallPlacement(req.CompanyUUID, req.DepartmentUUID)
 	if err != nil {
 		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallPlacement, "invalid call placement")
+		return
+	}
+	folderUUID, err := parseOptionalUUID(strings.TrimSpace(req.FolderUUID))
+	if err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallFolderInput, "invalid folder uuid")
 		return
 	}
 
@@ -91,6 +97,7 @@ func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 		DepartmentUUID:         departmentUUID,
 		VisibilityScope:        visibilityScope,
 		SkipCustomInstructions: req.SkipCustomInstructions,
+		FolderUUID:             folderUUID,
 	}
 
 	createdCall, err := h.service.CreateCall(r.Context(), input)

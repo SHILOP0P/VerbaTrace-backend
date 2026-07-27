@@ -21,10 +21,12 @@ const (
 var colorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 type Service struct {
-	repository           repository.CallFolderRepository
-	callRepository       callRepository
-	companyRepository    companyRepository
-	departmentRepository departmentRepository
+	repository            repository.CallFolderRepository
+	callRepository        callRepository
+	companyRepository     companyRepository
+	departmentRepository  departmentRepository
+	instructionRepository instructionRepository
+	instructionLinks      instructionLinks
 }
 
 type callRepository interface {
@@ -40,6 +42,15 @@ type departmentRepository interface {
 	ListVisibleCompanyDepartments(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) ([]models.Department, error)
 }
 
+type instructionRepository interface {
+	GetByUUID(context.Context, uuid.UUID) (models.AnalysisInstruction, error)
+}
+
+type instructionLinks interface {
+	ReplaceInstructions(context.Context, uuid.UUID, []uuid.UUID, uuid.UUID) error
+	ListInstructions(context.Context, uuid.UUID) ([]models.AnalysisInstruction, error)
+}
+
 func NewService(folderRepository repository.CallFolderRepository, callRepository callRepository, companyRepository companyRepository, departmentRepository departmentRepository) *Service {
 	return &Service{
 		repository:           folderRepository,
@@ -47,6 +58,11 @@ func NewService(folderRepository repository.CallFolderRepository, callRepository
 		companyRepository:    companyRepository,
 		departmentRepository: departmentRepository,
 	}
+}
+
+func (s *Service) SetInstructionRepositories(instructions instructionRepository, links instructionLinks) {
+	s.instructionRepository = instructions
+	s.instructionLinks = links
 }
 
 func (s *Service) Create(ctx context.Context, input models.CreateCallFolderInput) (models.CallFolder, error) {
@@ -70,7 +86,17 @@ func (s *Service) Create(ctx context.Context, input models.CreateCallFolderInput
 	if input.Scope == models.CallFolderScopePersonal {
 		folder.UserUUID = uuid.NullUUID{UUID: input.UserID, Valid: true}
 	}
-	return s.repository.Create(ctx, folder)
+	created, err := s.repository.Create(ctx, folder)
+	if err != nil {
+		return models.CallFolder{}, err
+	}
+	if len(input.InstructionIDs) > 0 {
+		if err = s.ReplaceInstructions(ctx, input.UserID, created.ID, input.InstructionIDs); err != nil {
+			return models.CallFolder{}, err
+		}
+		created.Instructions, err = s.instructionLinks.ListInstructions(ctx, created.ID)
+	}
+	return created, err
 }
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.CallFolder, error) {
@@ -81,6 +107,12 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID, userID uuid.UUID) (mode
 	if err := s.authorizeRead(ctx, folder, userID); err != nil {
 		return models.CallFolder{}, maskForbiddenAsNotFound(err)
 	}
+	if s.instructionLinks != nil {
+		folder.Instructions, err = s.instructionLinks.ListInstructions(ctx, folder.ID)
+		if err != nil {
+			return models.CallFolder{}, err
+		}
+	}
 	return folder, nil
 }
 
@@ -88,7 +120,19 @@ func (s *Service) List(ctx context.Context, input models.ListCallFoldersInput) (
 	if err := normalizeListInput(&input); err != nil {
 		return models.ListCallFoldersResult{}, err
 	}
-	return s.repository.List(ctx, input)
+	result, err := s.repository.List(ctx, input)
+	if err != nil {
+		return models.ListCallFoldersResult{}, err
+	}
+	if s.instructionLinks != nil {
+		for i := range result.Items {
+			result.Items[i].Instructions, err = s.instructionLinks.ListInstructions(ctx, result.Items[i].ID)
+			if err != nil {
+				return models.ListCallFoldersResult{}, err
+			}
+		}
+	}
+	return result, nil
 }
 
 func (s *Service) Update(ctx context.Context, input models.UpdateCallFolderInput) (models.CallFolder, error) {
@@ -102,7 +146,14 @@ func (s *Service) Update(ctx context.Context, input models.UpdateCallFolderInput
 	if err := normalizeUpdateInput(&input); err != nil {
 		return models.CallFolder{}, err
 	}
-	return s.repository.Update(ctx, input)
+	updated, err := s.repository.Update(ctx, input)
+	if err != nil {
+		return models.CallFolder{}, err
+	}
+	if s.instructionLinks != nil {
+		updated.Instructions, err = s.instructionLinks.ListInstructions(ctx, updated.ID)
+	}
+	return updated, err
 }
 
 func (s *Service) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
@@ -193,6 +244,64 @@ func (s *Service) ListAccesses(ctx context.Context, folderID uuid.UUID, userID u
 		return nil, err
 	}
 	return s.repository.ListAccesses(ctx, folderID)
+}
+
+func (s *Service) ReplaceInstructions(ctx context.Context, userID uuid.UUID, folderID uuid.UUID, instructionIDs []uuid.UUID) error {
+	if s.instructionRepository == nil || s.instructionLinks == nil {
+		return models.ErrInvalidCallFolderInput
+	}
+	folder, err := s.repository.GetByUUID(ctx, folderID)
+	if err != nil {
+		return err
+	}
+	if err = s.authorizeManageFolder(ctx, folder, userID); err != nil {
+		return err
+	}
+	seen := make(map[uuid.UUID]struct{}, len(instructionIDs))
+	for _, instructionID := range instructionIDs {
+		if instructionID == uuid.Nil {
+			return models.ErrInvalidCallFolderInput
+		}
+		if _, exists := seen[instructionID]; exists {
+			continue
+		}
+		seen[instructionID] = struct{}{}
+		instruction, getErr := s.instructionRepository.GetByUUID(ctx, instructionID)
+		if getErr != nil || !instruction.IsActive || !instructionMatchesFolder(instruction, folder) {
+			return models.ErrInvalidCallFolderInput
+		}
+	}
+	unique := make([]uuid.UUID, 0, len(seen))
+	for _, instructionID := range instructionIDs {
+		if _, exists := seen[instructionID]; exists {
+			unique = append(unique, instructionID)
+			delete(seen, instructionID)
+		}
+	}
+	return s.instructionLinks.ReplaceInstructions(ctx, folderID, unique, userID)
+}
+
+func instructionMatchesFolder(instruction models.AnalysisInstruction, folder models.CallFolder) bool {
+	switch folder.Scope {
+	case models.CallFolderScopePersonal:
+		return instruction.Scope == models.AnalysisInstructionScopePersonal &&
+			instruction.UserUUID.Valid && folder.UserUUID.Valid &&
+			instruction.UserUUID.UUID == folder.UserUUID.UUID
+	case models.CallFolderScopeCompany:
+		return instruction.Scope == models.AnalysisInstructionScopeCompany &&
+			instruction.CompanyUUID.Valid && folder.CompanyUUID.Valid &&
+			instruction.CompanyUUID.UUID == folder.CompanyUUID.UUID
+	case models.CallFolderScopeDepartment:
+		if !instruction.CompanyUUID.Valid || !folder.CompanyUUID.Valid || instruction.CompanyUUID.UUID != folder.CompanyUUID.UUID {
+			return false
+		}
+		return instruction.Scope == models.AnalysisInstructionScopeCompany ||
+			(instruction.Scope == models.AnalysisInstructionScopeDepartment &&
+				instruction.DepartmentUUID.Valid && folder.DepartmentUUID.Valid &&
+				instruction.DepartmentUUID.UUID == folder.DepartmentUUID.UUID)
+	default:
+		return false
+	}
 }
 
 func (s *Service) authorizeManageFolder(ctx context.Context, folder models.CallFolder, userID uuid.UUID) error {

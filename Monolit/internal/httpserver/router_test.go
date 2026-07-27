@@ -20,7 +20,7 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 		apiMocks.NewCompanyAPI(t),
 		apiMocks.NewDepartmentAPI(t),
 		apiMocks.NewAnalysisInstructionAPI(t),
-		stubPromptProfileAPI{},
+		stubAnalysisContextAPI{},
 		apiMocks.NewAnalysisAPI(t),
 		apiMocks.NewReportAPI(t),
 		apiMocks.NewBillingAPI(t),
@@ -61,19 +61,10 @@ type stubSearchAPI struct{}
 
 func (stubSearchAPI) Search(w http.ResponseWriter, r *http.Request) {}
 
-type stubPromptProfileAPI struct{}
+type stubAnalysisContextAPI struct{}
 
-func (stubPromptProfileAPI) GetSettings(w http.ResponseWriter, r *http.Request)  {}
-func (stubPromptProfileAPI) SaveSettings(w http.ResponseWriter, r *http.Request) {}
-
-func (stubPromptProfileAPI) Industries(w http.ResponseWriter, r *http.Request)     {}
-func (stubPromptProfileAPI) Topics(w http.ResponseWriter, r *http.Request)         {}
-func (stubPromptProfileAPI) Recommend(w http.ResponseWriter, r *http.Request)      {}
-func (stubPromptProfileAPI) ListProfiles(w http.ResponseWriter, r *http.Request)   {}
-func (stubPromptProfileAPI) SaveProfile(w http.ResponseWriter, r *http.Request)    {}
-func (stubPromptProfileAPI) DeleteProfile(w http.ResponseWriter, r *http.Request)  {}
-func (stubPromptProfileAPI) GetCallContext(w http.ResponseWriter, r *http.Request) {}
-func (stubPromptProfileAPI) PutCallContext(w http.ResponseWriter, r *http.Request) {}
+func (stubAnalysisContextAPI) Get(w http.ResponseWriter, r *http.Request)  {}
+func (stubAnalysisContextAPI) Save(w http.ResponseWriter, r *http.Request) {}
 
 type stubCallFolderAPI struct{}
 
@@ -88,6 +79,7 @@ func (stubCallFolderAPI) RemoveCall(w http.ResponseWriter, r *http.Request)   {}
 func (stubCallFolderAPI) GrantAccess(w http.ResponseWriter, r *http.Request)  {}
 func (stubCallFolderAPI) RevokeAccess(w http.ResponseWriter, r *http.Request) {}
 func (stubCallFolderAPI) ListAccesses(w http.ResponseWriter, r *http.Request) {}
+func (stubCallFolderAPI) ReplaceInstructions(w http.ResponseWriter, r *http.Request) {}
 
 type stubNotificationAPI struct{}
 

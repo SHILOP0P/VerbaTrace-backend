@@ -25,8 +25,9 @@ type ProcessingJob struct {
 type TranscriptionMode string
 
 const (
-	TranscriptionModeStandard TranscriptionMode = "standard"
-	TranscriptionModeDiarized TranscriptionMode = "diarized"
+	TranscriptionModeStandard   TranscriptionMode = "standard"
+	TranscriptionModeDiarized   TranscriptionMode = "diarized"
+	TranscriptionModeIdentified TranscriptionMode = "identified"
 )
 
 type ProcessingJobType string

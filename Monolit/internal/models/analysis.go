@@ -45,7 +45,7 @@ type AnalysisRequest struct {
 	CallUUID      uuid.UUID
 	Transcription string
 	Instructions  []AnalysisInstructionContent
-	PromptTopics  []PromptTopic
+	Personalization []string
 }
 
 type AnalysisResult struct {

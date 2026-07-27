@@ -11,9 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
-type PromptTopicReader interface {
-	Modules(ctx context.Context, callID uuid.UUID, userID uuid.UUID) ([]models.PromptTopic, error)
-	Snapshot(ctx context.Context, callID uuid.UUID, userID uuid.UUID) error
+type PersonalizationReader interface {
+	ContextForCall(ctx context.Context, call models.Call) ([]string, error)
+}
+
+type FolderInstructionReader interface {
+	ListInstructionsForCall(ctx context.Context, callID uuid.UUID) ([]models.AnalysisInstruction, error)
 }
 
 type Service struct {
@@ -26,10 +29,16 @@ type Service struct {
 	analyzer                 analyzer.Analyzer
 	processingJobMaxAttempts int
 	log                      logger.Logger
-	promptTopicReader        PromptTopicReader
+	personalizationReader    PersonalizationReader
+	folderInstructionReader  FolderInstructionReader
 }
 
-func (s *Service) SetPromptTopicReader(reader PromptTopicReader) { s.promptTopicReader = reader }
+func (s *Service) SetPersonalizationReader(reader PersonalizationReader) {
+	s.personalizationReader = reader
+}
+func (s *Service) SetFolderInstructionReader(reader FolderInstructionReader) {
+	s.folderInstructionReader = reader
+}
 
 func NewService(
 	callRepository repo.CallRepository,

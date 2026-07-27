@@ -24,6 +24,12 @@ func (s *Service) DeleteCall(ctx context.Context, id uuid.UUID, userID uuid.UUID
 		s.log.Error(ctx, "delete call failed", zap.String("reason", "audio_delete_failed"), zap.String("user_id", userID.String()), zap.String("call_id", id.String()), zap.Error(err))
 		return fmt.Errorf("delete audio file: %w", err)
 	}
+	if call.ASRCachePath != "" {
+		if err := s.audioStorage.Delete(ctx, call.ASRCachePath); err != nil {
+			s.log.Error(ctx, "delete call failed", zap.String("reason", "asr_cache_delete_failed"), zap.String("user_id", userID.String()), zap.String("call_id", id.String()), zap.Error(err))
+			return fmt.Errorf("delete ASR cache: %w", err)
+		}
+	}
 
 	s.log.Info(ctx, "call deleted", zap.String("user_id", userID.String()), zap.String("call_id", id.String()))
 

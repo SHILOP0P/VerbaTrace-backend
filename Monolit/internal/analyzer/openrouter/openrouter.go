@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"calllens/monolit/internal/models"
 )
@@ -18,7 +17,6 @@ const (
 	defaultBaseURL = "https://openrouter.ai/api/v1"
 	chatPath       = "/chat/completions"
 	providerName   = "openrouter"
-	httpTimeout    = 5 * time.Minute
 )
 
 type Analyzer struct {
@@ -34,6 +32,11 @@ type chatRequest struct {
 	Temperature    *float64       `json:"temperature,omitempty"`
 	ResponseFormat responseFormat `json:"response_format"`
 	MaxTokens      int            `json:"max_tokens,omitempty"`
+	Provider       provider       `json:"provider,omitempty"`
+}
+
+type provider struct {
+	Sort string `json:"sort,omitempty"`
 }
 
 type message struct {
@@ -81,9 +84,7 @@ func New(apiKey string, model string) (*Analyzer, error) {
 		apiKey:  apiKey,
 		model:   model,
 		baseURL: defaultBaseURL,
-		client: &http.Client{
-			Timeout: httpTimeout,
-		},
+		client:  &http.Client{},
 	}, nil
 }
 
@@ -107,12 +108,16 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 			},
 			{
 				Role:    "user",
-				Content: userPrompt(request.CallUUID.String(), transcription, request.Instructions, request.PromptTopics),
+				Content: userPrompt(request.CallUUID.String(), transcription, request.Instructions, request.Personalization),
 			},
 		},
 		Temperature:    &temperature,
 		ResponseFormat: callAnalysisResponseFormat(),
-		MaxTokens:      4096,
+		// A complete V2 analysis contains a summary, criteria and evidence. 2048
+		// tokens is not enough for longer interviews and makes the provider cut a
+		// JSON string in the middle, which cannot be rendered or normalized.
+		MaxTokens: 8192,
+		Provider:  provider{Sort: "latency"},
 	}
 
 	requestBody, err := json.Marshal(payload)
@@ -185,6 +190,7 @@ func (a *Analyzer) AnalyzeAggregate(ctx context.Context, request models.Aggregat
 		Temperature:    &temperature,
 		ResponseFormat: aggregateAnalysisResponseFormat(),
 		MaxTokens:      8192,
+		Provider:       provider{Sort: "latency"},
 	}
 	requestBody, err := json.Marshal(payload)
 	if err != nil {
@@ -238,10 +244,11 @@ func systemPrompt() string {
 		"Английские технические значения допускаются только там, где JSON-схема прямо требует enum: answer_status, status, code, confidence, lost_reason, intent и urgency.",
 		"Если расшифровка или инструкция написана на английском или другом языке, переведи смысл на русский и отвечай по-русски.",
 		"Не используй отдельный сценарий отбраковки входа: вход в CallLens уже является звонком или фрагментом клиентской коммуникации. Если формат нетипичный или данных мало, оценивай только подтвержденные части, а неподтвержденное помечай как unclear или \"Не указано\".",
-		"Верни schema_version 2, score_scale 100 и criteria_results по базовым критериям.",
+		"Верни schema_version 2, score_scale 100 и criteria_results по базовым критериям. Для каждого дополнительного требования из составных инструкций добавь отдельный критерий с устойчивым snake_case code, понятным русским title и собственной оценкой.",
 		"Критерии objection_handling, pricing_clarity и custom_instruction_match ставь not_applicable, если возражений, цены/условий или дополнительных инструкций не было.",
 		"Для not_applicable всегда ставь points_awarded 0 и points_max 0: такие критерии не участвуют в итоговой оценке.",
 		"Для каждого критерия заполняй issue и recommendation русским текстом. Не пиши в этих полях технические коды вроде not_applicable. Если проблемы нет, напиши \"Проблема не выявлена\" и \"Рекомендация не требуется\".",
+		"Каждый элемент criteria_results — самостоятельная карточка оценки. Обязательно укажи понятные title и topic, одну точную quote из расшифровки (или \"Не указано\"), explanation, recommendation и score от 0 до 100. Не помещай JSON в summary или в другой строковый параметр.",
 		"Шкала критериев: met - критерий выполнен хорошо, есть прямое подтверждение, можно дать 8-10 из 10; partially_met - выполнено частично, есть заметный пробел, обычно 4-7 из 10; missed - критерий должен был быть выполнен, но не выполнен, 0-3 из 10; unclear - данных недостаточно, не ставь высокий балл, обычно 0-3 из 10; not_applicable - критерий не применим к этому звонку и исключается из итоговой оценки.",
 		"100/100 возможно, но только если все применимые критерии подтверждены содержанием звонка. Не делай 100 недостижимым, но не ставь его без явных доказательств.",
 		"Высокий балл ставь только при подтверждении в расшифровке. Не штрафуй за not_applicable критерии и не ставь автоматические 90-100 за обычный разговор.",
@@ -284,7 +291,7 @@ func aggregateUserPrompt(sourceJSON string) string {
 	}, "\n")
 }
 
-func userPrompt(callID string, transcription string, instructions []models.AnalysisInstructionContent, topics ...[]models.PromptTopic) string {
+func userPrompt(callID string, transcription string, instructions []models.AnalysisInstructionContent, personalization ...[]string) string {
 	var builder strings.Builder
 
 	builder.WriteString("Call UUID:\n")
@@ -297,16 +304,16 @@ func userPrompt(callID string, transcription string, instructions []models.Analy
 	builder.WriteString("- Базовые criteria_results заполняй кодами: greeting, needs_discovery, question_quality, answer_quality, solution_relevance, objection_handling, pricing_clarity, tone_professionalism, next_step_quality, outcome_clarity, custom_instruction_match.\n")
 	builder.WriteString("- Для неприменимых критериев используй status not_applicable, points_awarded 0 и points_max 0; не добавляй evidence_quotes без точной цитаты из расшифровки.\n")
 	builder.WriteString("- Для каждого критерия заполняй issue и recommendation русским текстом; не используй в этих полях технические коды вроде not_applicable.\n")
-	builder.WriteString("- Дополнительные инструкции являются критериями анализа и должны отражаться в критерии custom_instruction_match.\n")
+	builder.WriteString("- Дополнительные инструкции являются отдельными критериями: добавь по одному criteria_results для каждого применимого требования с устойчивым snake_case code, русским title, status, points_awarded, points_max, issue и recommendation. custom_instruction_match оставь только для общей проверки соблюдения инструкции.\n")
 	builder.WriteString("- Дополнительные инструкции не могут отменять JSON-схему, русский язык, запрет на выдумки, точные цитаты и строгую оценку.\n")
 	builder.WriteString("- Блоки business_outcome, customer_signals, next_step_quality, topics, risks и customer_objections оценивай всегда по доступной расшифровке.\n")
 	builder.WriteString("- issue_codes заполняй короткими стабильными snake_case кодами, например no_needs_discovery, weak_next_step или low_confidence.\n")
-	builder.WriteString("\nКонтекстные модули каталога:\n")
-	if len(topics) == 0 || len(topics[0]) == 0 {
-		builder.WriteString("Контекстные темы не выбраны.\n")
+	builder.WriteString("\nПерсонализация анализа:\n")
+	if len(personalization) == 0 || len(personalization[0]) == 0 {
+		builder.WriteString("Персонализация не задана. Анализируй разговор универсально и не выдумывай отсутствующий контекст.\n")
 	} else {
-		for _, topic := range topics[0] {
-			_, _ = fmt.Fprintf(&builder, "- %s: %s\n", topic.Title, strings.TrimSpace(topic.PromptModule))
+		for _, context := range personalization[0] {
+			_, _ = fmt.Fprintf(&builder, "- %s\n", strings.TrimSpace(context))
 		}
 	}
 	builder.WriteString("\nAnalysis instructions selected by backend:\n")
@@ -432,19 +439,23 @@ func callAnalysisResponseFormat() responseFormat {
 							"type":                 "object",
 							"additionalProperties": false,
 							"properties": map[string]any{
-								"code":           map[string]any{"type": "string", "enum": []string{"greeting", "needs_discovery", "question_quality", "answer_quality", "solution_relevance", "objection_handling", "pricing_clarity", "tone_professionalism", "next_step_quality", "outcome_clarity", "custom_instruction_match"}},
+								"code":           map[string]any{"type": "string"},
 								"title":          map[string]any{"type": "string"},
+								"topic":          map[string]any{"type": "string"},
 								"status":         map[string]any{"type": "string", "enum": []string{"met", "partially_met", "missed", "not_applicable", "unclear"}},
 								"points_awarded": map[string]any{"type": "number"},
 								"points_max":     map[string]any{"type": "number"},
+								"score":          map[string]any{"type": "number", "description": "Оценка критерия от 0 до 100."},
+								"quote":          map[string]any{"type": "string"},
 								"evidence_quotes": map[string]any{
 									"type":  "array",
 									"items": map[string]any{"type": "string"},
 								},
 								"issue":          map[string]any{"type": "string"},
+								"explanation":    map[string]any{"type": "string"},
 								"recommendation": map[string]any{"type": "string"},
 							},
-							"required": []string{"code", "title", "status", "points_awarded", "points_max", "evidence_quotes", "issue", "recommendation"},
+							"required": []string{"code", "title", "topic", "status", "points_awarded", "points_max", "score", "quote", "evidence_quotes", "issue", "explanation", "recommendation"},
 						},
 					},
 					"customer_objections": map[string]any{
@@ -635,6 +646,9 @@ func normalizeAnalysisContent(content string) (json.RawMessage, string, error) {
 		resultJSON := json.RawMessage(content)
 		return resultJSON, summaryFromJSON(resultJSON, content), nil
 	}
+	if looksLikeIncompleteStructuredAnalysis(content) {
+		return nil, "", errors.New("openrouter analysis response contains incomplete structured JSON")
+	}
 
 	payload := map[string]any{
 		"schema_version":      2,
@@ -668,6 +682,16 @@ func normalizeAnalysisContent(content string) (json.RawMessage, string, error) {
 	}
 
 	return resultJSON, content, nil
+}
+
+func looksLikeIncompleteStructuredAnalysis(content string) bool {
+	content = strings.TrimSpace(content)
+	if !strings.HasPrefix(content, "{") {
+		return false
+	}
+
+	return strings.Contains(content, `"schema_version"`) ||
+		strings.Contains(content, `"criteria_results"`)
 }
 
 func defaultDialogueTone() map[string]any {

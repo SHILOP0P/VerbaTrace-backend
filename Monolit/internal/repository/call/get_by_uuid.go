@@ -21,6 +21,7 @@ func (r *Repository) GetByUUID(ctx context.Context, callUUID uuid.UUID, userID u
 	       title,
 	       status,
 	       audio_path,
+	       asr_cache_path,
 	       original_filename,
 	       mime_type,
 	       size_bytes,

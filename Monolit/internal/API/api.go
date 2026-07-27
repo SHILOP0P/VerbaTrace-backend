@@ -44,6 +44,7 @@ type CallFolderAPI interface {
 	GrantAccess(w http.ResponseWriter, r *http.Request)
 	RevokeAccess(w http.ResponseWriter, r *http.Request)
 	ListAccesses(w http.ResponseWriter, r *http.Request)
+	ReplaceInstructions(w http.ResponseWriter, r *http.Request)
 }
 
 type MonitoringAPI interface {
@@ -146,17 +147,9 @@ type AnalysisAPI interface {
 	GetByCallUUID(w http.ResponseWriter, r *http.Request)
 }
 
-type PromptProfileAPI interface {
-	GetSettings(w http.ResponseWriter, r *http.Request)
-	SaveSettings(w http.ResponseWriter, r *http.Request)
-	Industries(w http.ResponseWriter, r *http.Request)
-	Topics(w http.ResponseWriter, r *http.Request)
-	Recommend(w http.ResponseWriter, r *http.Request)
-	ListProfiles(w http.ResponseWriter, r *http.Request)
-	SaveProfile(w http.ResponseWriter, r *http.Request)
-	DeleteProfile(w http.ResponseWriter, r *http.Request)
-	GetCallContext(w http.ResponseWriter, r *http.Request)
-	PutCallContext(w http.ResponseWriter, r *http.Request)
+type AnalysisContextAPI interface {
+	Get(w http.ResponseWriter, r *http.Request)
+	Save(w http.ResponseWriter, r *http.Request)
 }
 
 type ReportAPI interface {

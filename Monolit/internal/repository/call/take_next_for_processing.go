@@ -28,6 +28,7 @@ func (r *Repository) TakeNextForProcessing(ctx context.Context) (models.Call, er
 	          title,
 	          status,
 	          audio_path,
+	          asr_cache_path,
 	          original_filename,
 	          mime_type,
 	          size_bytes,

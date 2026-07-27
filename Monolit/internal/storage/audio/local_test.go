@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -101,4 +102,52 @@ func TestLocalStorageValidationAndCancellation(t *testing.T) {
 			t.Fatalf("safePath(%q) error = %v", path, err)
 		}
 	}
+}
+
+func TestEnsureASRCacheCreatesReusesAndDeletesCache(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg is not installed")
+	}
+
+	storage := NewLocalStorage(t.TempDir())
+	callID := uuid.New()
+	sourcePath := callID.String() + ".wav"
+	cachePath := "asr/" + callID.String() + ".ogg"
+
+	command := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.1", "-ar", "16000", "-c:a", "pcm_s16le", storage.baseDir+string(filepath.Separator)+sourcePath)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("create WAV fixture: %v: %s", err, output)
+	}
+
+	reused, err := storage.EnsureASRCache(context.Background(), sourcePath, cachePath)
+	if err != nil || reused {
+		t.Fatalf("first EnsureASRCache: reused=%t err=%v", reused, err)
+	}
+	cache, err := storage.Open(context.Background(), cachePath)
+	if err != nil {
+		t.Fatalf("open generated cache: %v", err)
+	}
+	data, _ := io.ReadAll(cache)
+	_ = cache.Close()
+	if len(data) == 0 || string(data[:4]) != "OggS" {
+		t.Fatalf("generated cache is not OGG: %q", data[:min(len(data), 4)])
+	}
+
+	reused, err = storage.EnsureASRCache(context.Background(), sourcePath, cachePath)
+	if err != nil || !reused {
+		t.Fatalf("second EnsureASRCache: reused=%t err=%v", reused, err)
+	}
+	if err = storage.Delete(context.Background(), cachePath); err != nil {
+		t.Fatalf("delete ASR cache: %v", err)
+	}
+	if _, err = storage.Open(context.Background(), cachePath); !errors.Is(err, models.ErrAudioFileNotFound) {
+		t.Fatalf("cache still exists after deletion: %v", err)
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

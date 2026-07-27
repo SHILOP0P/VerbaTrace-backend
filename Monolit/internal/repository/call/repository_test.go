@@ -476,3 +476,34 @@ func (s *RepositorySuite) TestDeleteCallRequiresVisibility() {
 	_, err = s.repository.GetByUUIDForProcessing(s.ctx, call.ID)
 	s.Require().ErrorIs(err, models.ErrCallNotFound)
 }
+
+func (s *RepositorySuite) TestDeleteCallRemovesProcessingJobs() {
+	owner := s.createUser(uuid.NewString() + "@example.com")
+	call := testCall(owner.ID)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	job := models.ProcessingJob{
+		ID:          uuid.New(),
+		Type:        models.ProcessingJobTypeTranscribeCall,
+		EntityUUID:  call.ID,
+		Status:      models.ProcessingJobStatusPending,
+		MaxAttempts: models.DefaultProcessingJobMaxAttempts,
+		AvailableAt: now,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	_, err := s.repository.CreateCallWithProcessingJob(s.ctx, call, job)
+	s.Require().NoError(err)
+
+	var jobsBefore int
+	err = s.db.QueryRowContext(s.ctx, `SELECT COUNT(*) FROM processing_jobs WHERE entity_uuid = $1`, call.ID).Scan(&jobsBefore)
+	s.Require().NoError(err)
+	s.Require().Positive(jobsBefore)
+
+	err = s.repository.DeleteCall(s.ctx, call.ID, owner.ID)
+	s.Require().NoError(err)
+
+	var jobsAfter int
+	err = s.db.QueryRowContext(s.ctx, `SELECT COUNT(*) FROM processing_jobs WHERE entity_uuid = $1`, call.ID).Scan(&jobsAfter)
+	s.Require().NoError(err)
+	s.Zero(jobsAfter)
+}

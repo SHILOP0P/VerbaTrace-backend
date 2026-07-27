@@ -25,14 +25,10 @@ services:
       WORKER_POLL_INTERVAL: ${WORKER_POLL_INTERVAL:-2s}
       WORKER_LIMIT: ${WORKER_LIMIT:-1}
       WORKER_RETRY_DELAY: ${WORKER_RETRY_DELAY:-1m}
-      WORKER_STALE_AFTER: ${WORKER_STALE_AFTER:-10m}
+      WORKER_STALE_AFTER: ${WORKER_STALE_AFTER:-30m}
       WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-5}
       TRANSCRIBER_PROVIDER: ${TRANSCRIBER_PROVIDER:-mock}
-      TRANSCRIBER_API_KEY: ${TRANSCRIBER_API_KEY:-}
-      TRANSCRIBER_MODEL: ${TRANSCRIBER_MODEL:-}
-      TRANSCRIBER_FALLBACK_MODEL: ${TRANSCRIBER_FALLBACK_MODEL:-}
-      TRANSCRIBER_URL: ${TRANSCRIBER_URL:-http://transcriber:8091}
-      DIARIZER_URL: ${DIARIZER_URL:-http://diarizer:8090}
+      ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
       ANALYZER_PROVIDER: ${ANALYZER_PROVIDER:-mock}
       ANALYZER_API_KEY: ${ANALYZER_API_KEY:-}
       ANALYZER_MODEL: ${ANALYZER_MODEL:-mistralai/mistral-nemo}
@@ -55,53 +51,6 @@ services:
       timeout: 5s
       retries: 6
 
-  diarizer:
-    profiles: ["diarization"]
-    build:
-      context: .
-      dockerfile: services/diarizer/Dockerfile
-    container_name: call-diarizer
-    restart: unless-stopped
-    environment:
-      HF_TOKEN: ${HF_TOKEN:-}
-      PYANNOTE_DEVICE: ${PYANNOTE_DEVICE:-cpu}
-      PYANNOTE_MODEL: ${PYANNOTE_MODEL:-pyannote/speaker-diarization-community-1}
-      MODEL_CACHE: /models
-    volumes:
-      - transcription_models:/models
-    ports:
-      - "${TRANSCRIBER_PORT:-8090}:8090"
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8090/health')\""]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 5m
-
-  transcriber:
-    profiles: ["local-transcription"]
-    build:
-      context: .
-      dockerfile: services/transcriber/Dockerfile
-    container_name: call-transcriber
-    restart: unless-stopped
-    environment:
-      HF_TOKEN: ${HF_TOKEN:-}
-      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
-      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
-      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
-      MODEL_CACHE: /models
-    volumes:
-      - asr_models:/models
-    ports:
-      - "${TRANSCRIBER_PORT:-8091}:8091"
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8091/health')\""]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 10m
-
   db:
     image: postgres:16-alpine
     container_name: call-db
@@ -123,5 +72,3 @@ services:
 volumes:
   postgres_call_data:
   call_uploads:
-  transcription_models:
-  asr_models:

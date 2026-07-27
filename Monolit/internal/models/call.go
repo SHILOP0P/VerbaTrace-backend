@@ -12,6 +12,7 @@ type Call struct {
 	Title                  string
 	Status                 CallStatus
 	AudioPath              string
+	ASRCachePath           string
 	OriginalFilename       string
 	MimeType               string
 	SizeBytes              int64
@@ -21,6 +22,7 @@ type Call struct {
 	DepartmentUUID         uuid.NullUUID
 	VisibilityScope        CallVisibilityScope
 	SkipCustomInstructions bool
+	FolderUUID              uuid.NullUUID
 	CreatedAt              time.Time
 }
 
@@ -52,6 +54,7 @@ type CreateCallInput struct {
 	DepartmentUUID         uuid.NullUUID
 	VisibilityScope        CallVisibilityScope
 	SkipCustomInstructions bool
+	FolderUUID              uuid.NullUUID
 }
 
 type UpdateCallStatusInput struct {

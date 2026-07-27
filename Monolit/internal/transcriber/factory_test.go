@@ -8,14 +8,10 @@ import (
 	"calllens/monolit/internal/models"
 )
 
-type testConfig struct{ provider, apiKey, model, fallbackModel, url, diarizerURL string }
+type testConfig struct{ provider, assemblyAIAPIKey string }
 
-func (c testConfig) Provider() string      { return c.provider }
-func (c testConfig) APIKey() string        { return c.apiKey }
-func (c testConfig) Model() string         { return c.model }
-func (c testConfig) FallbackModel() string { return c.fallbackModel }
-func (c testConfig) URL() string           { return c.url }
-func (c testConfig) DiarizerURL() string   { return c.diarizerURL }
+func (c testConfig) Provider() string         { return c.provider }
+func (c testConfig) AssemblyAIAPIKey() string { return c.assemblyAIAPIKey }
 
 func TestNewFromConfigAndMockTranscriber(t *testing.T) {
 	for _, provider := range []string{"", "mock", " MOCK "} {
@@ -35,8 +31,8 @@ func TestNewFromConfigAndMockTranscriber(t *testing.T) {
 	if _, err := NewFromConfig(testConfig{provider: "unknown"}); err == nil {
 		t.Fatal("expected unsupported provider error")
 	}
-	if _, err := NewFromConfig(testConfig{provider: "openrouter"}); err == nil {
-		t.Fatal("expected invalid OpenRouter config error")
+	if _, err := NewFromConfig(testConfig{provider: "assemblyai"}); err == nil {
+		t.Fatal("expected invalid AssemblyAI config error")
 	}
 
 	got, _ := NewFromConfig(testConfig{provider: "mock"})
@@ -45,8 +41,8 @@ func TestNewFromConfigAndMockTranscriber(t *testing.T) {
 	if _, err := got.Transcribe(ctx, models.File{}); err == nil {
 		t.Fatal("expected canceled context error")
 	}
-	hybrid, err := NewFromConfig(testConfig{provider: "hybrid", apiKey: "key", model: "openai/whisper-large-v3", diarizerURL: "http://localhost:8090"})
-	if err != nil || hybrid.Provider() != "openrouter" {
-		t.Fatalf("hybrid provider = %T, %v", hybrid, err)
+	tiered, err := NewFromConfig(testConfig{provider: "assemblyai", assemblyAIAPIKey: "assembly-key"})
+	if err != nil || tiered.Provider() != "assemblyai" {
+		t.Fatalf("tiered provider = %T, %v", tiered, err)
 	}
 }

@@ -13,6 +13,7 @@ type CallFolderResponse struct {
 	CreatedByUserUUID string  `json:"created_by_user_uuid"`
 	CreatedAt         string  `json:"created_at"`
 	UpdatedAt         string  `json:"updated_at"`
+	Instructions      []AnalysisInstruction `json:"instructions"`
 }
 
 type CallFoldersListResponse struct {
@@ -29,12 +30,14 @@ type CreateCallFolderRequest struct {
 	Name           string  `json:"name"`
 	Description    *string `json:"description"`
 	Color          *string `json:"color"`
+	InstructionUUIDs []string `json:"instruction_uuids"`
 }
 
 type UpdateCallFolderRequest struct {
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
 	Color       *string `json:"color"`
+	InstructionUUIDs *[]string `json:"instruction_uuids"`
 }
 
 type AssignCallToFolderRequest struct {

@@ -14,6 +14,13 @@ type AudioStorage interface {
 	Delete(ctx context.Context, path string) error
 }
 
+// ASRCacheStorage is an optional capability of audio storage. It keeps the
+// original media untouched while maintaining a compact, normalized file for
+// speech-to-text providers.
+type ASRCacheStorage interface {
+	EnsureASRCache(ctx context.Context, sourcePath string, cachePath string) (reused bool, err error)
+}
+
 type InstructionStorage interface {
 	Save(ctx context.Context, input models.SaveInstructionInput) (models.SavedInstructionFile, error)
 	Open(ctx context.Context, path string) (io.ReadCloser, error)

@@ -25,6 +25,19 @@ func (s *ServiceSuite) TestDeleteCallSuccess() {
 	s.Require().NoError(err)
 }
 
+func (s *ServiceSuite) TestDeleteCallRemovesASRCache() {
+	callID := uuid.New()
+	userID := uuid.New()
+	call := models.Call{ID: callID, AudioPath: "uploads/call.wav", ASRCachePath: "asr/call.ogg"}
+
+	s.repository.EXPECT().GetByUUID(mock.Anything, callID, userID).Return(call, nil).Once()
+	s.repository.EXPECT().DeleteCall(mock.Anything, callID, userID).Return(nil).Once()
+	s.audioStorage.EXPECT().Delete(mock.Anything, call.AudioPath).Return(nil).Once()
+	s.audioStorage.EXPECT().Delete(mock.Anything, call.ASRCachePath).Return(nil).Once()
+
+	s.Require().NoError(s.service.DeleteCall(s.ctx, callID, userID))
+}
+
 func (s *ServiceSuite) TestDeleteCallReturnsLookupError() {
 	callID := uuid.New()
 	userID := uuid.New()

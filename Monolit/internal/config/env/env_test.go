@@ -33,9 +33,7 @@ func TestConfigsFromEnvironment(t *testing.T) {
 		"POSTGRES_SSL_MODE":      "disable",
 		"MIGRATION_DIRECTORY":    "migrations",
 		"TRANSCRIBER_PROVIDER":   "mock",
-		"TRANSCRIBER_API_KEY":    "transcriber-key",
-		"TRANSCRIBER_MODEL":      "transcriber-model",
-		"TRANSCRIBER_URL":        "http://transcriber.test",
+		"ASSEMBLYAI_API_KEY":     "assemblyai-key",
 		"WORKER_ENABLED":         "false",
 		"WORKER_POLL_INTERVAL":   "3s",
 		"WORKER_LIMIT":           "7",
@@ -74,7 +72,7 @@ func TestConfigsFromEnvironment(t *testing.T) {
 		t.Fatalf("postgres config: %+v err=%v", postgres, err)
 	}
 	transcriber, err := NewTranscriberConfig()
-	if err != nil || transcriber.Provider() != "mock" || transcriber.APIKey() != "transcriber-key" || transcriber.Model() != "transcriber-model" || transcriber.URL() != "http://transcriber.test" {
+	if err != nil || transcriber.Provider() != "mock" || transcriber.AssemblyAIAPIKey() != "assemblyai-key" {
 		t.Fatalf("transcriber config: %+v err=%v", transcriber, err)
 	}
 	worker, err := NewWorkerConfig()

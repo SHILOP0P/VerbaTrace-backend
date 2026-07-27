@@ -50,6 +50,7 @@ type CallFolderService interface {
 	GrantAccess(ctx context.Context, input models.GrantCallFolderAccessInput) (models.CallFolderAccess, error)
 	RevokeAccess(ctx context.Context, input models.RevokeCallFolderAccessInput) error
 	ListAccesses(ctx context.Context, folderID uuid.UUID, userID uuid.UUID) ([]models.CallFolderAccess, error)
+	ReplaceInstructions(ctx context.Context, userID uuid.UUID, folderID uuid.UUID, instructionIDs []uuid.UUID) error
 }
 
 type MonitoringService interface {

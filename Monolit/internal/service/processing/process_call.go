@@ -3,9 +3,11 @@ package processing
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"calllens/monolit/internal/models"
+	"calllens/monolit/internal/storage"
 	"calllens/monolit/internal/transcriber"
 
 	"github.com/google/uuid"
@@ -79,6 +81,7 @@ func (s *Service) processTranscribeCall(ctx context.Context, call models.Call) e
 }
 
 func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models.Call, mode models.TranscriptionMode) error {
+	startedAt := time.Now()
 	if s.transcriber == nil {
 		return models.ErrTranscriberNotConfigured
 	}
@@ -120,11 +123,12 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 	}
 	defer func() { _ = audioFile.Content.Close() }()
 
+	sttStartedAt := time.Now()
 	result, err := s.transcribe(ctx, audioFile, mode)
 	if err != nil {
 		return fmt.Errorf("transcribe audio: %w", err)
 	}
-	if mode != models.TranscriptionModeDiarized {
+	if mode == models.TranscriptionModeStandard {
 		// Start includes only a continuous transcript. Keep this guard even if a
 		// provider returns timestamps unexpectedly, so the API never exposes them.
 		result.Segments = nil
@@ -142,7 +146,7 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 		return fmt.Errorf("enqueue analysis job: %w", err)
 	}
 
-	s.log.Info(ctx, "call transcribed", zap.String("call_id", call.ID.String()), zap.String("provider", s.providerForMode(mode)), zap.String("transcription_mode", string(mode)))
+	s.log.Info(ctx, "call transcribed", zap.String("call_id", call.ID.String()), zap.String("provider", s.providerForMode(mode)), zap.String("transcription_mode", string(mode)), zap.Duration("stt_duration", time.Since(sttStartedAt)), zap.Duration("transcription_end_to_end_duration", time.Since(startedAt)))
 
 	return nil
 }
@@ -222,6 +226,21 @@ func (s *Service) providerForMode(mode models.TranscriptionMode) string {
 }
 
 func (s *Service) openAudio(ctx context.Context, call models.Call) (models.File, error) {
+	if cachePath := strings.TrimSpace(call.ASRCachePath); cachePath != "" {
+		if cacheStorage, ok := s.audioStorage.(storage.ASRCacheStorage); ok {
+			startedAt := time.Now()
+			reused, err := cacheStorage.EnsureASRCache(ctx, call.AudioPath, cachePath)
+			if err != nil {
+				s.log.Warn(ctx, "ASR cache unavailable; using original media", zap.String("call_id", call.ID.String()), zap.String("asr_cache_path", cachePath), zap.Duration("asr_prepare_duration", time.Since(startedAt)), zap.Error(err))
+			} else if content, openErr := s.audioStorage.Open(ctx, cachePath); openErr == nil {
+				s.log.Info(ctx, "ASR cache ready", zap.String("call_id", call.ID.String()), zap.String("asr_cache_path", cachePath), zap.Bool("asr_cache_reused", reused), zap.Duration("asr_prepare_duration", time.Since(startedAt)))
+				return models.File{Content: content, Path: cachePath, OriginalFilename: "asr.ogg", MimeType: "audio/ogg"}, nil
+			} else {
+				s.log.Warn(ctx, "ASR cache cannot be opened; using original media", zap.String("call_id", call.ID.String()), zap.String("asr_cache_path", cachePath), zap.Error(openErr))
+			}
+		}
+	}
+
 	content, err := s.audioStorage.Open(ctx, call.AudioPath)
 	if err != nil {
 		return models.File{}, err

@@ -44,11 +44,7 @@ type WorkerConfig interface {
 
 type TranscriberConfig interface {
 	Provider() string
-	APIKey() string
-	Model() string
-	FallbackModel() string
-	URL() string
-	DiarizerURL() string
+	AssemblyAIAPIKey() string
 }
 
 type AnalyzerConfig interface {

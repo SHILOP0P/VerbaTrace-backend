@@ -34,12 +34,6 @@ func (s *Service) AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput
 	if transcription.Status != models.TranscriptionStatusTranscribed || transcription.Text == nil {
 		return models.CallAnalysis{}, models.ErrInvalidAnalysisStatus
 	}
-	if s.promptTopicReader != nil {
-		if err = s.promptTopicReader.Snapshot(ctx, call.ID, input.UserUUID); err != nil {
-			return models.CallAnalysis{}, fmt.Errorf("snapshot prompt context: %w", err)
-		}
-	}
-
 	analysis, err := s.createPendingAnalysis(ctx, call.ID)
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("create analysis: %w", err)
@@ -140,11 +134,11 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		return models.CallAnalysis{}, fmt.Errorf("load instructions: %w", err)
 	}
 
-	var promptTopics []models.PromptTopic
-	if s.promptTopicReader != nil {
-		promptTopics, err = s.promptTopicReader.Modules(ctx, call.ID, userID)
+	var personalization []string
+	if s.personalizationReader != nil {
+		personalization, err = s.personalizationReader.ContextForCall(ctx, call)
 		if err != nil {
-			return models.CallAnalysis{}, fmt.Errorf("load prompt topics: %w", err)
+			return models.CallAnalysis{}, fmt.Errorf("load analysis personalization: %w", err)
 		}
 	}
 
@@ -158,11 +152,12 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		return models.CallAnalysis{}, fmt.Errorf("mark analysis processing: %w", err)
 	}
 
+	analysisStartedAt := time.Now()
 	result, err := s.analyzer.Analyze(ctx, models.AnalysisRequest{
-		CallUUID:      call.ID,
-		Transcription: *transcription.Text,
-		Instructions:  instructions,
-		PromptTopics:  promptTopics,
+		CallUUID:        call.ID,
+		Transcription:   *transcription.Text,
+		Instructions:    instructions,
+		Personalization: personalization,
 	})
 	if err != nil {
 		if opts.markAttemptFailed {
@@ -198,7 +193,7 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		return models.CallAnalysis{}, fmt.Errorf("mark call analyzed: %w", err)
 	}
 
-	s.log.Info(ctx, "call analyzed", zap.String("call_id", call.ID.String()), zap.String("provider", s.analyzer.Provider()))
+	s.log.Info(ctx, "call analyzed", zap.String("call_id", call.ID.String()), zap.String("provider", s.analyzer.Provider()), zap.Duration("analysis_duration", time.Since(analysisStartedAt)))
 
 	return analysis, nil
 }
@@ -305,14 +300,16 @@ func (s *Service) loadInstructions(ctx context.Context, call models.Call, userID
 }
 
 func (s *Service) selectInstructions(ctx context.Context, call models.Call, userID uuid.UUID) ([]models.AnalysisInstruction, error) {
+	var selected []models.AnalysisInstruction
+	var err error
 	switch call.VisibilityScope {
 	case models.CallVisibilityScopePersonal:
-		return s.instructionRepository.List(ctx, models.ListAnalysisInstructionsInput{
+		selected, err = s.instructionRepository.List(ctx, models.ListAnalysisInstructionsInput{
 			Scope:    models.AnalysisInstructionScopePersonal,
 			UserUUID: userID,
 		})
 	case models.CallVisibilityScopeCompany:
-		return s.instructionRepository.List(ctx, models.ListAnalysisInstructionsInput{
+		selected, err = s.instructionRepository.List(ctx, models.ListAnalysisInstructionsInput{
 			Scope:       models.AnalysisInstructionScopeCompany,
 			CompanyUUID: call.CompanyUUID,
 		})
@@ -334,10 +331,30 @@ func (s *Service) selectInstructions(ctx context.Context, call models.Call, user
 			return nil, err
 		}
 
-		return append(companyInstructions, departmentInstructions...), nil
+		selected = append(companyInstructions, departmentInstructions...)
 	default:
 		return nil, models.ErrInvalidAnalysisInput
 	}
+	if err != nil {
+		return nil, err
+	}
+	if s.folderInstructionReader == nil {
+		return selected, nil
+	}
+	folderInstructions, err := s.folderInstructionReader.ListInstructionsForCall(ctx, call.ID)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[uuid.UUID]struct{}, len(selected)+len(folderInstructions))
+	result := make([]models.AnalysisInstruction, 0, len(selected)+len(folderInstructions))
+	for _, instruction := range append(selected, folderInstructions...) {
+		if _, exists := seen[instruction.ID]; exists {
+			continue
+		}
+		seen[instruction.ID] = struct{}{}
+		result = append(result, instruction)
+	}
+	return result, nil
 }
 
 func (s *Service) readInstructionContent(ctx context.Context, instruction models.AnalysisInstruction) (models.AnalysisInstructionContent, error) {
@@ -372,6 +389,13 @@ func normalizeAnalysisResult(result models.AnalysisResult) (models.AnalysisResul
 	resultText := ""
 	if result.ResultText != nil {
 		resultText = strings.TrimSpace(*result.ResultText)
+	}
+	// Some providers occasionally return a complete JSON document as the
+	// summary field of an outer JSON object. Unwrap it here so clients never
+	// receive raw JSON instead of a readable analysis.
+	payload = unwrapNestedAnalysisPayload(payload, resultText)
+	if looksLikeStructuredAnalysisText(stringField(payload, "summary")) {
+		return models.AnalysisResult{}, errors.New("analysis summary contains invalid nested structured JSON")
 	}
 
 	summary := stringField(payload, "summary")
@@ -438,10 +462,8 @@ func normalizeAnalysisResult(result models.AnalysisResult) (models.AnalysisResul
 	normalizePayloadRussianText(payload)
 	summary = stringField(payload, "summary")
 
-	if resultText == "" || isKnownEnglishAnalysisFallback(resultText) {
-		resultText = summary
-		result.ResultText = &resultText
-	}
+	resultText = summary
+	result.ResultText = &resultText
 
 	resultJSON, err := json.Marshal(payload)
 	if err != nil {
@@ -517,12 +539,15 @@ func normalizeCriterionResult(item map[string]any) map[string]any {
 			out["title"] = code
 		}
 	}
+	if stringField(out, "topic") == "" {
+		out["topic"] = stringField(out, "title")
+	}
 
 	status := stringField(out, "status")
 	if status == "" && stringField(out, "result") != "" {
 		status = "unclear"
 	}
-	status = normalizeCriterionStatus(status)
+	status = normalizeCriterionStatus(status, !known)
 	out["status"] = status
 
 	pointsMax := float64(0)
@@ -558,15 +583,65 @@ func normalizeCriterionResult(item map[string]any) map[string]any {
 
 	ensureArrayField(out, "evidence_quotes")
 	normalizeCriterionExplanation(out, status)
+	quotes, _ := out["evidence_quotes"].([]any)
+	if stringField(out, "quote") == "" && len(quotes) > 0 {
+		if quote, ok := quotes[0].(string); ok {
+			out["quote"] = strings.TrimSpace(quote)
+		}
+	}
+	if stringField(out, "quote") == "" {
+		out["quote"] = "Не указано"
+	}
+	out["explanation"] = stringField(out, "issue")
+	if pointsMax > 0 {
+		out["score"] = math.Round(pointsAwarded / pointsMax * 100)
+	} else {
+		out["score"] = float64(0)
+	}
 	return out
 }
 
-func normalizeCriterionStatus(status string) string {
+func unwrapNestedAnalysisPayload(payload map[string]any, resultText string) map[string]any {
+	candidates := []string{stringField(payload, "summary"), resultText}
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if !strings.HasPrefix(candidate, "{") {
+			continue
+		}
+		var nested map[string]any
+		if err := json.Unmarshal([]byte(candidate), &nested); err != nil {
+			continue
+		}
+		if _, hasCriteria := nested["criteria_results"]; hasCriteria {
+			return nested
+		}
+		if _, hasSchema := nested["schema_version"]; hasSchema {
+			return nested
+		}
+	}
+	return payload
+}
+
+func looksLikeStructuredAnalysisText(value string) bool {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, "{") {
+		return false
+	}
+	return strings.Contains(value, `"schema_version"`) ||
+		strings.Contains(value, `"criteria_results"`) ||
+		strings.Contains(value, `"summary"`)
+}
+
+func normalizeCriterionStatus(status string, preserveUnknown bool) string {
+	status = strings.TrimSpace(status)
 	switch status {
 	case "met", "partially_met", "missed", "not_applicable", "unclear":
 		return status
 	default:
-		return "unclear"
+		if status == "" || !preserveUnknown {
+			return "unclear"
+		}
+		return status
 	}
 }
 

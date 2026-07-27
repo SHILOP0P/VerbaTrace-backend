@@ -7,6 +7,7 @@ type CreateCallRequest struct {
 	Media                  *multipart.FileHeader
 	CompanyUUID            string
 	DepartmentUUID         string
+	FolderUUID             string
 	SkipCustomInstructions bool
 }
 

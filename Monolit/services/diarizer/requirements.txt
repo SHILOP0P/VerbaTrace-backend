@@ -1,4 +1,0 @@
-fastapi==0.116.1
-pyannote.audio==4.0.7
-python-multipart==0.0.20
-uvicorn[standard]==0.35.0

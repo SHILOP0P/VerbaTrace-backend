@@ -11,6 +11,7 @@ type Call struct {
 	Title                  string
 	Status                 string
 	AudioPath              string
+	ASRCachePath           string
 	OriginalFilename       string
 	MimeType               string
 	SizeBytes              int64

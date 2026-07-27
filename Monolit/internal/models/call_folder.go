@@ -28,6 +28,7 @@ type CallFolder struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         *time.Time
+	Instructions      []AnalysisInstruction
 }
 
 type CreateCallFolderInput struct {
@@ -38,6 +39,7 @@ type CreateCallFolderInput struct {
 	Name           string
 	Description    *string
 	Color          *string
+	InstructionIDs []uuid.UUID
 }
 
 type UpdateCallFolderInput struct {
@@ -46,6 +48,7 @@ type UpdateCallFolderInput struct {
 	Name        *string
 	Description *string
 	Color       *string
+	InstructionIDs *[]uuid.UUID
 }
 
 type ListCallFoldersInput struct {

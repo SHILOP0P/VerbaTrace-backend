@@ -25,6 +25,7 @@ func (r *Repository) CreateCall(ctx context.Context, call model.Call) (model.Cal
 		title,
 		status,
 		audio_path,
+		asr_cache_path,
 		original_filename,
 		mime_type,
 		size_bytes,
@@ -36,11 +37,12 @@ func (r *Repository) CreateCall(ctx context.Context, call model.Call) (model.Cal
 		skip_custom_instructions,
 		created_at
 	)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	RETURNING call_uuid,
 	          title,
 	          status,
 	          audio_path,
+	          asr_cache_path,
 	          original_filename,
 	          mime_type,
 	          size_bytes,
@@ -58,6 +60,7 @@ func (r *Repository) CreateCall(ctx context.Context, call model.Call) (model.Cal
 		repoCall.Title,
 		repoCall.Status,
 		repoCall.AudioPath,
+		repoCall.ASRCachePath,
 		repoCall.OriginalFilename,
 		repoCall.MimeType,
 		repoCall.SizeBytes,
@@ -104,6 +107,7 @@ func (r *Repository) CreateCallWithProcessingJob(ctx context.Context, call model
 		title,
 		status,
 		audio_path,
+		asr_cache_path,
 		original_filename,
 		mime_type,
 		size_bytes,
@@ -115,11 +119,12 @@ func (r *Repository) CreateCallWithProcessingJob(ctx context.Context, call model
 		skip_custom_instructions,
 		created_at
 	)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	RETURNING call_uuid,
 	          title,
 	          status,
 	          audio_path,
+	          asr_cache_path,
 	          original_filename,
 	          mime_type,
 	          size_bytes,
@@ -137,6 +142,7 @@ func (r *Repository) CreateCallWithProcessingJob(ctx context.Context, call model
 		repoCall.Title,
 		repoCall.Status,
 		repoCall.AudioPath,
+		repoCall.ASRCachePath,
 		repoCall.OriginalFilename,
 		repoCall.MimeType,
 		repoCall.SizeBytes,
@@ -190,6 +196,14 @@ func (r *Repository) CreateCallWithProcessingJob(ctx context.Context, call model
 	)
 	if err != nil {
 		return model.Call{}, fmt.Errorf("create call with processing job: create job: %w", err)
+	}
+	if call.FolderUUID.Valid {
+		if _, err = tx.ExecContext(ctx, `
+			INSERT INTO call_folder_assignments(folder_uuid,call_uuid,assigned_by_user_uuid)
+			VALUES($1,$2,$3)
+		`, call.FolderUUID.UUID, call.ID, call.UploadedByUserUUID.UUID); err != nil {
+			return model.Call{}, fmt.Errorf("create call with processing job: assign folder: %w", err)
+		}
 	}
 
 	if err = tx.Commit(); err != nil {

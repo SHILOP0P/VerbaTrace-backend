@@ -8,6 +8,13 @@ import (
 )
 
 func CallFolderModelToAPI(folder models.CallFolder) dto.CallFolderResponse {
+	instructions := make([]dto.AnalysisInstruction, 0, len(folder.Instructions))
+	for _, instruction := range folder.Instructions {
+		item, err := AnalysisInstructionModelToAPI(instruction)
+		if err == nil {
+			instructions = append(instructions, item)
+		}
+	}
 	return dto.CallFolderResponse{
 		ID:                folder.ID.String(),
 		Scope:             string(folder.Scope),
@@ -21,6 +28,7 @@ func CallFolderModelToAPI(folder models.CallFolder) dto.CallFolderResponse {
 		CreatedByUserUUID: folder.CreatedByUserUUID.String(),
 		CreatedAt:         folder.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         folder.UpdatedAt.Format(time.RFC3339),
+		Instructions:      instructions,
 	}
 }
 

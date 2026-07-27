@@ -14,10 +14,10 @@ func TestTranscriptionModeForPlan(t *testing.T) {
 	}{
 		{models.PlanCodePersonalStart, models.PlanTypePersonal, models.TranscriptionModeStandard},
 		{models.PlanCodePersonalPlus, models.PlanTypePersonal, models.TranscriptionModeDiarized},
-		{models.PlanCodePersonalPro, models.PlanTypePersonal, models.TranscriptionModeDiarized},
+		{models.PlanCodePersonalPro, models.PlanTypePersonal, models.TranscriptionModeIdentified},
 		{models.PlanCodeBusinessStart, models.PlanTypeBusiness, models.TranscriptionModeDiarized},
-		{models.PlanCodeBusinessPlus, models.PlanTypeBusiness, models.TranscriptionModeDiarized},
-		{models.PlanCodeBusinessPro, models.PlanTypeBusiness, models.TranscriptionModeDiarized},
+		{models.PlanCodeBusinessPlus, models.PlanTypeBusiness, models.TranscriptionModeIdentified},
+		{models.PlanCodeBusinessPro, models.PlanTypeBusiness, models.TranscriptionModeIdentified},
 	}
 	for _, test := range tests {
 		if got := transcriptionModeForPlan(models.Plan{Code: test.code, Type: test.kind}); got != test.want {

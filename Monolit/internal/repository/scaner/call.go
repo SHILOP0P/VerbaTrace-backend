@@ -16,6 +16,7 @@ func ScanCall(row rowScanner) (repoModel.Call, error) {
 		&call.Title,
 		&call.Status,
 		&call.AudioPath,
+		&call.ASRCachePath,
 		&call.OriginalFilename,
 		&call.MimeType,
 		&call.SizeBytes,

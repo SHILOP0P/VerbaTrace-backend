@@ -15,11 +15,17 @@ import (
 
 const (
 	defaultPollInterval = 2 * time.Second
+	// Keep database claiming independent from the potentially long-running
+	// transcription context. A stalled database connection must not silently
+	// stop the worker from seeing every subsequently uploaded call.
+	takeNextTimeout = 10 * time.Second
 	// Analyze requests are sent to an external LLM provider. A conservative
 	// default prevents a batch upload from creating a rate-limit burst.
 	defaultWorkerLimit = 1
 	defaultRetryDelay  = 1 * time.Minute
-	defaultStaleAfter  = 10 * time.Minute
+	// A long cloud transcription can take several minutes. Leave a margin so
+	// another worker never reclaims the same healthy job midway.
+	defaultStaleAfter = 30 * time.Minute
 )
 
 type Worker struct {
@@ -117,7 +123,9 @@ func (w *Worker) runBatch(ctx context.Context) error {
 	claimed := 0
 
 	for {
-		job, err := w.service.processingJobRepository.TakeNext(groupCtx, w.workerID, w.staleAfter)
+		takeCtx, cancelTake := context.WithTimeout(groupCtx, takeNextTimeout)
+		job, err := w.service.processingJobRepository.TakeNext(takeCtx, w.workerID, w.staleAfter)
+		cancelTake()
 		if err != nil {
 			if errors.Is(err, models.ErrNoProcessingJobs) {
 				break
