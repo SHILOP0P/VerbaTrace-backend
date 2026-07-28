@@ -57,6 +57,16 @@ type MonitoringService interface {
 	GetProcessing(ctx context.Context, input models.ProcessingMonitoringInput) (models.ProcessingMonitoring, error)
 }
 
+type ContactService interface {
+	SearchContacts(ctx context.Context, userID uuid.UUID, value string) ([]models.User, error)
+	AddContact(ctx context.Context, input models.AddContactInput) error
+	RemoveContact(ctx context.Context, input models.AddContactInput) error
+	ListContacts(ctx context.Context, userID uuid.UUID) (models.ContactList, error)
+	AddFavoriteCall(ctx context.Context, input models.FavoriteCallInput) error
+	RemoveFavoriteCall(ctx context.Context, input models.FavoriteCallInput) error
+	ListFavoriteCalls(ctx context.Context, userID uuid.UUID) (models.FavoriteCallList, error)
+}
+
 type SearchService interface {
 	Search(ctx context.Context, input models.SearchInput) (models.SearchResult, error)
 }

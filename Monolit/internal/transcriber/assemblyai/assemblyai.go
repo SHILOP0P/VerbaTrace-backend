@@ -45,12 +45,13 @@ type speechUnderstanding struct {
 }
 
 type speakerIdentification struct {
-	SpeakerType string        `json:"speaker_type"`
-	Speakers    []speakerRole `json:"speakers"`
+	SpeakerType string            `json:"speaker_type"`
+	Speakers    []speakerIdentity `json:"speakers"`
 }
 
-type speakerRole struct {
-	Role        string `json:"role"`
+type speakerIdentity struct {
+	Name        string `json:"name,omitempty"`
+	Role        string `json:"role,omitempty"`
 	Description string `json:"description"`
 }
 
@@ -100,7 +101,7 @@ func (t *Transcriber) Transcribe(ctx context.Context, file models.File) (models.
 	if err != nil {
 		return models.TranscriptionResult{}, err
 	}
-	transcriptID, err := t.createTranscript(ctx, uploadURL)
+	transcriptID, err := t.createTranscript(ctx, uploadURL, file.SpeakerCandidates)
 	if err != nil {
 		return models.TranscriptionResult{}, err
 	}
@@ -138,15 +139,15 @@ func (t *Transcriber) upload(ctx context.Context, content io.Reader) (string, er
 	return body.UploadURL, nil
 }
 
-func (t *Transcriber) createTranscript(ctx context.Context, audioURL string) (string, error) {
+func (t *Transcriber) createTranscript(ctx context.Context, audioURL string, candidates []models.SpeakerCandidate) (string, error) {
 	payload := transcriptRequest{
 		AudioURL:          audioURL,
 		SpeechModels:      []string{"universal-2"},
 		LanguageDetection: true,
 		SpeakerLabels:     t.speakerLabels,
 	}
-	if t.identifyRoles {
-		payload.SpeechUnderstanding = roleIdentificationRequest()
+	if t.identifyRoles && len(candidates) > 0 {
+		payload.SpeechUnderstanding = speakerIdentificationRequest(candidates)
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -176,14 +177,38 @@ func (t *Transcriber) createTranscript(ctx context.Context, audioURL string) (st
 	return result.ID, nil
 }
 
-func roleIdentificationRequest() *speechUnderstanding {
+func speakerIdentificationRequest(candidates []models.SpeakerCandidate) *speechUnderstanding {
 	request := &speechUnderstanding{}
+	allRoles := true
+	for _, candidate := range candidates {
+		if candidate.Kind != "role" {
+			allRoles = false
+			break
+		}
+	}
+	speakerType := "name"
+	if allRoles {
+		speakerType = "role"
+	}
+	speakers := make([]speakerIdentity, 0, len(candidates))
+	for _, candidate := range candidates {
+		identity := speakerIdentity{Description: strings.TrimSpace(candidate.Description)}
+		if speakerType == "role" {
+			identity.Role = strings.TrimSpace(candidate.Label)
+		} else {
+			identity.Name = strings.TrimSpace(candidate.Label)
+			if candidate.Kind == "role" {
+				if identity.Description != "" {
+					identity.Description += ". "
+				}
+				identity.Description += "Это роль участника, а не имя человека"
+			}
+		}
+		speakers = append(speakers, identity)
+	}
 	request.Request.SpeakerIdentification = speakerIdentification{
-		SpeakerType: "role",
-		Speakers: []speakerRole{
-			{Role: "Менеджер", Description: "Представляет компанию, консультирует и задаёт квалификационные вопросы."},
-			{Role: "Клиент", Description: "Обращается с потребностью, отвечает на вопросы и обсуждает продукт или услугу."},
-		},
+		SpeakerType: speakerType,
+		Speakers:    speakers,
 	}
 	return request
 }

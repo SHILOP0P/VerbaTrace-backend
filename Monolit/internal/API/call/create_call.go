@@ -2,6 +2,7 @@ package call
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -16,6 +17,19 @@ import (
 
 	"github.com/google/uuid"
 )
+
+type speakerHintRequest struct {
+	UserID   string `json:"userId"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	Note     string `json:"note"`
+}
+
+type diarizationRoleRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
 
 func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 	const maxUploadSize = 500 << 20 // Temporary local-test limit: 500 MiB.
@@ -75,6 +89,16 @@ func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallFolderInput, "invalid folder uuid")
 		return
 	}
+	speakerHints, err := parseSpeakerHints(r.FormValue("speaker_hints"))
+	if err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidRequestBody, "invalid speaker hints")
+		return
+	}
+	diarizationRoles, err := parseDiarizationRoles(r.FormValue("diarization_roles"), speakerHints)
+	if err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidRequestBody, "invalid diarization roles")
+		return
+	}
 
 	ext := filepath.Ext(fileHeader.Filename)
 	if ext == "" {
@@ -98,6 +122,8 @@ func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 		VisibilityScope:        visibilityScope,
 		SkipCustomInstructions: req.SkipCustomInstructions,
 		FolderUUID:             folderUUID,
+		SpeakerHints:           speakerHints,
+		DiarizationRoles:       diarizationRoles,
 	}
 
 	createdCall, err := h.service.CreateCall(r.Context(), input)
@@ -137,6 +163,8 @@ func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	createdCall.SpeakerHints = speakerHints
+	createdCall.DiarizationRoles = diarizationRoles
 
 	resp, err := converter.CallModelToAPI(createdCall)
 	if err != nil {
@@ -147,6 +175,65 @@ func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := response.WriteJSON(w, http.StatusCreated, resp); err != nil {
 		return
 	}
+}
+
+func parseDiarizationRoles(value string, hints []model.SpeakerHint) ([]model.DiarizationRole, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	var requests []diarizationRoleRequest
+	if err := json.Unmarshal([]byte(value), &requests); err != nil || len(requests) > 10 || len(requests)+len(hints) > 10 {
+		return nil, model.ErrInvalidCallPlacement
+	}
+	labels := make(map[string]struct{}, len(hints)+len(requests))
+	for _, hint := range hints {
+		labels[strings.ToLower(strings.TrimSpace(hint.Name))] = struct{}{}
+	}
+	result := make([]model.DiarizationRole, 0, len(requests))
+	for _, item := range requests {
+		name := strings.TrimSpace(item.Name)
+		description := strings.TrimSpace(item.Description)
+		key := strings.ToLower(name)
+		if name == "" || len([]rune(name)) > 80 || len([]rune(description)) > 300 {
+			return nil, model.ErrInvalidCallPlacement
+		}
+		if _, exists := labels[key]; exists {
+			return nil, model.ErrInvalidCallPlacement
+		}
+		labels[key] = struct{}{}
+		result = append(result, model.DiarizationRole{Name: name, Description: description})
+	}
+	return result, nil
+}
+
+func parseSpeakerHints(value string) ([]model.SpeakerHint, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	var requests []speakerHintRequest
+	if err := json.Unmarshal([]byte(value), &requests); err != nil || len(requests) > 10 {
+		return nil, model.ErrInvalidCallPlacement
+	}
+	result := make([]model.SpeakerHint, 0, len(requests))
+	seen := make(map[uuid.UUID]struct{}, len(requests))
+	for _, item := range requests {
+		id, err := uuid.Parse(strings.TrimSpace(item.UserID))
+		if err != nil || strings.TrimSpace(item.Name) == "" || len([]rune(item.Name)) > 120 || len([]rune(item.Note)) > 160 {
+			return nil, model.ErrInvalidCallPlacement
+		}
+		if _, ok := seen[id]; ok {
+			return nil, model.ErrInvalidCallPlacement
+		}
+		seen[id] = struct{}{}
+		role := strings.TrimSpace(item.Role)
+		if role != "self" && role != "manager" && role != "client" && role != "other" {
+			return nil, model.ErrInvalidCallPlacement
+		}
+		result = append(result, model.SpeakerHint{UserID: id, Name: strings.TrimSpace(item.Name), Username: strings.TrimSpace(item.Username), Role: role, Note: strings.TrimSpace(item.Note)})
+	}
+	return result, nil
 }
 
 func titleFromFilename(filename string) string {

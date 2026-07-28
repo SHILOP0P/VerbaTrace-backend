@@ -22,7 +22,9 @@ type Call struct {
 	DepartmentUUID         uuid.NullUUID
 	VisibilityScope        CallVisibilityScope
 	SkipCustomInstructions bool
-	FolderUUID              uuid.NullUUID
+	FolderUUID             uuid.NullUUID
+	SpeakerHints           []SpeakerHint
+	DiarizationRoles       []DiarizationRole
 	CreatedAt              time.Time
 }
 
@@ -54,7 +56,22 @@ type CreateCallInput struct {
 	DepartmentUUID         uuid.NullUUID
 	VisibilityScope        CallVisibilityScope
 	SkipCustomInstructions bool
-	FolderUUID              uuid.NullUUID
+	FolderUUID             uuid.NullUUID
+	SpeakerHints           []SpeakerHint
+	DiarizationRoles       []DiarizationRole
+}
+
+type SpeakerHint struct {
+	UserID   uuid.UUID
+	Name     string
+	Username string
+	Role     string
+	Note     string
+}
+
+type DiarizationRole struct {
+	Name        string
+	Description string
 }
 
 type UpdateCallStatusInput struct {

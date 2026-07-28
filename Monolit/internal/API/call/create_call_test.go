@@ -52,6 +52,26 @@ func (s *APISuite) TestCreateCallSuccess() {
 	s.Require().Equal(http.StatusCreated, rec.Code)
 }
 
+func (s *APISuite) TestCreateCallAcceptsPeopleAndArbitraryRoles() {
+	userID := uuid.New()
+	contactID := uuid.New()
+	body, contentType := multipartBody(s.T(), map[string]string{
+		"title":             "Interview",
+		"speaker_hints":     `[{"userId":"` + contactID.String() + `","name":"Анна Иванова","username":"anna","role":"other","note":"Кандидат на Go-разработчика"}]`,
+		"diarization_roles": `[{"name":"Технический интервьюер","description":"Задаёт вопросы по Go"},{"name":"HR","description":"Обсуждает условия работы"}]`,
+	}, "audio", "call.wav", []byte("RIFF----WAVEfmt "))
+
+	s.service.On("CreateCall", mock.Anything, mock.MatchedBy(func(input models.CreateCallInput) bool {
+		return len(input.SpeakerHints) == 1 && input.SpeakerHints[0].Name == "Анна Иванова" &&
+			len(input.DiarizationRoles) == 2 && input.DiarizationRoles[0].Name == "Технический интервьюер" && input.DiarizationRoles[1].Name == "HR"
+	})).Return(models.Call{ID: uuid.New(), Title: "Interview", Status: models.CallStatusNew, OriginalFilename: "call.wav", MimeType: "audio/wave", UploadedByUserUUID: uuid.NullUUID{UUID: userID, Valid: true}, VisibilityScope: models.CallVisibilityScopePersonal, CreatedAt: time.Now().UTC()}, nil).Once()
+
+	rec, req := s.request(http.MethodPost, "/api/v1/calls", body.String(), userID, nil)
+	req.Header.Set("Content-Type", contentType)
+	s.api.Create(rec, req)
+	s.Require().Equal(http.StatusCreated, rec.Code)
+}
+
 func (s *APISuite) TestCreateVideoCallUsingMediaField() {
 	userID := uuid.New()
 	callID := uuid.New()

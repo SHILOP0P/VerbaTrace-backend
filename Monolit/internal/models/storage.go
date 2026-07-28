@@ -27,11 +27,18 @@ type SavedFile struct {
 	SizeBytes        int64
 }
 
+type SpeakerCandidate struct {
+	Label       string
+	Description string
+	Kind        string
+}
+
 type File struct {
-	Content          io.ReadCloser
-	ReadSeeker       io.ReadSeeker
-	Path             string
-	OriginalFilename string
-	MimeType         string
-	SizeBytes        int64
+	Content           io.ReadCloser
+	ReadSeeker        io.ReadSeeker
+	Path              string
+	OriginalFilename  string
+	MimeType          string
+	SizeBytes         int64
+	SpeakerCandidates []SpeakerCandidate
 }

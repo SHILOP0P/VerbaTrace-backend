@@ -51,8 +51,32 @@ func CallModelToAPI(call models.Call) (dto.CallResponse, error) {
 		DepartmentUUID:        nullUUIDToStringPtr(call.DepartmentUUID),
 		VisibilityScope:       string(call.VisibilityScope),
 		UseCustomInstructions: !call.SkipCustomInstructions,
+		SpeakerHints:          speakerHintsToAPI(call.SpeakerHints),
+		DiarizationRoles:      diarizationRolesToAPI(call.DiarizationRoles),
 		CreatedAt:             call.CreatedAt.Format(time.RFC3339),
 	}, nil
+}
+
+func diarizationRolesToAPI(roles []models.DiarizationRole) []dto.DiarizationRoleResponse {
+	if len(roles) == 0 {
+		return nil
+	}
+	result := make([]dto.DiarizationRoleResponse, 0, len(roles))
+	for _, role := range roles {
+		result = append(result, dto.DiarizationRoleResponse{Name: role.Name, Description: role.Description})
+	}
+	return result
+}
+
+func speakerHintsToAPI(hints []models.SpeakerHint) []dto.SpeakerHintResponse {
+	if len(hints) == 0 {
+		return nil
+	}
+	result := make([]dto.SpeakerHintResponse, 0, len(hints))
+	for _, hint := range hints {
+		result = append(result, dto.SpeakerHintResponse{UserID: hint.UserID.String(), Name: hint.Name, Username: hint.Username, Role: hint.Role, Note: hint.Note})
+	}
+	return result
 }
 
 func nullUUIDToStringPtr(id uuid.NullUUID) *string {
@@ -83,6 +107,8 @@ func SavedFileToModel(savedFile models.SavedFile, callUUID uuid.UUID, input mode
 		DepartmentUUID:         input.DepartmentUUID,
 		VisibilityScope:        input.VisibilityScope,
 		SkipCustomInstructions: input.SkipCustomInstructions,
+		SpeakerHints:           input.SpeakerHints,
+		DiarizationRoles:       input.DiarizationRoles,
 		CreatedAt:              now,
 	}, nil
 }

@@ -93,6 +93,8 @@ const (
 	CodeFailedToRemoveCallFolder         = "failed_to_remove_call_folder"
 	CodeFailedToManageCallFolderAccess   = "failed_to_manage_call_folder_access"
 	CodeFailedToGetProcessingMonitoring  = "failed_to_get_processing_monitoring"
+	CodeInvalidContactInput              = "invalid_contact_input"
+	CodeFailedToManageContacts           = "failed_to_manage_contacts"
 	CodeInvalidSearchInput               = "invalid_search_input"
 	CodeFailedToSearch                   = "failed_to_search"
 	CodeFailedToProcessCall              = "failed_to_process_call"

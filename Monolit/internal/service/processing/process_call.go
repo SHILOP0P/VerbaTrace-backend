@@ -100,12 +100,16 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 	}
 
 	if call.Status == models.CallStatusNew {
+		speakerHints := call.SpeakerHints
+		diarizationRoles := call.DiarizationRoles
 		updatedCall, err := s.callRepository.UpdateCallStatus(ctx, call.ID, models.CallStatusProcessing)
 		if err != nil {
 			return fmt.Errorf("mark call processing: %w", err)
 		}
 
 		call = updatedCall
+		call.SpeakerHints = speakerHints
+		call.DiarizationRoles = diarizationRoles
 	}
 
 	if call.Status != models.CallStatusProcessing {
@@ -121,6 +125,7 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 	if err != nil {
 		return fmt.Errorf("open audio: %w", err)
 	}
+	audioFile.SpeakerCandidates = speakerCandidates(call)
 	defer func() { _ = audioFile.Content.Close() }()
 
 	sttStartedAt := time.Now()
@@ -149,6 +154,32 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 	s.log.Info(ctx, "call transcribed", zap.String("call_id", call.ID.String()), zap.String("provider", s.providerForMode(mode)), zap.String("transcription_mode", string(mode)), zap.Duration("stt_duration", time.Since(sttStartedAt)), zap.Duration("transcription_end_to_end_duration", time.Since(startedAt)))
 
 	return nil
+}
+
+func speakerCandidates(call models.Call) []models.SpeakerCandidate {
+	candidates := make([]models.SpeakerCandidate, 0, len(call.SpeakerHints)+len(call.DiarizationRoles))
+	for _, hint := range call.SpeakerHints {
+		label := strings.TrimSpace(hint.Name)
+		if label == "" {
+			continue
+		}
+		description := strings.TrimSpace(hint.Note)
+		if username := strings.TrimSpace(hint.Username); username != "" {
+			if description != "" {
+				description += ". "
+			}
+			description += "Пользователь " + username
+		}
+		candidates = append(candidates, models.SpeakerCandidate{Label: label, Description: description, Kind: "person"})
+	}
+	for _, role := range call.DiarizationRoles {
+		label := strings.TrimSpace(role.Name)
+		if label == "" {
+			continue
+		}
+		candidates = append(candidates, models.SpeakerCandidate{Label: label, Description: strings.TrimSpace(role.Description), Kind: "role"})
+	}
+	return candidates
 }
 
 func (s *Service) ProcessAnalyzeCall(ctx context.Context, callID uuid.UUID) error {

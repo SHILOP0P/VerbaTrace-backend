@@ -12,7 +12,7 @@ import (
 	"calllens/monolit/internal/models"
 )
 
-func TestTranscribeUploadsDiarizesAndIdentifiesRoles(t *testing.T) {
+func TestTranscribeUploadsDiarizesAndIdentifiesCandidates(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Authorization"); got != "test-key" {
 			t.Fatalf("authorization = %q", got)
@@ -32,7 +32,11 @@ func TestTranscribeUploadsDiarizesAndIdentifiesRoles(t *testing.T) {
 			if request.AudioURL == "" || !request.SpeakerLabels || !request.LanguageDetection {
 				t.Fatalf("unexpected transcript request: %+v", request)
 			}
-			if request.SpeechUnderstanding == nil || request.SpeechUnderstanding.Request.SpeakerIdentification.SpeakerType != "role" {
+			if request.SpeechUnderstanding == nil {
+				t.Fatalf("speaker identification is missing")
+			}
+			identification := request.SpeechUnderstanding.Request.SpeakerIdentification
+			if identification.SpeakerType != "name" || len(identification.Speakers) != 3 || identification.Speakers[0].Name != "Анна Иванова" || identification.Speakers[2].Name != "Председатель комиссии" {
 				t.Fatalf("speaker identification = %+v", request.SpeechUnderstanding)
 			}
 			_, _ = w.Write([]byte(`{"id":"transcript-id","status":"queued"}`))
@@ -51,7 +55,9 @@ func TestTranscribeUploadsDiarizesAndIdentifiesRoles(t *testing.T) {
 	transcriber.baseURL = server.URL
 	transcriber.client = server.Client()
 
-	result, err := transcriber.Transcribe(context.Background(), models.File{Content: io.NopCloser(strings.NewReader("audio bytes"))})
+	result, err := transcriber.Transcribe(context.Background(), models.File{Content: io.NopCloser(strings.NewReader("audio bytes")), SpeakerCandidates: []models.SpeakerCandidate{
+		{Label: "Анна Иванова", Kind: "person"}, {Label: "Петр Смирнов", Kind: "person"}, {Label: "Председатель комиссии", Kind: "role", Description: "Объявляет решение"},
+	}})
 	if err != nil {
 		t.Fatalf("transcribe: %v", err)
 	}
@@ -66,6 +72,17 @@ func TestTranscribeUploadsDiarizesAndIdentifiesRoles(t *testing.T) {
 func TestNewRequiresAPIKey(t *testing.T) {
 	if _, err := New(" ", false, false); err == nil {
 		t.Fatal("expected an API key error")
+	}
+}
+
+func TestSpeakerIdentificationRequestUsesRoleTypeForRoleOnlyCandidates(t *testing.T) {
+	request := speakerIdentificationRequest([]models.SpeakerCandidate{
+		{Label: "Интервьюер", Description: "Задаёт вопросы", Kind: "role"},
+		{Label: "Кандидат", Description: "Отвечает на вопросы", Kind: "role"},
+	})
+	identification := request.Request.SpeakerIdentification
+	if identification.SpeakerType != "role" || len(identification.Speakers) != 2 || identification.Speakers[0].Role != "Интервьюер" || identification.Speakers[0].Name != "" {
+		t.Fatalf("unexpected role identification: %+v", identification)
 	}
 }
 
@@ -88,7 +105,7 @@ func TestStandardTranscriptDisablesSpeakerLabels(t *testing.T) {
 	}
 	transcriber.baseURL = server.URL
 	transcriber.client = server.Client()
-	if _, err := transcriber.createTranscript(context.Background(), "https://upload.example/audio"); err != nil {
+	if _, err := transcriber.createTranscript(context.Background(), "https://upload.example/audio", nil); err != nil {
 		t.Fatalf("create transcript: %v", err)
 	}
 }

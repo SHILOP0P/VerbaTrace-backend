@@ -19,6 +19,7 @@ import (
 	"calllens/monolit/internal/API/call"
 	callFolderAPI "calllens/monolit/internal/API/call_folder"
 	companyAPI "calllens/monolit/internal/API/company"
+	contactAPI "calllens/monolit/internal/API/contact"
 	departmentAPI "calllens/monolit/internal/API/department"
 	healthAPI "calllens/monolit/internal/API/health"
 	invitationAPI "calllens/monolit/internal/API/invitation"
@@ -39,6 +40,7 @@ import (
 	callRepo "calllens/monolit/internal/repository/call"
 	callFolderRepo "calllens/monolit/internal/repository/call_folder"
 	companyRepo "calllens/monolit/internal/repository/company"
+	contactRepo "calllens/monolit/internal/repository/contact"
 	departmentRepo "calllens/monolit/internal/repository/department"
 	invitationRepo "calllens/monolit/internal/repository/invitation"
 	notificationRepo "calllens/monolit/internal/repository/notification"
@@ -59,6 +61,7 @@ import (
 	callService "calllens/monolit/internal/service/call"
 	callFolderService "calllens/monolit/internal/service/call_folder"
 	companyService "calllens/monolit/internal/service/company"
+	contactService "calllens/monolit/internal/service/contact"
 	departmentService "calllens/monolit/internal/service/department"
 	invitationService "calllens/monolit/internal/service/invitation"
 	monitoringService "calllens/monolit/internal/service/monitoring"
@@ -171,6 +174,7 @@ func main() {
 	analysisRepository := analysisRepo.NewRepository(sqlDB)
 	callRepository := callRepo.NewRepository(sqlDB)
 	callFolderRepository := callFolderRepo.NewRepository(sqlDB)
+	contactRepository := contactRepo.NewRepository(sqlDB)
 	userRepository := userRepo.NewUserRepository(sqlDB)
 	userPreferencesRepository := userPreferencesRepo.NewRepository(sqlDB)
 	refreshRepository := refreshSessionRepo.NewRepository(sqlDB)
@@ -262,6 +266,7 @@ func main() {
 	analyticsSvc.SetReportRepository(reportRepository)
 	analyticsSvc.SetReportStorage(reportsStorage)
 	callFolderSvc := callFolderService.NewService(callFolderRepository, callRepository, companyRepository, departmentRepository)
+	contactSvc := contactService.NewService(contactRepository, userRepository, callRepository)
 	callFolderSvc.SetInstructionRepositories(analysisInstructionRepository, callFolderRepository)
 	analysisContextSvc := analysisContextService.NewService(analysisContextRepository, companyRepository, departmentRepository)
 	monitoringSvc := monitoringService.NewService(processingJobRepository, companyRepository)
@@ -280,6 +285,7 @@ func main() {
 	adminHandler := adminAPI.NewHandler(adminSvc)
 	callHandler := call.NewCallHandler(callSvc)
 	callFolderHandler := callFolderAPI.NewHandler(callFolderSvc)
+	contactHandler := contactAPI.NewHandler(contactSvc)
 	authHandler := authAPI.NewAuthHandler(authSvc, config.AppConfig().Auth.AccessTokenTTL(), config.AppConfig().Auth.RefreshTokenTTL())
 	companyHandler := companyAPI.NewCompanyHandler(companySvc)
 	departmentHandler := departmentAPI.NewDepartmentHandler(departmentSvc)
@@ -294,7 +300,7 @@ func main() {
 	searchHandler := searchAPI.NewHandler(searchSvc)
 	notificationHandler := notificationAPI.NewHandler(notificationSvc)
 
-	r := httpserver.NewRouter(callHandler, callFolderHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
+	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
 
 	server := &http.Server{
 		Addr:              config.AppConfig().HTTPConfig.Address(),

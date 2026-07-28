@@ -16,6 +16,7 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 	router := NewRouter(
 		apiMocks.NewCallAPI(t),
 		stubCallFolderAPI{},
+		stubContactAPI{},
 		apiMocks.NewAuthAPI(t),
 		apiMocks.NewCompanyAPI(t),
 		apiMocks.NewDepartmentAPI(t),
@@ -68,18 +69,28 @@ func (stubAnalysisContextAPI) Save(w http.ResponseWriter, r *http.Request) {}
 
 type stubCallFolderAPI struct{}
 
-func (stubCallFolderAPI) Create(w http.ResponseWriter, r *http.Request)       {}
-func (stubCallFolderAPI) List(w http.ResponseWriter, r *http.Request)         {}
-func (stubCallFolderAPI) Get(w http.ResponseWriter, r *http.Request)          {}
-func (stubCallFolderAPI) Update(w http.ResponseWriter, r *http.Request)       {}
-func (stubCallFolderAPI) Delete(w http.ResponseWriter, r *http.Request)       {}
-func (stubCallFolderAPI) ListCalls(w http.ResponseWriter, r *http.Request)    {}
-func (stubCallFolderAPI) AssignCall(w http.ResponseWriter, r *http.Request)   {}
-func (stubCallFolderAPI) RemoveCall(w http.ResponseWriter, r *http.Request)   {}
-func (stubCallFolderAPI) GrantAccess(w http.ResponseWriter, r *http.Request)  {}
-func (stubCallFolderAPI) RevokeAccess(w http.ResponseWriter, r *http.Request) {}
-func (stubCallFolderAPI) ListAccesses(w http.ResponseWriter, r *http.Request) {}
+func (stubCallFolderAPI) Create(w http.ResponseWriter, r *http.Request)              {}
+func (stubCallFolderAPI) List(w http.ResponseWriter, r *http.Request)                {}
+func (stubCallFolderAPI) Get(w http.ResponseWriter, r *http.Request)                 {}
+func (stubCallFolderAPI) Update(w http.ResponseWriter, r *http.Request)              {}
+func (stubCallFolderAPI) Delete(w http.ResponseWriter, r *http.Request)              {}
+func (stubCallFolderAPI) ListCalls(w http.ResponseWriter, r *http.Request)           {}
+func (stubCallFolderAPI) AssignCall(w http.ResponseWriter, r *http.Request)          {}
+func (stubCallFolderAPI) RemoveCall(w http.ResponseWriter, r *http.Request)          {}
+func (stubCallFolderAPI) GrantAccess(w http.ResponseWriter, r *http.Request)         {}
+func (stubCallFolderAPI) RevokeAccess(w http.ResponseWriter, r *http.Request)        {}
+func (stubCallFolderAPI) ListAccesses(w http.ResponseWriter, r *http.Request)        {}
 func (stubCallFolderAPI) ReplaceInstructions(w http.ResponseWriter, r *http.Request) {}
+
+type stubContactAPI struct{}
+
+func (stubContactAPI) SearchContacts(http.ResponseWriter, *http.Request)     {}
+func (stubContactAPI) ListContacts(http.ResponseWriter, *http.Request)       {}
+func (stubContactAPI) AddContact(http.ResponseWriter, *http.Request)         {}
+func (stubContactAPI) RemoveContact(http.ResponseWriter, *http.Request)      {}
+func (stubContactAPI) ListFavoriteCalls(http.ResponseWriter, *http.Request)  {}
+func (stubContactAPI) AddFavoriteCall(http.ResponseWriter, *http.Request)    {}
+func (stubContactAPI) RemoveFavoriteCall(http.ResponseWriter, *http.Request) {}
 
 type stubNotificationAPI struct{}
 

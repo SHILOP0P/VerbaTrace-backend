@@ -70,6 +70,16 @@ type UserRepository interface {
 	DeleteAvatar(ctx context.Context, userID uuid.UUID) (models.User, error)
 }
 
+type ContactRepository interface {
+	SearchUsers(ctx context.Context, usernamePrefix string, limit int) ([]models.User, error)
+	AddContact(ctx context.Context, userID uuid.UUID, contactID uuid.UUID) error
+	RemoveContact(ctx context.Context, userID uuid.UUID, contactID uuid.UUID) error
+	ListContactIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
+	AddFavoriteCall(ctx context.Context, userID uuid.UUID, callID uuid.UUID) error
+	RemoveFavoriteCall(ctx context.Context, userID uuid.UUID, callID uuid.UUID) error
+	ListFavoriteCallIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
+}
+
 type UserPreferencesRepository interface {
 	Get(ctx context.Context, userID uuid.UUID) (models.UserPreferences, error)
 	Upsert(ctx context.Context, input models.UpdateUserPreferencesInput) (models.UserPreferences, error)

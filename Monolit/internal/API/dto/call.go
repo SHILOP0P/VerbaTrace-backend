@@ -12,22 +12,37 @@ type CreateCallRequest struct {
 }
 
 type CallResponse struct {
-	ID                    string  `json:"id"`
-	Title                 string  `json:"title"`
-	Status                string  `json:"status"`
-	OriginalFilename      string  `json:"original_filename"`
-	MimeType              string  `json:"mime_type"`
-	SizeBytes             int64   `json:"size_bytes"`
-	DurationSeconds       int     `json:"duration_seconds"`
-	AudioURL              string  `json:"audio_url"`
-	MediaURL              string  `json:"media_url"`
-	MediaKind             string  `json:"media_kind"`
-	UploadedByUserUUID    *string `json:"uploaded_by_user_uuid"`
-	CompanyUUID           *string `json:"company_uuid"`
-	DepartmentUUID        *string `json:"department_uuid"`
-	VisibilityScope       string  `json:"visibility_scope"`
-	UseCustomInstructions bool    `json:"use_custom_instructions"`
-	CreatedAt             string  `json:"created_at"`
+	ID                    string                    `json:"id"`
+	Title                 string                    `json:"title"`
+	Status                string                    `json:"status"`
+	OriginalFilename      string                    `json:"original_filename"`
+	MimeType              string                    `json:"mime_type"`
+	SizeBytes             int64                     `json:"size_bytes"`
+	DurationSeconds       int                       `json:"duration_seconds"`
+	AudioURL              string                    `json:"audio_url"`
+	MediaURL              string                    `json:"media_url"`
+	MediaKind             string                    `json:"media_kind"`
+	UploadedByUserUUID    *string                   `json:"uploaded_by_user_uuid"`
+	CompanyUUID           *string                   `json:"company_uuid"`
+	DepartmentUUID        *string                   `json:"department_uuid"`
+	VisibilityScope       string                    `json:"visibility_scope"`
+	UseCustomInstructions bool                      `json:"use_custom_instructions"`
+	SpeakerHints          []SpeakerHintResponse     `json:"speaker_hints,omitempty"`
+	DiarizationRoles      []DiarizationRoleResponse `json:"diarization_roles,omitempty"`
+	CreatedAt             string                    `json:"created_at"`
+}
+
+type DiarizationRoleResponse struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+type SpeakerHintResponse struct {
+	UserID   string `json:"user_id"`
+	Name     string `json:"name"`
+	Username string `json:"username,omitempty"`
+	Role     string `json:"role"`
+	Note     string `json:"note,omitempty"`
 }
 
 type CallsListResponse struct {

@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, log logger.Logger) http.Handler {
+func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI API.ContactAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, log logger.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	authGuard := authMiddleware.Auth(jwtSecret, refreshSessionRepository)
@@ -115,7 +115,14 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, authAPI API
 			r.With(authGuard).Get("/analytics/deep-analyses/{uuid}/reports", analyticsAPI.ListAggregateReports)
 			r.With(authGuard).Get("/analytics/deep-analysis-reports/{report_uuid}/download", analyticsAPI.DownloadAggregateReport)
 			r.With(authGuard).Delete("/analytics/deep-analysis-reports/{report_uuid}", analyticsAPI.DeleteAggregateReport)
-			r.With(authGuard).Get("/monitoring/processing", monitoringAPI.GetProcessing)
+			r.With(authGuard).With(authMiddleware.RequirePermission(models.AdminPermissionMonitoringRead)).Get("/monitoring/processing", monitoringAPI.GetProcessing)
+			r.With(authGuard).Get("/contacts/search", contactAPI.SearchContacts)
+			r.With(authGuard).Get("/contacts", contactAPI.ListContacts)
+			r.With(authGuard).Put("/contacts/{user_uuid}", contactAPI.AddContact)
+			r.With(authGuard).Delete("/contacts/{user_uuid}", contactAPI.RemoveContact)
+			r.With(authGuard).Get("/favorite-calls", contactAPI.ListFavoriteCalls)
+			r.With(authGuard).Put("/favorite-calls/{call_uuid}", contactAPI.AddFavoriteCall)
+			r.With(authGuard).Delete("/favorite-calls/{call_uuid}", contactAPI.RemoveFavoriteCall)
 			r.With(authGuard).Get("/search", searchAPI.Search)
 
 			//NOTIFICATIONS

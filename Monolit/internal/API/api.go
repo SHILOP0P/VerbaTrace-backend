@@ -51,6 +51,16 @@ type MonitoringAPI interface {
 	GetProcessing(w http.ResponseWriter, r *http.Request)
 }
 
+type ContactAPI interface {
+	SearchContacts(w http.ResponseWriter, r *http.Request)
+	ListContacts(w http.ResponseWriter, r *http.Request)
+	AddContact(w http.ResponseWriter, r *http.Request)
+	RemoveContact(w http.ResponseWriter, r *http.Request)
+	ListFavoriteCalls(w http.ResponseWriter, r *http.Request)
+	AddFavoriteCall(w http.ResponseWriter, r *http.Request)
+	RemoveFavoriteCall(w http.ResponseWriter, r *http.Request)
+}
+
 type SearchAPI interface {
 	Search(w http.ResponseWriter, r *http.Request)
 }

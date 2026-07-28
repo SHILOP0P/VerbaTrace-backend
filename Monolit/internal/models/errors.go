@@ -34,6 +34,7 @@ var ErrUserNotFound = errors.New("user not found")
 var ErrUserAlreadyExists = errors.New("user already exists")
 var ErrInvalidCredentials = errors.New("invalid credentials")
 var ErrInvalidUserInput = errors.New("invalid user input")
+var ErrInvalidContactInput = errors.New("invalid contact input")
 
 // ADMIN
 var ErrInvalidAdminInput = errors.New("invalid admin input")
