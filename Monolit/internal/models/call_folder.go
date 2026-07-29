@@ -43,11 +43,11 @@ type CreateCallFolderInput struct {
 }
 
 type UpdateCallFolderInput struct {
-	UserID      uuid.UUID
-	FolderUUID  uuid.UUID
-	Name        *string
-	Description *string
-	Color       *string
+	UserID         uuid.UUID
+	FolderUUID     uuid.UUID
+	Name           *string
+	Description    *string
+	Color          *string
 	InstructionIDs *[]uuid.UUID
 }
 

@@ -17,7 +17,7 @@ func (r *Repository) SearchUsers(ctx context.Context, usernamePrefix string, lim
 	if err != nil {
 		return nil, wrap("search users", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	users := make([]models.User, 0)
 	for rows.Next() {
 		item, err := scaner.ScanUser(rows)
@@ -73,7 +73,7 @@ func (r *Repository) listIDs(ctx context.Context, query string, userID uuid.UUID
 	if err != nil {
 		return nil, wrap("list", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var ids []uuid.UUID
 	for rows.Next() {
 		var id uuid.UUID

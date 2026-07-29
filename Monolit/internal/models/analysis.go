@@ -42,9 +42,9 @@ type AnalysisInstructionContent struct {
 }
 
 type AnalysisRequest struct {
-	CallUUID      uuid.UUID
-	Transcription string
-	Instructions  []AnalysisInstructionContent
+	CallUUID        uuid.UUID
+	Transcription   string
+	Instructions    []AnalysisInstructionContent
 	Personalization []string
 }
 

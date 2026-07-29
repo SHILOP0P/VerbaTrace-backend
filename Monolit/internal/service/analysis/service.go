@@ -1,12 +1,13 @@
 package analysis
 
 import (
+	"context"
+
 	"calllens/monolit/internal/analyzer"
 	"calllens/monolit/internal/logger"
 	"calllens/monolit/internal/models"
 	repo "calllens/monolit/internal/repository"
 	"calllens/monolit/internal/storage"
-	"context"
 
 	"github.com/google/uuid"
 )

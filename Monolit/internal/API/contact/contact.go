@@ -30,7 +30,7 @@ func (h *Handler) SearchContacts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	response.WriteJSON(w, http.StatusOK, usersToAPI(users))
+	_ = response.WriteJSON(w, http.StatusOK, usersToAPI(users))
 }
 
 func (h *Handler) ListContacts(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +44,7 @@ func (h *Handler) ListContacts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	response.WriteJSON(w, http.StatusOK, usersToAPI(items.Users))
+	_ = response.WriteJSON(w, http.StatusOK, usersToAPI(items.Users))
 }
 func (h *Handler) AddContact(w http.ResponseWriter, r *http.Request)    { h.changeContact(w, r, true) }
 func (h *Handler) RemoveContact(w http.ResponseWriter, r *http.Request) { h.changeContact(w, r, false) }
@@ -68,7 +68,7 @@ func (h *Handler) ListFavoriteCalls(w http.ResponseWriter, r *http.Request) {
 		}
 		result = append(result, value)
 	}
-	response.WriteJSON(w, http.StatusOK, result)
+	_ = response.WriteJSON(w, http.StatusOK, result)
 }
 func (h *Handler) AddFavoriteCall(w http.ResponseWriter, r *http.Request) {
 	h.changeFavoriteCall(w, r, true)

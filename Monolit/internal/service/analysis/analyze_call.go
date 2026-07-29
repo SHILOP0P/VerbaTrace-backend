@@ -922,20 +922,6 @@ func normalizeRussianAnalysisText(value string) string {
 	}
 }
 
-func isKnownEnglishAnalysisFallback(value string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(value))
-	switch normalized {
-	case "unclear",
-		"not specified",
-		"not provided",
-		"no client questions were identified in the transcription.",
-		"the transcription provided does not contain a sales or client call. it is a text about the history and new directions of advertising, including the use of human billboards. therefore, no analysis of a sales or client call can be provided.":
-		return true
-	default:
-		return false
-	}
-}
-
 func stringField(payload map[string]any, key string) string {
 	value, ok := payload[key].(string)
 	if !ok {
