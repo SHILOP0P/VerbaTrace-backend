@@ -59,6 +59,7 @@ func TestRepositoryLifecycle(t *testing.T) {
 
 	expired := input
 	expired.ID = uuid.New()
+	expired.Format = models.ReportFormatPDF
 	expired.Status = models.ReportStatusReady
 	expired.ExpiresAt = now.Add(-time.Minute)
 	expired.FileName = "expired.md"
@@ -74,6 +75,7 @@ func TestRepositoryLifecycle(t *testing.T) {
 
 	failure := input
 	failure.ID = uuid.New()
+	failure.Format = models.ReportFormatPDF
 	failure.FileName = "failed.md"
 	_, err = repository.Create(ctx, failure)
 	require.NoError(t, err)
