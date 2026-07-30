@@ -124,6 +124,7 @@ type CompanyAPI interface {
 	AddCompanyMember(w http.ResponseWriter, r *http.Request)
 	UpdateCompanyMemberRole(w http.ResponseWriter, r *http.Request)
 	UpdateCompanyMemberStatus(w http.ResponseWriter, r *http.Request)
+	UpdateCompanyMemberJobTitle(w http.ResponseWriter, r *http.Request)
 	LeaveCompany(w http.ResponseWriter, r *http.Request)
 	List(w http.ResponseWriter, r *http.Request)
 	GetByUUID(w http.ResponseWriter, r *http.Request)

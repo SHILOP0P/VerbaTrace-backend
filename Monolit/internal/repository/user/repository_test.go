@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 )
 
-func testUser() models.User {
+func testUser() models.CurrentUser {
 	post := "manager"
 
-	return models.User{
+	return models.CurrentUser{
 		ID:           uuid.New(),
 		Email:        "user@example.com",
 		PasswordHash: "hash",

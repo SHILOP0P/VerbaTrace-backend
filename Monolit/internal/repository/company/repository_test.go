@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *RepositorySuite) createUser(email string) models.User {
+func (s *RepositorySuite) createUser(email string) models.CurrentUser {
 	userID := uuid.New()
-	user := models.User{
+	user := models.CurrentUser{
 		ID:           userID,
 		Email:        email,
 		PasswordHash: "hash",
@@ -49,7 +49,7 @@ func testCompanyMember(companyID uuid.UUID, userID uuid.UUID, role models.Compan
 	}
 }
 
-func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.User) {
+func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.CurrentUser) {
 	manager := s.createUser(uuid.NewString() + "@example.com")
 	company := testCompany(manager.ID)
 	member := testCompanyMember(company.ID, manager.ID, models.CompanyMemberRoleManager)
@@ -123,6 +123,26 @@ func (s *RepositorySuite) TestAddCompanyMemberAndGetCompanyByUUID() {
 	employeeCompany, err := s.repository.GetCompanyByUUID(s.ctx, company.ID, employee.ID)
 	s.Require().NoError(err)
 	s.Require().Equal(company.ID, employeeCompany.ID)
+}
+
+func (s *RepositorySuite) TestUpdateCompanyMemberJobTitle() {
+	company, _ := s.createCompanyWithManager()
+	employee := s.createUser(uuid.NewString() + "@example.com")
+	_, err := s.repository.AddCompanyMember(
+		s.ctx,
+		testCompanyMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee),
+	)
+	s.Require().NoError(err)
+
+	title := "Backend developer"
+	updated, err := s.repository.UpdateCompanyMemberJobTitle(s.ctx, company.ID, employee.ID, &title)
+	s.Require().NoError(err)
+	s.Require().Equal(employee.ID, updated.UserUUID)
+	s.Require().Equal(&title, updated.JobTitle)
+
+	cleared, err := s.repository.UpdateCompanyMemberJobTitle(s.ctx, company.ID, employee.ID, nil)
+	s.Require().NoError(err)
+	s.Require().Nil(cleared.JobTitle)
 }
 
 func (s *RepositorySuite) TestAddCompanyMemberUpsertsExistingMember() {

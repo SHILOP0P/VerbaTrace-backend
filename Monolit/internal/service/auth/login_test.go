@@ -18,7 +18,7 @@ func (s *ServiceSuite) TestLoginSuccess() {
 	hash, err := password.Hash("password123", "password-pepper")
 	s.Require().NoError(err)
 
-	user := models.User{
+	user := models.CurrentUser{
 		ID:           userID,
 		Email:        "user@example.com",
 		PasswordHash: hash,
@@ -65,7 +65,7 @@ func (s *ServiceSuite) TestLoginRejectsWrongPassword() {
 	s.Require().NoError(err)
 
 	s.userRepository.On("GetUserByEmail", s.ctx, "user@example.com").
-		Return(models.User{ID: uuid.New(), Email: "user@example.com", PasswordHash: hash}, nil).
+		Return(models.CurrentUser{ID: uuid.New(), Email: "user@example.com", PasswordHash: hash}, nil).
 		Once()
 
 	_, _, _, err = s.service.Login(s.ctx, models.LoginInput{

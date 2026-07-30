@@ -123,13 +123,13 @@ func (h *Handler) changeFavoriteCall(w http.ResponseWriter, r *http.Request, add
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-func usersToAPI(users []models.User) []dto.UserResponse {
-	result := make([]dto.UserResponse, 0, len(users))
+func usersToAPI(users []models.PublicUser) []dto.PublicUserResponse {
+	result := make([]dto.PublicUserResponse, 0, len(users))
 	for _, user := range users {
-		item, err := converter.UserModelToAPI(user)
-		if err == nil {
-			result = append(result, item)
-		}
+		result = append(result, dto.PublicUserResponse{
+			ID: user.ID.String(), FullName: user.FullName, FullSurname: user.FullSurname,
+			Username: user.Username, Headline: user.Headline,
+		})
 	}
 	return result
 }

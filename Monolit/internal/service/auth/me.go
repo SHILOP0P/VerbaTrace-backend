@@ -8,6 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *Service) Me(ctx context.Context, userID uuid.UUID) (models.User, error) {
+func (s *Service) Me(ctx context.Context, userID uuid.UUID) (models.CurrentUser, error) {
 	return s.userRepository.GetUserByUUID(ctx, userID)
 }

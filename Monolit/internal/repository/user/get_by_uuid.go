@@ -13,25 +13,26 @@ import (
 	"github.com/google/uuid"
 )
 
-func (r *Repository) GetUserByUUID(ctx context.Context, id uuid.UUID) (model.User, error) {
+func (r *Repository) GetUserByUUID(ctx context.Context, id uuid.UUID) (model.CurrentUser, error) {
 	query := `
-	SELECT user_uuid,
-	       email,
-	       password_hash,
-	       full_name,
-	       full_surname,
-	       username,
-	       role,
-	       post,
-	       phone,
-	       timezone,
-	       avatar_path,
-	       avatar_mime_type,
-	       avatar_size_bytes,
-	       avatar_updated_at,
-	       created_at
-	FROM users
-	WHERE user_uuid = $1
+	SELECT u.user_uuid,
+	       u.email,
+	       u.password_hash,
+	       p.full_name,
+	       p.full_surname,
+	       p.username,
+	       u.role,
+	       p.headline,
+	       p.phone,
+	       p.timezone,
+	       p.avatar_path,
+	       p.avatar_mime_type,
+	       p.avatar_size_bytes,
+	       p.avatar_updated_at,
+	       u.created_at
+	FROM users u
+	JOIN user_profiles p ON p.user_uuid = u.user_uuid
+	WHERE u.user_uuid = $1
 	`
 
 	row := r.db.QueryRowContext(ctx, query, id)
@@ -39,9 +40,9 @@ func (r *Repository) GetUserByUUID(ctx context.Context, id uuid.UUID) (model.Use
 	repoUser, err := scaner.ScanUser(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.User{}, model.ErrUserNotFound
+			return model.CurrentUser{}, model.ErrUserNotFound
 		}
-		return model.User{}, fmt.Errorf("get user by uuid: %w", err)
+		return model.CurrentUser{}, fmt.Errorf("get user by uuid: %w", err)
 	}
 
 	return converter.RepoUserToModel(repoUser)

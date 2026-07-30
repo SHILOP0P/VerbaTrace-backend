@@ -20,6 +20,7 @@ type DepartmentMember struct {
 	Username       string
 	FullName       string
 	FullSurname    string
+	JobTitle       *string
 	Role           DepartmentMemberRole
 	Status         MembershipStatus
 	CreatedAt      time.Time

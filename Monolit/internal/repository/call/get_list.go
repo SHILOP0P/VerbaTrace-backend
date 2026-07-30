@@ -161,13 +161,14 @@ func (r *Repository) GetFilterOptions(ctx context.Context, input model.CallFilte
 	where, args := buildFilterOptionsFilters(input)
 	qList := fmt.Sprintf(`
 	SELECT DISTINCT u.user_uuid,
-	       u.full_name,
-	       u.full_surname,
-	       u.username
+	       p.full_name,
+	       p.full_surname,
+	       p.username
 	FROM calls c
 	JOIN users u ON u.user_uuid = c.uploaded_by_user_uuid
+	JOIN user_profiles p ON p.user_uuid = u.user_uuid
 	WHERE %s
-	ORDER BY u.full_surname, u.full_name, u.username
+	ORDER BY p.full_surname, p.full_name, p.username
 	`, where)
 
 	rows, err := r.db.QueryContext(ctx, qList, args...)

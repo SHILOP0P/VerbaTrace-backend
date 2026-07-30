@@ -532,6 +532,63 @@ func (_c *CompanyService_UpdateCompany_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// UpdateCompanyMemberJobTitle provides a mock function with given fields: ctx, input
+func (_m *CompanyService) UpdateCompanyMemberJobTitle(ctx context.Context, input models.UpdateCompanyMemberJobTitleInput) (models.CompanyMember, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateCompanyMemberJobTitle")
+	}
+
+	var r0 models.CompanyMember
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateCompanyMemberJobTitleInput) (models.CompanyMember, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateCompanyMemberJobTitleInput) models.CompanyMember); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Get(0).(models.CompanyMember)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.UpdateCompanyMemberJobTitleInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CompanyService_UpdateCompanyMemberJobTitle_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateCompanyMemberJobTitle'
+type CompanyService_UpdateCompanyMemberJobTitle_Call struct {
+	*mock.Call
+}
+
+// UpdateCompanyMemberJobTitle is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.UpdateCompanyMemberJobTitleInput
+func (_e *CompanyService_Expecter) UpdateCompanyMemberJobTitle(ctx interface{}, input interface{}) *CompanyService_UpdateCompanyMemberJobTitle_Call {
+	return &CompanyService_UpdateCompanyMemberJobTitle_Call{Call: _e.mock.On("UpdateCompanyMemberJobTitle", ctx, input)}
+}
+
+func (_c *CompanyService_UpdateCompanyMemberJobTitle_Call) Run(run func(ctx context.Context, input models.UpdateCompanyMemberJobTitleInput)) *CompanyService_UpdateCompanyMemberJobTitle_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.UpdateCompanyMemberJobTitleInput))
+	})
+	return _c
+}
+
+func (_c *CompanyService_UpdateCompanyMemberJobTitle_Call) Return(_a0 models.CompanyMember, _a1 error) *CompanyService_UpdateCompanyMemberJobTitle_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CompanyService_UpdateCompanyMemberJobTitle_Call) RunAndReturn(run func(context.Context, models.UpdateCompanyMemberJobTitleInput) (models.CompanyMember, error)) *CompanyService_UpdateCompanyMemberJobTitle_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateCompanyMemberRole provides a mock function with given fields: ctx, input
 func (_m *CompanyService) UpdateCompanyMemberRole(ctx context.Context, input models.UpdateCompanyMemberRoleInput) (models.CompanyMember, error) {
 	ret := _m.Called(ctx, input)

@@ -11,33 +11,34 @@ import (
 	"calllens/monolit/internal/repository/scaner"
 )
 
-func (r *Repository) GetUserByUsername(ctx context.Context, username string) (model.User, error) {
-	query := `SELECT user_uuid,
-	       email,
-	       password_hash,
-	       full_name,
-	       full_surname,
-	       username,
-	       role,
-	       post,
-	       phone,
-	       timezone,
-	       avatar_path,
-	       avatar_mime_type,
-	       avatar_size_bytes,
-	       avatar_updated_at,
-	       created_at
-	FROM users
-	WHERE lower(username) = lower($1)`
+func (r *Repository) GetUserByUsername(ctx context.Context, username string) (model.CurrentUser, error) {
+	query := `SELECT u.user_uuid,
+	       u.email,
+	       u.password_hash,
+	       p.full_name,
+	       p.full_surname,
+	       p.username,
+	       u.role,
+	       p.headline,
+	       p.phone,
+	       p.timezone,
+	       p.avatar_path,
+	       p.avatar_mime_type,
+	       p.avatar_size_bytes,
+	       p.avatar_updated_at,
+	       u.created_at
+	FROM users u
+	JOIN user_profiles p ON p.user_uuid = u.user_uuid
+	WHERE lower(p.username) = lower($1)`
 
 	row := r.db.QueryRowContext(ctx, query, username)
 
 	repoUser, err := scaner.ScanUser(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.User{}, model.ErrUserNotFound
+			return model.CurrentUser{}, model.ErrUserNotFound
 		}
-		return model.User{}, fmt.Errorf("get user by username: %w", err)
+		return model.CurrentUser{}, fmt.Errorf("get user by username: %w", err)
 	}
 	return converter.RepoUserToModel(repoUser)
 }

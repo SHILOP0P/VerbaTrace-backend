@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *RepositorySuite) createUser(email string) models.User {
+func (s *RepositorySuite) createUser(email string) models.CurrentUser {
 	userID := uuid.New()
-	user := models.User{
+	user := models.CurrentUser{
 		ID:           userID,
 		Email:        email,
 		PasswordHash: "hash",
@@ -29,7 +29,7 @@ func (s *RepositorySuite) createUser(email string) models.User {
 	return created
 }
 
-func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.User) {
+func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.CurrentUser) {
 	manager := s.createUser(uuid.NewString() + "@example.com")
 	company := models.Company{
 		ID:              uuid.New(),
@@ -71,7 +71,7 @@ func testDepartmentMember(departmentID uuid.UUID, userID uuid.UUID, role models.
 	}
 }
 
-func (s *RepositorySuite) createDepartmentWithCompany() (models.Department, models.Company, models.User) {
+func (s *RepositorySuite) createDepartmentWithCompany() (models.Department, models.Company, models.CurrentUser) {
 	company, manager := s.createCompanyWithManager()
 	department, err := s.repository.CreateDepartment(s.ctx, testDepartment(company.ID))
 	s.Require().NoError(err)
@@ -79,7 +79,7 @@ func (s *RepositorySuite) createDepartmentWithCompany() (models.Department, mode
 	return department, company, manager
 }
 
-func (s *RepositorySuite) addCompanyEmployee(companyID uuid.UUID) models.User {
+func (s *RepositorySuite) addCompanyEmployee(companyID uuid.UUID) models.CurrentUser {
 	user := s.createUser(uuid.NewString() + "@example.com")
 	_, err := s.companyRepository.AddCompanyMember(s.ctx, models.CompanyMember{
 		CompanyUUID: companyID,

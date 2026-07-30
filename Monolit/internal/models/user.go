@@ -7,7 +7,31 @@ import (
 	"github.com/google/uuid"
 )
 
-type User struct {
+type UserAccount struct {
+	ID           uuid.UUID
+	Email        string
+	PasswordHash string
+	Role         UserRole
+	CreatedAt    time.Time
+}
+
+type UserProfile struct {
+	UserID          uuid.UUID
+	FullName        string
+	FullSurname     string
+	Username        string
+	Headline        *string
+	Phone           *string
+	Timezone        *string
+	AvatarPath      *string
+	AvatarMime      *string
+	AvatarSize      *int64
+	AvatarUpdatedAt *time.Time
+}
+
+// CurrentUser is the authenticated account/profile aggregate returned by auth use cases.
+// Public lookup and contacts must use PublicUser instead.
+type CurrentUser struct {
 	ID              uuid.UUID
 	Email           string
 	PasswordHash    string

@@ -69,15 +69,15 @@ func (s *RepositorySuite) TestRoleConstraintAndSingletonSuperadmin() {
 	s.Require().Error(err)
 }
 
-func (s *RepositorySuite) createUser(role models.UserRole) models.User {
+func (s *RepositorySuite) createUser(role models.UserRole) models.CurrentUser {
 	created, err := s.userRepository.CreateUser(s.ctx, testAdminUser(role))
 	s.Require().NoError(err)
 	return created
 }
 
-func testAdminUser(role models.UserRole) models.User {
+func testAdminUser(role models.UserRole) models.CurrentUser {
 	id := uuid.New()
-	return models.User{
+	return models.CurrentUser{
 		ID:           id,
 		Email:        id.String() + "@example.com",
 		PasswordHash: "hash",

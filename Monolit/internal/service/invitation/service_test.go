@@ -18,7 +18,7 @@ func TestCreateCompanyInvitationAllowsManager(t *testing.T) {
 	companyID := uuid.New()
 	managerID := uuid.New()
 	userID := uuid.New()
-	f.users[userID] = models.User{ID: userID}
+	f.users[userID] = models.CurrentUser{ID: userID}
 	f.companyMembers[companyKey(companyID, managerID)] = models.CompanyMember{CompanyUUID: companyID, UserUUID: managerID, Role: models.CompanyMemberRoleManager, Status: models.MembershipStatusActive}
 
 	invitation, err := f.service.CreateCompanyInvitation(ctx, models.CreateCompanyInvitationInput{
@@ -39,7 +39,7 @@ func TestCreateCompanyInvitationRejectsEmployee(t *testing.T) {
 	companyID := uuid.New()
 	employeeID := uuid.New()
 	userID := uuid.New()
-	f.users[userID] = models.User{ID: userID}
+	f.users[userID] = models.CurrentUser{ID: userID}
 	f.companyMembers[companyKey(companyID, employeeID)] = models.CompanyMember{CompanyUUID: companyID, UserUUID: employeeID, Role: models.CompanyMemberRoleEmployee, Status: models.MembershipStatusActive}
 
 	_, err := f.service.CreateCompanyInvitation(ctx, models.CreateCompanyInvitationInput{
@@ -59,7 +59,7 @@ func TestDepartmentLeaderCanInviteOnlyEmployeeToOwnDepartment(t *testing.T) {
 	departmentID := uuid.New()
 	leaderID := uuid.New()
 	userID := uuid.New()
-	f.users[userID] = models.User{ID: userID}
+	f.users[userID] = models.CurrentUser{ID: userID}
 	f.companyMembers[companyKey(companyID, leaderID)] = models.CompanyMember{CompanyUUID: companyID, UserUUID: leaderID, Role: models.CompanyMemberRoleEmployee, Status: models.MembershipStatusActive}
 	f.companyMembers[companyKey(companyID, userID)] = models.CompanyMember{CompanyUUID: companyID, UserUUID: userID, Role: models.CompanyMemberRoleEmployee, Status: models.MembershipStatusActive}
 	f.departmentMembers[departmentKey(companyID, departmentID, leaderID)] = models.DepartmentMember{DepartmentUUID: departmentID, UserUUID: leaderID, Role: models.DepartmentMemberRoleLeader, Status: models.MembershipStatusActive}
@@ -138,7 +138,7 @@ func TestAcceptInvitationRejectsNonPending(t *testing.T) {
 
 type serviceFixture struct {
 	service           *Service
-	users             map[uuid.UUID]models.User
+	users             map[uuid.UUID]models.CurrentUser
 	companyMembers    map[string]models.CompanyMember
 	departmentMembers map[string]models.DepartmentMember
 	invitations       map[uuid.UUID]models.MembershipInvitation
@@ -146,7 +146,7 @@ type serviceFixture struct {
 
 func newServiceFixture() *serviceFixture {
 	f := &serviceFixture{
-		users:             map[uuid.UUID]models.User{},
+		users:             map[uuid.UUID]models.CurrentUser{},
 		companyMembers:    map[string]models.CompanyMember{},
 		departmentMembers: map[string]models.DepartmentMember{},
 		invitations:       map[uuid.UUID]models.MembershipInvitation{},
@@ -165,56 +165,56 @@ func departmentKey(companyID uuid.UUID, departmentID uuid.UUID, userID uuid.UUID
 	return companyID.String() + ":" + departmentID.String() + ":" + userID.String()
 }
 
-func (f *serviceFixture) GetUserByUUID(ctx context.Context, id uuid.UUID) (models.User, error) {
+func (f *serviceFixture) GetUserByUUID(ctx context.Context, id uuid.UUID) (models.CurrentUser, error) {
 	user, ok := f.users[id]
 	if !ok {
-		return models.User{}, models.ErrUserNotFound
+		return models.CurrentUser{}, models.ErrUserNotFound
 	}
 	return user, nil
 }
 
-func (f *serviceFixture) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
-	return models.User{}, models.ErrUserNotFound
+func (f *serviceFixture) GetUserByEmail(ctx context.Context, email string) (models.CurrentUser, error) {
+	return models.CurrentUser{}, models.ErrUserNotFound
 }
 
-func (f *serviceFixture) GetUserByUsername(ctx context.Context, username string) (models.User, error) {
+func (f *serviceFixture) GetUserByUsername(ctx context.Context, username string) (models.CurrentUser, error) {
 	for _, user := range f.users {
 		if user.Username == username {
 			return user, nil
 		}
 	}
-	return models.User{}, models.ErrUserNotFound
+	return models.CurrentUser{}, models.ErrUserNotFound
 }
 
-func (f *serviceFixture) CreateUser(ctx context.Context, user models.User) (models.User, error) {
+func (f *serviceFixture) CreateUser(ctx context.Context, user models.CurrentUser) (models.CurrentUser, error) {
 	f.users[user.ID] = user
 	return user, nil
 }
 
-func (f *serviceFixture) UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.User, error) {
+func (f *serviceFixture) UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.CurrentUser, error) {
 	user, ok := f.users[input.UserUUID]
 	if !ok {
-		return models.User{}, models.ErrUserNotFound
+		return models.CurrentUser{}, models.ErrUserNotFound
 	}
 	user.Username = input.Username
 	f.users[input.UserUUID] = user
 	return user, nil
 }
 
-func (f *serviceFixture) UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string) (models.User, error) {
+func (f *serviceFixture) UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string) (models.CurrentUser, error) {
 	user, ok := f.users[userID]
 	if !ok {
-		return models.User{}, models.ErrUserNotFound
+		return models.CurrentUser{}, models.ErrUserNotFound
 	}
 	user.PasswordHash = passwordHash
 	f.users[userID] = user
 	return user, nil
 }
 
-func (f *serviceFixture) UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.User, error) {
+func (f *serviceFixture) UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.CurrentUser, error) {
 	user, ok := f.users[input.UserUUID]
 	if !ok {
-		return models.User{}, models.ErrUserNotFound
+		return models.CurrentUser{}, models.ErrUserNotFound
 	}
 	if input.FullName != nil {
 		user.FullName = *input.FullName
@@ -229,10 +229,10 @@ func (f *serviceFixture) UpdateProfile(ctx context.Context, input models.UpdateU
 	return user, nil
 }
 
-func (f *serviceFixture) UpdateAvatar(ctx context.Context, input models.UserAvatarUpdate) (models.User, error) {
+func (f *serviceFixture) UpdateAvatar(ctx context.Context, input models.UserAvatarUpdate) (models.CurrentUser, error) {
 	user, ok := f.users[input.UserUUID]
 	if !ok {
-		return models.User{}, models.ErrUserNotFound
+		return models.CurrentUser{}, models.ErrUserNotFound
 	}
 	user.AvatarPath = input.Path
 	user.AvatarMime = input.MimeType
@@ -242,10 +242,10 @@ func (f *serviceFixture) UpdateAvatar(ctx context.Context, input models.UserAvat
 	return user, nil
 }
 
-func (f *serviceFixture) DeleteAvatar(ctx context.Context, userID uuid.UUID) (models.User, error) {
+func (f *serviceFixture) DeleteAvatar(ctx context.Context, userID uuid.UUID) (models.CurrentUser, error) {
 	user, ok := f.users[userID]
 	if !ok {
-		return models.User{}, models.ErrUserNotFound
+		return models.CurrentUser{}, models.ErrUserNotFound
 	}
 	user.AvatarPath = nil
 	user.AvatarMime = nil

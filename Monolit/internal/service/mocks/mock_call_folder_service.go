@@ -512,6 +512,55 @@ func (_c *CallFolderService_RemoveCall_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// ReplaceInstructions provides a mock function with given fields: ctx, userID, folderID, instructionIDs
+func (_m *CallFolderService) ReplaceInstructions(ctx context.Context, userID uuid.UUID, folderID uuid.UUID, instructionIDs []uuid.UUID) error {
+	ret := _m.Called(ctx, userID, folderID, instructionIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReplaceInstructions")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, []uuid.UUID) error); ok {
+		r0 = rf(ctx, userID, folderID, instructionIDs)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// CallFolderService_ReplaceInstructions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReplaceInstructions'
+type CallFolderService_ReplaceInstructions_Call struct {
+	*mock.Call
+}
+
+// ReplaceInstructions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID uuid.UUID
+//   - folderID uuid.UUID
+//   - instructionIDs []uuid.UUID
+func (_e *CallFolderService_Expecter) ReplaceInstructions(ctx interface{}, userID interface{}, folderID interface{}, instructionIDs interface{}) *CallFolderService_ReplaceInstructions_Call {
+	return &CallFolderService_ReplaceInstructions_Call{Call: _e.mock.On("ReplaceInstructions", ctx, userID, folderID, instructionIDs)}
+}
+
+func (_c *CallFolderService_ReplaceInstructions_Call) Run(run func(ctx context.Context, userID uuid.UUID, folderID uuid.UUID, instructionIDs []uuid.UUID)) *CallFolderService_ReplaceInstructions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID), args[3].([]uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *CallFolderService_ReplaceInstructions_Call) Return(_a0 error) *CallFolderService_ReplaceInstructions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *CallFolderService_ReplaceInstructions_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID, []uuid.UUID) error) *CallFolderService_ReplaceInstructions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RevokeAccess provides a mock function with given fields: ctx, input
 func (_m *CallFolderService) RevokeAccess(ctx context.Context, input models.RevokeCallFolderAccessInput) error {
 	ret := _m.Called(ctx, input)

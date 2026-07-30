@@ -41,14 +41,15 @@ type AddCompanyMemberRequest struct {
 }
 
 type CompanyMemberResponse struct {
-	CompanyUUID string `json:"company_uuid"`
-	UserUUID    string `json:"user_uuid"`
-	Username    string `json:"username"`
-	FullName    string `json:"full_name"`
-	FullSurname string `json:"full_surname"`
-	Role        string `json:"role"`
-	Status      string `json:"status"`
-	CreatedAt   string `json:"created_at"`
+	CompanyUUID string  `json:"company_uuid"`
+	UserUUID    string  `json:"user_uuid"`
+	Username    string  `json:"username"`
+	FullName    string  `json:"full_name"`
+	FullSurname string  `json:"full_surname"`
+	JobTitle    *string `json:"job_title"`
+	Role        string  `json:"role"`
+	Status      string  `json:"status"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 type AddDepartmentMemberRequest struct {
@@ -64,15 +65,20 @@ type UpdateMemberStatusRequest struct {
 	Status string `json:"status"`
 }
 
+type UpdateMemberJobTitleRequest struct {
+	JobTitle *string `json:"job_title"`
+}
+
 type DepartmentMemberResponse struct {
-	DepartmentUUID string `json:"department_uuid"`
-	UserUUID       string `json:"user_uuid"`
-	Username       string `json:"username"`
-	FullName       string `json:"full_name"`
-	FullSurname    string `json:"full_surname"`
-	Role           string `json:"role"`
-	Status         string `json:"status"`
-	CreatedAt      string `json:"created_at"`
+	DepartmentUUID string  `json:"department_uuid"`
+	UserUUID       string  `json:"user_uuid"`
+	Username       string  `json:"username"`
+	FullName       string  `json:"full_name"`
+	FullSurname    string  `json:"full_surname"`
+	JobTitle       *string `json:"job_title"`
+	Role           string  `json:"role"`
+	Status         string  `json:"status"`
+	CreatedAt      string  `json:"created_at"`
 }
 
 type CompanyMembersOverviewResponse struct {
@@ -95,6 +101,7 @@ type CompanyMemberListItemResponse struct {
 	Username    string                            `json:"username"`
 	FullName    string                            `json:"full_name"`
 	FullSurname string                            `json:"full_surname"`
+	JobTitle    *string                           `json:"job_title"`
 	CompanyRole string                            `json:"company_role"`
 	Status      string                            `json:"status"`
 	Departments []CompanyMemberDepartmentResponse `json:"departments"`

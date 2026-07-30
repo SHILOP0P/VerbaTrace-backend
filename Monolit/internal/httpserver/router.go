@@ -174,6 +174,7 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Post("/companies/{uuid}/invitations/{invitation_uuid}/cancel", invitationAPI.CancelCompanyInvitation)
 			r.With(authGuard).Patch("/companies/{uuid}/members/{user_uuid}/role", companyAPI.UpdateCompanyMemberRole)
 			r.With(authGuard).Patch("/companies/{uuid}/members/{user_uuid}/status", companyAPI.UpdateCompanyMemberStatus)
+			r.With(authGuard).Patch("/companies/{uuid}/members/{user_uuid}/job-title", companyAPI.UpdateCompanyMemberJobTitle)
 			r.With(authGuard).Post("/companies/{uuid}/leave", companyAPI.LeaveCompany)
 			r.With(authGuard).Post("/companies/{uuid}/departments", departmentAPI.CreateDepartment)
 			r.With(authGuard).Get("/companies/{uuid}/departments", departmentAPI.ListDepartments)

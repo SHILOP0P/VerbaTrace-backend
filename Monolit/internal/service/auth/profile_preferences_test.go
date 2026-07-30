@@ -28,7 +28,7 @@ func TestUpdateProfilePartial(t *testing.T) {
 			input.FullName != nil && *input.FullName == "Dmitry" &&
 			input.FullSurname == nil &&
 			input.Timezone != nil && *input.Timezone == timezone
-	})).Return(models.User{ID: userID, FullName: "Dmitry", Timezone: &timezone}, nil).Once()
+	})).Return(models.CurrentUser{ID: userID, FullName: "Dmitry", Timezone: &timezone}, nil).Once()
 
 	got, err := s.service.UpdateProfile(s.ctx, models.UpdateUserProfileInput{
 		UserUUID: userID,
@@ -54,7 +54,7 @@ func TestUploadAndDeleteAvatar(t *testing.T) {
 	})).Return(models.SavedUserAvatar{Path: "avatar.png", MimeType: "image/png", SizeBytes: 3}, nil).Once()
 	s.userRepository.On("UpdateAvatar", s.ctx, mock.MatchedBy(func(input models.UserAvatarUpdate) bool {
 		return input.UserUUID == userID && input.Path != nil && *input.Path == "avatar.png"
-	})).Return(models.User{ID: userID}, nil).Once()
+	})).Return(models.CurrentUser{ID: userID}, nil).Once()
 
 	uploaded, err := s.service.UploadAvatar(s.ctx, models.SaveUserAvatarInput{
 		UserUUID:         userID,
@@ -68,10 +68,10 @@ func TestUploadAndDeleteAvatar(t *testing.T) {
 
 	path := "avatar.png"
 	s.userRepository.On("GetUserByUUID", s.ctx, userID).
-		Return(models.User{ID: userID, AvatarPath: &path}, nil).
+		Return(models.CurrentUser{ID: userID, AvatarPath: &path}, nil).
 		Once()
 	avatarStorage.On("Delete", s.ctx, path).Return(nil).Once()
-	s.userRepository.On("DeleteAvatar", s.ctx, userID).Return(models.User{ID: userID}, nil).Once()
+	s.userRepository.On("DeleteAvatar", s.ctx, userID).Return(models.CurrentUser{ID: userID}, nil).Once()
 
 	deleted, err := s.service.DeleteAvatar(s.ctx, userID)
 

@@ -10,22 +10,22 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *Service) UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.User, error) {
+func (s *Service) UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.CurrentUser, error) {
 	if input.UserUUID == uuid.Nil {
-		return models.User{}, models.ErrInvalidUserInput
+		return models.CurrentUser{}, models.ErrInvalidUserInput
 	}
 
 	normalized, ok := username.Normalize(input.Username)
 	if !ok {
-		return models.User{}, models.ErrInvalidUserInput
+		return models.CurrentUser{}, models.ErrInvalidUserInput
 	}
 
 	existing, err := s.userRepository.GetUserByUsername(ctx, normalized)
 	if err == nil && existing.ID != input.UserUUID {
-		return models.User{}, models.ErrUserAlreadyExists
+		return models.CurrentUser{}, models.ErrUserAlreadyExists
 	}
 	if err != nil && !errors.Is(err, models.ErrUserNotFound) {
-		return models.User{}, err
+		return models.CurrentUser{}, err
 	}
 
 	return s.userRepository.UpdateUsername(ctx, models.UpdateUsernameInput{
@@ -34,10 +34,10 @@ func (s *Service) UpdateUsername(ctx context.Context, input models.UpdateUsernam
 	})
 }
 
-func (s *Service) GetUserByUsername(ctx context.Context, value string) (models.User, error) {
+func (s *Service) GetUserByUsername(ctx context.Context, value string) (models.CurrentUser, error) {
 	normalized, ok := username.Normalize(value)
 	if !ok {
-		return models.User{}, models.ErrInvalidUserInput
+		return models.CurrentUser{}, models.ErrInvalidUserInput
 	}
 
 	return s.userRepository.GetUserByUsername(ctx, normalized)

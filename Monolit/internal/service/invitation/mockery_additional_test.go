@@ -36,7 +36,7 @@ func TestListAndResolveTargetWithMockery(t *testing.T) {
 	}
 
 	userRepo.EXPECT().GetUserByUsername(mock.Anything, "@target_user").
-		Return(models.User{ID: targetID}, nil).Once()
+		Return(models.CurrentUser{ID: targetID}, nil).Once()
 	got, err := service.resolveTargetUser(ctx, userID, uuid.Nil, "Target User")
 	if err != nil || got != targetID {
 		t.Fatalf("resolveTargetUser = %v, %v", got, err)
@@ -165,7 +165,7 @@ func TestInvitationValidationBranchesWithMockery(t *testing.T) {
 	if err := service.ensureTargetUser(ctx, userID, uuid.Nil); !errors.Is(err, models.ErrInvalidInvitationInput) {
 		t.Fatalf("invalid target error = %v", err)
 	}
-	userRepo.EXPECT().GetUserByUUID(mock.Anything, targetID).Return(models.User{ID: targetID}, nil).Once()
+	userRepo.EXPECT().GetUserByUUID(mock.Anything, targetID).Return(models.CurrentUser{ID: targetID}, nil).Once()
 	if err := service.ensureTargetUser(ctx, userID, targetID); err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestCreateInvitationsFullPathsWithMockery(t *testing.T) {
 		service.SetBillingLimiter(billing)
 
 		userRepo.EXPECT().GetUserByUsername(mock.Anything, "@target_user").
-			Return(models.User{ID: targetID}, nil).Once()
+			Return(models.CurrentUser{ID: targetID}, nil).Once()
 		companyRepo.EXPECT().GetCompanyMember(mock.Anything, companyID, managerID).
 			Return(models.CompanyMember{Role: models.CompanyMemberRoleManager}, nil).Once()
 		billing.EXPECT().CanUseCompany(mock.Anything, companyID).Return(nil).Once()
@@ -267,7 +267,7 @@ func TestCreateInvitationsFullPathsWithMockery(t *testing.T) {
 		billing := invitationMocks.NewBillingLimiter(t)
 		service.SetBillingLimiter(billing)
 
-		userRepo.EXPECT().GetUserByUUID(mock.Anything, targetID).Return(models.User{ID: targetID}, nil).Once()
+		userRepo.EXPECT().GetUserByUUID(mock.Anything, targetID).Return(models.CurrentUser{ID: targetID}, nil).Once()
 		companyRepo.EXPECT().GetCompanyMember(mock.Anything, companyID, managerID).
 			Return(models.CompanyMember{Role: models.CompanyMemberRoleManager}, nil).Once()
 		billing.EXPECT().CanUseCompany(mock.Anything, companyID).Return(nil).Once()

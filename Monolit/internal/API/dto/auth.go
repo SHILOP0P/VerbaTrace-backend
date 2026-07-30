@@ -7,7 +7,7 @@ type RegisterRequest struct {
 	FullSurname string  `json:"full_surname"`
 	Username    string  `json:"username"`
 	NickName    string  `json:"nick_name,omitempty"`
-	Post        *string `json:"post,omitempty"`
+	Headline    *string `json:"headline,omitempty"`
 }
 
 type LoginRequest struct {
@@ -26,11 +26,19 @@ type UserResponse struct {
 	FullSurname string  `json:"full_surname"`
 	Username    string  `json:"username"`
 	Role        string  `json:"role"`
-	Post        *string `json:"post,omitempty"`
+	Headline    *string `json:"headline,omitempty"`
 	Phone       *string `json:"phone,omitempty"`
 	Timezone    *string `json:"timezone,omitempty"`
 	AvatarURL   *string `json:"avatar_url,omitempty"`
 	CreatedAt   string  `json:"created_at"`
+}
+
+type PublicUserResponse struct {
+	ID          string  `json:"id"`
+	FullName    string  `json:"full_name"`
+	FullSurname string  `json:"full_surname"`
+	Username    string  `json:"username"`
+	Headline    *string `json:"headline,omitempty"`
 }
 
 type RegisterResponse struct {
@@ -69,7 +77,7 @@ type UserSessionsResponse struct {
 type UpdateProfileRequest struct {
 	FullName    *string `json:"full_name"`
 	FullSurname *string `json:"full_surname"`
-	Post        *string `json:"post"`
+	Headline    *string `json:"headline"`
 	Phone       *string `json:"phone"`
 	Timezone    *string `json:"timezone"`
 }

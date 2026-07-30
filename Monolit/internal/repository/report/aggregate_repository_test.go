@@ -85,7 +85,7 @@ func createAggregateReportDependencies(
 ) (uuid.UUID, models.AggregateAnalysis) {
 	t.Helper()
 	userID := uuid.New()
-	_, err := users.CreateUser(ctx, models.User{
+	_, err := users.CreateUser(ctx, models.CurrentUser{
 		ID: userID, Email: userID.String() + "@example.com", PasswordHash: "hash",
 		FullName: "Dmitry", FullSurname: "Mukhachev", Username: "aggregate_" + userID.String()[:8],
 		Role: models.UserRoleUser, CreatedAt: time.Now().UTC().Truncate(time.Microsecond),

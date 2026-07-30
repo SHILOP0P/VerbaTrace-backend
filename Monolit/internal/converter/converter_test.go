@@ -16,7 +16,7 @@ func TestCoreConverters(t *testing.T) {
 	optionalID := uuid.NullUUID{UUID: uuid.New(), Valid: true}
 	text := "text"
 
-	user, err := UserModelToAPI(models.User{ID: id, Email: "user@example.com", Role: models.UserRoleUser, Post: &text, CreatedAt: now})
+	user, err := UserModelToAPI(models.CurrentUser{ID: id, Email: "user@example.com", Role: models.UserRoleUser, Post: &text, CreatedAt: now})
 	if err != nil || user.ID != id.String() || user.Email != "user@example.com" {
 		t.Fatalf("UserModelToAPI = %+v, %v", user, err)
 	}

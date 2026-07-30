@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel)"
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass \
+  -File "$repo_root/scripts/verify-ci.ps1"

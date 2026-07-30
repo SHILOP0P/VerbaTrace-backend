@@ -15,7 +15,7 @@ import (
 
 const defaultUserRole = model.UserRoleUser
 
-func (s *Service) Register(ctx context.Context, input model.CreateUserInput) (model.User, error) {
+func (s *Service) Register(ctx context.Context, input model.CreateUserInput) (model.CurrentUser, error) {
 	input.Email = strings.TrimSpace(strings.ToLower(input.Email))
 	input.FullName = strings.TrimSpace(input.FullName)
 	input.FullSurname = strings.TrimSpace(input.FullSurname)
@@ -26,37 +26,37 @@ func (s *Service) Register(ctx context.Context, input model.CreateUserInput) (mo
 		input.Password == "" ||
 		input.FullName == "" ||
 		input.FullSurname == "" {
-		return model.User{}, model.ErrInvalidUserInput
+		return model.CurrentUser{}, model.ErrInvalidUserInput
 	}
 
 	if len(input.Password) < 8 {
-		return model.User{}, model.ErrInvalidUserInput
+		return model.CurrentUser{}, model.ErrInvalidUserInput
 	}
 
 	_, err := s.userRepository.GetUserByEmail(ctx, input.Email)
 	if err == nil {
-		return model.User{}, model.ErrUserAlreadyExists
+		return model.CurrentUser{}, model.ErrUserAlreadyExists
 	}
 	if !errors.Is(err, model.ErrUserNotFound) {
-		return model.User{}, err
+		return model.CurrentUser{}, err
 	}
 
 	normalizedUsername, err := s.usernameForNewUser(ctx, input)
 	if err != nil {
-		return model.User{}, err
+		return model.CurrentUser{}, err
 	}
 
 	passwordHash, err := password.Hash(input.Password, s.passwordPepper)
 	if err != nil {
-		return model.User{}, err
+		return model.CurrentUser{}, err
 	}
 
 	userID, err := uuid.NewV7()
 	if err != nil {
-		return model.User{}, err
+		return model.CurrentUser{}, err
 	}
 
-	user := model.User{
+	user := model.CurrentUser{
 		ID:           userID,
 		Email:        input.Email,
 		PasswordHash: passwordHash,
@@ -70,7 +70,7 @@ func (s *Service) Register(ctx context.Context, input model.CreateUserInput) (mo
 
 	createUser, err := s.userRepository.CreateUser(ctx, user)
 	if err != nil {
-		return model.User{}, err
+		return model.CurrentUser{}, err
 	}
 
 	if s.billingRepository != nil {
@@ -84,7 +84,7 @@ func (s *Service) Register(ctx context.Context, input model.CreateUserInput) (mo
 			StartsAt: time.Now().UTC(),
 		})
 		if err != nil {
-			return model.User{}, err
+			return model.CurrentUser{}, err
 		}
 	}
 

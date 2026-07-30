@@ -22,9 +22,10 @@ func (r *Repository) ListAdminUsers(ctx context.Context, input models.ListAdminU
 	offsetPos := len(args) + 1
 	args = append(args, input.Offset)
 	query := fmt.Sprintf(`
-		SELECT u.user_uuid, u.email, u.full_name, u.full_surname, u.username, u.role,
-		       u.post, u.phone, u.timezone, u.created_at, COUNT(*) OVER()
+		SELECT u.user_uuid, u.email, p.full_name, p.full_surname, p.username, u.role,
+		       p.headline, p.phone, p.timezone, u.created_at, COUNT(*) OVER()
 		FROM users u
+		JOIN user_profiles p ON p.user_uuid = u.user_uuid
 		WHERE %s
 		ORDER BY u.created_at DESC, u.user_uuid DESC
 		LIMIT $%d OFFSET $%d
@@ -47,7 +48,7 @@ func (r *Repository) ListAdminUsers(ctx context.Context, input models.ListAdminU
 		return models.ListAdminUsersResult{}, fmt.Errorf("iterate admin users: %w", err)
 	}
 	if len(result.Users) == 0 && input.Offset > 0 {
-		if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users u WHERE "+where, args[:len(args)-2]...).Scan(&result.Total); err != nil {
+		if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users u JOIN user_profiles p ON p.user_uuid=u.user_uuid WHERE "+where, args[:len(args)-2]...).Scan(&result.Total); err != nil {
 			return models.ListAdminUsersResult{}, fmt.Errorf("count admin users: %w", err)
 		}
 	}
@@ -60,7 +61,7 @@ func adminUsersWhere(input models.ListAdminUsersInput) (string, []any) {
 	if q := strings.TrimSpace(input.Query); q != "" {
 		args = append(args, "%"+strings.ToLower(q)+"%")
 		p := len(args)
-		conditions = append(conditions, fmt.Sprintf("(LOWER(u.email) LIKE $%d OR LOWER(u.username) LIKE $%d OR LOWER(u.full_name) LIKE $%d OR LOWER(u.full_surname) LIKE $%d)", p, p, p, p))
+		conditions = append(conditions, fmt.Sprintf("(LOWER(u.email) LIKE $%d OR LOWER(p.username) LIKE $%d OR LOWER(p.full_name) LIKE $%d OR LOWER(p.full_surname) LIKE $%d)", p, p, p, p))
 	}
 	if input.Role != nil {
 		args = append(args, string(*input.Role))
@@ -115,11 +116,17 @@ func (r *Repository) UpdateAdminUserProfile(ctx context.Context, input models.Up
 	}
 	before, _ := json.Marshal(target)
 	row := tx.QueryRowContext(ctx, `
-		UPDATE users
+		WITH updated AS (
+		UPDATE user_profiles
 		SET full_name=COALESCE($2,full_name), full_surname=COALESCE($3,full_surname),
-			username=COALESCE($4,username), post=COALESCE($5,post), phone=COALESCE($6,phone), timezone=COALESCE($7,timezone)
+			username=COALESCE($4,username), headline=COALESCE($5,headline), phone=COALESCE($6,phone),
+			timezone=COALESCE($7,timezone), updated_at=now()
 		WHERE user_uuid=$1
-		RETURNING user_uuid,email,full_name,full_surname,username,role,post,phone,timezone,created_at`,
+		RETURNING *
+		)
+		SELECT u.user_uuid,u.email,p.full_name,p.full_surname,p.username,u.role,
+		       p.headline,p.phone,p.timezone,u.created_at
+		FROM users u JOIN updated p ON p.user_uuid=u.user_uuid`,
 		target.ID, input.FullName, input.FullSurname, input.Username, input.Post, input.Phone, input.Timezone)
 	updated, err := scanAdminUser(row)
 	if err != nil {
@@ -140,7 +147,7 @@ func (r *Repository) UpdateAdminUserProfile(ctx context.Context, input models.Up
 }
 
 func getAdminUser(ctx context.Context, q queryRower, userID uuid.UUID) (models.AdminUser, error) {
-	row := q.QueryRowContext(ctx, `SELECT user_uuid,email,full_name,full_surname,username,role,post,phone,timezone,created_at FROM users WHERE user_uuid=$1`, userID)
+	row := q.QueryRowContext(ctx, `SELECT u.user_uuid,u.email,p.full_name,p.full_surname,p.username,u.role,p.headline,p.phone,p.timezone,u.created_at FROM users u JOIN user_profiles p ON p.user_uuid=u.user_uuid WHERE u.user_uuid=$1`, userID)
 	user, err := scanAdminUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.AdminUser{}, models.ErrUserNotFound
@@ -286,7 +293,7 @@ type queryRower interface {
 }
 
 func getAdminUserForUpdate(ctx context.Context, tx *sql.Tx, userID uuid.UUID) (models.AdminUser, error) {
-	row := tx.QueryRowContext(ctx, `SELECT user_uuid,email,full_name,full_surname,username,role,post,phone,timezone,created_at FROM users WHERE user_uuid=$1 FOR UPDATE`, userID)
+	row := tx.QueryRowContext(ctx, `SELECT u.user_uuid,u.email,p.full_name,p.full_surname,p.username,u.role,p.headline,p.phone,p.timezone,u.created_at FROM users u JOIN user_profiles p ON p.user_uuid=u.user_uuid WHERE u.user_uuid=$1 FOR UPDATE`, userID)
 	u, err := scanAdminUser(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.AdminUser{}, models.ErrUserNotFound

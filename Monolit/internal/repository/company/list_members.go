@@ -19,6 +19,7 @@ func (r *Repository) ListCompanyMembers(ctx context.Context, input model.ListCom
 	FROM company_members cm
 	JOIN companies c ON c.company_uuid = cm.company_uuid
 	JOIN users u ON u.user_uuid = cm.user_uuid
+	JOIN user_profiles p ON p.user_uuid = u.user_uuid
 	` + where
 
 	var total int
@@ -32,15 +33,17 @@ func (r *Repository) ListCompanyMembers(ctx context.Context, input model.ListCom
 		SELECT cm.company_uuid,
 		       cm.user_uuid,
 		       u.email,
-		       u.username,
-		       u.full_name,
-		       u.full_surname,
+		       p.username,
+		       p.full_name,
+		       p.full_surname,
+		       cm.job_title,
 		       cm.role,
 		       cm.status,
 		       cm.created_at
 		FROM company_members cm
 		JOIN companies c ON c.company_uuid = cm.company_uuid
 		JOIN users u ON u.user_uuid = cm.user_uuid
+		JOIN user_profiles p ON p.user_uuid = u.user_uuid
 		` + where + `
 		ORDER BY cm.created_at ASC, cm.user_uuid ASC
 		LIMIT $` + fmt.Sprint(len(args)+1) + ` OFFSET $` + fmt.Sprint(len(args)+2) + `
@@ -51,6 +54,7 @@ func (r *Repository) ListCompanyMembers(ctx context.Context, input model.ListCom
 	       fm.username,
 	       fm.full_name,
 	       fm.full_surname,
+	       fm.job_title,
 	       fm.role,
 	       fm.status,
 	       fm.created_at,
@@ -89,6 +93,7 @@ func (r *Repository) ListCompanyMembers(ctx context.Context, input model.ListCom
 			&item.Username,
 			&item.FullName,
 			&item.FullSurname,
+			&item.JobTitle,
 			&item.CompanyRole,
 			&item.Status,
 			&item.CreatedAt,
@@ -182,9 +187,9 @@ func companyMembersWhere(input model.ListCompanyMembersInput) (string, []any) {
 	if input.Query != "" {
 		args = append(args, "%"+strings.ToLower(input.Query)+"%")
 		conditions = append(conditions, fmt.Sprintf(`AND (
-			lower(u.username) LIKE $%d OR
-			lower(u.full_name) LIKE $%d OR
-			lower(u.full_surname) LIKE $%d OR
+			lower(p.username) LIKE $%d OR
+			lower(p.full_name) LIKE $%d OR
+			lower(p.full_surname) LIKE $%d OR
 			lower(u.email) LIKE $%d
 		)`, len(args), len(args), len(args), len(args)))
 	}

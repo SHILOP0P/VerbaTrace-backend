@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *RepositorySuite) createUser(email string) models.User {
+func (s *RepositorySuite) createUser(email string) models.CurrentUser {
 	userID := uuid.New()
-	user := models.User{
+	user := models.CurrentUser{
 		ID:           userID,
 		Email:        email,
 		PasswordHash: "hash",
@@ -29,7 +29,7 @@ func (s *RepositorySuite) createUser(email string) models.User {
 	return created
 }
 
-func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.User) {
+func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.CurrentUser) {
 	manager := s.createUser(uuid.NewString() + "@example.com")
 	company := models.Company{
 		ID:              uuid.New(),
@@ -52,7 +52,7 @@ func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.Use
 	return created, manager
 }
 
-func (s *RepositorySuite) addCompanyEmployee(companyID uuid.UUID, role models.CompanyMemberRole) models.User {
+func (s *RepositorySuite) addCompanyEmployee(companyID uuid.UUID, role models.CompanyMemberRole) models.CurrentUser {
 	user := s.createUser(uuid.NewString() + "@example.com")
 	_, err := s.companyRepository.AddCompanyMember(s.ctx, models.CompanyMember{
 		CompanyUUID: companyID,

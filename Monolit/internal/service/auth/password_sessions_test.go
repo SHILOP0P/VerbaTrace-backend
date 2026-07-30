@@ -23,7 +23,7 @@ func TestUpdatePasswordValidationAndSessionRevocation(t *testing.T) {
 	require.NoError(t, err)
 
 	s.userRepository.On("GetUserByUUID", s.ctx, userID).
-		Return(models.User{ID: userID, PasswordHash: hash}, nil).
+		Return(models.CurrentUser{ID: userID, PasswordHash: hash}, nil).
 		Once()
 
 	_, err = s.service.UpdatePassword(s.ctx, models.UpdatePasswordInput{
@@ -54,13 +54,13 @@ func TestUpdatePasswordChangesHashAndRevokesOtherSessions(t *testing.T) {
 	require.NoError(t, err)
 
 	s.userRepository.On("GetUserByUUID", s.ctx, userID).
-		Return(models.User{ID: userID, PasswordHash: oldHash}, nil).
+		Return(models.CurrentUser{ID: userID, PasswordHash: oldHash}, nil).
 		Once()
 	s.userRepository.On("UpdatePasswordHash", s.ctx, userID, mock.MatchedBy(func(newHash string) bool {
 		return newHash != "" &&
 			newHash != oldHash &&
 			password.Compare("new-password", newHash, "password-pepper") == nil
-	})).Return(models.User{ID: userID}, nil).Once()
+	})).Return(models.CurrentUser{ID: userID}, nil).Once()
 	s.refreshSessionRepository.On("RevokeOtherUserRefreshSessions", s.ctx, userID, sessionID, passwordChangedReason).
 		Return(nil).
 		Once()

@@ -18,7 +18,7 @@ func (s *APISuite) TestUpdateUsernameSuccess() {
 	userID := uuid.New()
 	s.service.EXPECT().UpdateUsername(mock.Anything, models.UpdateUsernameInput{
 		UserUUID: userID, Username: "Valid Name",
-	}).Return(models.User{ID: userID, Username: "@valid_name"}, nil).Once()
+	}).Return(models.CurrentUser{ID: userID, Username: "@valid_name"}, nil).Once()
 	rec, req := s.requestWithUser(http.MethodPatch, "/auth/me/username", `{"username":"Valid Name"}`, userID)
 	s.api.UpdateUsername(rec, req)
 	s.Equal(http.StatusOK, rec.Code)
@@ -38,7 +38,7 @@ func (s *APISuite) TestUpdateUsernameErrors() {
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			userID := uuid.New()
-			s.service.EXPECT().UpdateUsername(mock.Anything, mock.Anything).Return(models.User{}, tt.err).Once()
+			s.service.EXPECT().UpdateUsername(mock.Anything, mock.Anything).Return(models.CurrentUser{}, tt.err).Once()
 			rec, req := s.requestWithUser(http.MethodPatch, "/", tt.body, userID)
 			s.api.UpdateUsername(rec, req)
 			s.Equal(tt.code, rec.Code)
@@ -57,7 +57,7 @@ func (s *APISuite) TestUpdateUsernameErrors() {
 func (s *APISuite) TestLookupUser() {
 	userID := uuid.New()
 	s.service.EXPECT().GetUserByUsername(mock.Anything, "valid").
-		Return(models.User{ID: userID, Username: "@valid"}, nil).Once()
+		Return(models.CurrentUser{ID: userID, Username: "@valid"}, nil).Once()
 	rec, req := s.request(http.MethodGet, "/users/lookup?username=valid", "")
 	s.api.LookupUser(rec, req)
 	s.Equal(http.StatusOK, rec.Code)
@@ -70,7 +70,7 @@ func (s *APISuite) TestLookupUser() {
 		{models.ErrUserNotFound, http.StatusNotFound},
 		{errors.New("db"), http.StatusInternalServerError},
 	} {
-		s.service.EXPECT().GetUserByUsername(mock.Anything, "bad").Return(models.User{}, tt.err).Once()
+		s.service.EXPECT().GetUserByUsername(mock.Anything, "bad").Return(models.CurrentUser{}, tt.err).Once()
 		rec, req = s.request(http.MethodGet, "/users/lookup?username=bad", "")
 		s.api.LookupUser(rec, req)
 		s.Equal(tt.code, rec.Code)

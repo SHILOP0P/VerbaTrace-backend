@@ -44,7 +44,9 @@ tasks:
     cmds:
       - task: db
       - echo "==> Running integration tests with PostgreSQL"
-      - go test -tags=integration ./...
+      # Repository integration packages share POSTGRES_TEST_DB and truncate it
+      # between tests, so packages must not run against that database in parallel.
+      - go test -p 1 -tags=integration ./...
 
   # Статическая проверка Go-кода.
   vet:

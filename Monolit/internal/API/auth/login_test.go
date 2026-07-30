@@ -22,7 +22,7 @@ func (s *APISuite) TestLoginSuccess() {
 			input.Password == "password123" &&
 			input.IPAddress != nil
 	})).
-		Return(models.User{ID: userID, Email: "user@example.com", FullName: "Dmitry", FullSurname: "Mukhachev", Username: "muxa", Role: models.UserRoleUser, CreatedAt: time.Now().UTC()}, "access", "refresh", nil).
+		Return(models.CurrentUser{ID: userID, Email: "user@example.com", FullName: "Dmitry", FullSurname: "Mukhachev", Username: "muxa", Role: models.UserRoleUser, CreatedAt: time.Now().UTC()}, "access", "refresh", nil).
 		Once()
 
 	rec, req := s.request(http.MethodPost, "/api/v1/auth/login", body)
@@ -54,7 +54,7 @@ func (s *APISuite) TestLoginMapsInvalidCredentials() {
 	s.service.On("Login", mock.Anything, mock.MatchedBy(func(input models.LoginInput) bool {
 		return input.Email == "user@example.com" && input.Password == "bad"
 	})).
-		Return(models.User{}, "", "", models.ErrInvalidCredentials).
+		Return(models.CurrentUser{}, "", "", models.ErrInvalidCredentials).
 		Once()
 
 	rec, req := s.request(http.MethodPost, "/api/v1/auth/login", body)

@@ -102,10 +102,10 @@ func TestConverters(t *testing.T) {
 	})
 
 	mustNoError(t, func() error {
-		_, err := RepoUserToModel(repoModel.User{Post: sql.NullString{String: text, Valid: true}})
+		_, err := RepoUserToModel(repoModel.CurrentUserRecord{Post: sql.NullString{String: text, Valid: true}})
 		return err
 	})
-	mustNoError(t, func() error { _, err := ModelUserToRepoModel(models.User{Post: &text}); return err })
+	mustNoError(t, func() error { _, err := ModelUserToRepoModel(models.CurrentUser{Post: &text}); return err })
 	if nullStringToStringPtr(sql.NullString{}) != nil || stringPtrToNullString(nil).Valid {
 		t.Fatal("nil string conversion failed")
 	}

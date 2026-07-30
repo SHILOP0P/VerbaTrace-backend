@@ -12,30 +12,38 @@ import (
 
 const avatarURL = "/api/v1/auth/me/avatar"
 
-func (s *Service) UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.User, error) {
+func (s *Service) UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.CurrentUser, error) {
 	if input.UserUUID == uuid.Nil {
-		return models.User{}, models.ErrInvalidUserInput
+		return models.CurrentUser{}, models.ErrInvalidUserInput
 	}
 
 	input.FullName = normalizeRequiredPatchString(input.FullName)
 	input.FullSurname = normalizeRequiredPatchString(input.FullSurname)
-	input.Post = normalizeOptionalString(input.Post)
-	input.Phone = normalizeOptionalString(input.Phone)
-	input.Timezone = normalizeOptionalString(input.Timezone)
+	input.Post = normalizeOptionalPatchString(input.Post)
+	input.Phone = normalizeOptionalPatchString(input.Phone)
+	input.Timezone = normalizeOptionalPatchString(input.Timezone)
 
 	if input.FullName != nil && *input.FullName == "" {
-		return models.User{}, models.ErrInvalidUserInput
+		return models.CurrentUser{}, models.ErrInvalidUserInput
 	}
 	if input.FullSurname != nil && *input.FullSurname == "" {
-		return models.User{}, models.ErrInvalidUserInput
+		return models.CurrentUser{}, models.ErrInvalidUserInput
 	}
-	if input.Timezone != nil {
+	if input.Timezone != nil && *input.Timezone != "" {
 		if _, err := time.LoadLocation(*input.Timezone); err != nil {
-			return models.User{}, models.ErrInvalidUserInput
+			return models.CurrentUser{}, models.ErrInvalidUserInput
 		}
 	}
 
 	return s.userRepository.UpdateProfile(ctx, input)
+}
+
+func normalizeOptionalPatchString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	return &trimmed
 }
 
 func (s *Service) UploadAvatar(ctx context.Context, input models.SaveUserAvatarInput) (models.UserAvatarResponse, error) {

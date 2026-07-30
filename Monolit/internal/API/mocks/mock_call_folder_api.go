@@ -327,6 +327,40 @@ func (_c *CallFolderAPI_RemoveCall_Call) RunAndReturn(run func(http.ResponseWrit
 	return _c
 }
 
+// ReplaceInstructions provides a mock function with given fields: w, r
+func (_m *CallFolderAPI) ReplaceInstructions(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CallFolderAPI_ReplaceInstructions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReplaceInstructions'
+type CallFolderAPI_ReplaceInstructions_Call struct {
+	*mock.Call
+}
+
+// ReplaceInstructions is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CallFolderAPI_Expecter) ReplaceInstructions(w interface{}, r interface{}) *CallFolderAPI_ReplaceInstructions_Call {
+	return &CallFolderAPI_ReplaceInstructions_Call{Call: _e.mock.On("ReplaceInstructions", w, r)}
+}
+
+func (_c *CallFolderAPI_ReplaceInstructions_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallFolderAPI_ReplaceInstructions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CallFolderAPI_ReplaceInstructions_Call) Return() *CallFolderAPI_ReplaceInstructions_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CallFolderAPI_ReplaceInstructions_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallFolderAPI_ReplaceInstructions_Call {
+	_c.Run(run)
+	return _c
+}
+
 // RevokeAccess provides a mock function with given fields: w, r
 func (_m *CallFolderAPI) RevokeAccess(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)

@@ -2,8 +2,8 @@ package scaner
 
 import repoModel "calllens/monolit/internal/repository/models"
 
-func ScanUser(row rowScanner) (repoModel.User, error) {
-	var user repoModel.User
+func ScanUser(row rowScanner) (repoModel.CurrentUserRecord, error) {
+	var user repoModel.CurrentUserRecord
 
 	err := row.Scan(
 		&user.ID,
@@ -23,7 +23,7 @@ func ScanUser(row rowScanner) (repoModel.User, error) {
 		&user.CreatedAt,
 	)
 	if err != nil {
-		return repoModel.User{}, err
+		return repoModel.CurrentUserRecord{}, err
 	}
 
 	return user, nil

@@ -3,7 +3,7 @@ package models
 import "github.com/google/uuid"
 
 type ContactList struct {
-	Users []User
+	Users []PublicUser
 }
 
 type FavoriteCallList struct {

@@ -23,7 +23,7 @@ func (s *APISuite) TestRegisterSuccess() {
 	}
 
 	s.service.On("Register", mock.Anything, input).
-		Return(models.User{ID: userID, Email: input.Email, FullName: input.FullName, FullSurname: input.FullSurname, Username: input.Username, Role: models.UserRoleUser, CreatedAt: time.Now().UTC()}, nil).
+		Return(models.CurrentUser{ID: userID, Email: input.Email, FullName: input.FullName, FullSurname: input.FullSurname, Username: input.Username, Role: models.UserRoleUser, CreatedAt: time.Now().UTC()}, nil).
 		Once()
 
 	rec, req := s.request(http.MethodPost, "/api/v1/auth/register", body)
@@ -53,7 +53,7 @@ func (s *APISuite) TestRegisterMapsAlreadyExists() {
 	}
 
 	s.service.On("Register", mock.Anything, input).
-		Return(models.User{}, models.ErrUserAlreadyExists).
+		Return(models.CurrentUser{}, models.ErrUserAlreadyExists).
 		Once()
 
 	rec, req := s.request(http.MethodPost, "/api/v1/auth/register", body)

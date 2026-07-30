@@ -58,20 +58,21 @@ type CallFolderRepository interface {
 
 type UserRepository interface {
 	//GET
-	GetUserByUUID(ctx context.Context, id uuid.UUID) (models.User, error)
-	GetUserByEmail(ctx context.Context, email string) (models.User, error)
-	GetUserByUsername(ctx context.Context, username string) (models.User, error)
+	GetUserByUUID(ctx context.Context, id uuid.UUID) (models.CurrentUser, error)
+	GetUserByEmail(ctx context.Context, email string) (models.CurrentUser, error)
+	GetUserByUsername(ctx context.Context, username string) (models.CurrentUser, error)
 	//POST
-	CreateUser(ctx context.Context, user models.User) (models.User, error)
-	UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.User, error)
-	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string) (models.User, error)
-	UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.User, error)
-	UpdateAvatar(ctx context.Context, input models.UserAvatarUpdate) (models.User, error)
-	DeleteAvatar(ctx context.Context, userID uuid.UUID) (models.User, error)
+	CreateUser(ctx context.Context, user models.CurrentUser) (models.CurrentUser, error)
+	UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.CurrentUser, error)
+	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string) (models.CurrentUser, error)
+	UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.CurrentUser, error)
+	UpdateAvatar(ctx context.Context, input models.UserAvatarUpdate) (models.CurrentUser, error)
+	DeleteAvatar(ctx context.Context, userID uuid.UUID) (models.CurrentUser, error)
 }
 
 type ContactRepository interface {
-	SearchUsers(ctx context.Context, usernamePrefix string, limit int) ([]models.User, error)
+	SearchPublicUsers(ctx context.Context, usernamePrefix string, limit int) ([]models.PublicUser, error)
+	GetPublicUserByUUID(ctx context.Context, userID uuid.UUID) (models.PublicUser, error)
 	AddContact(ctx context.Context, userID uuid.UUID, contactID uuid.UUID) error
 	RemoveContact(ctx context.Context, userID uuid.UUID, contactID uuid.UUID) error
 	ListContactIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)

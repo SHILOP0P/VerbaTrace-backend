@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *RepositorySuite) createUser() models.User {
-	user := models.User{
+func (s *RepositorySuite) createUser() models.CurrentUser {
+	user := models.CurrentUser{
 		ID:           uuid.New(),
 		Email:        uuid.NewString() + "@example.com",
 		PasswordHash: "hash",

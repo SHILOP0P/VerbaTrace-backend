@@ -31,7 +31,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		UserUUID:    userID,
 		FullName:    req.FullName,
 		FullSurname: req.FullSurname,
-		Post:        req.Post,
+		Post:        req.Headline,
 		Phone:       req.Phone,
 		Timezone:    req.Timezone,
 	})

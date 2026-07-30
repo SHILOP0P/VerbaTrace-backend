@@ -18,12 +18,12 @@ func (s *ServiceSuite) TestRegisterSuccess() {
 	}
 
 	s.userRepository.On("GetUserByEmail", s.ctx, "user@example.com").
-		Return(models.User{}, models.ErrUserNotFound).
+		Return(models.CurrentUser{}, models.ErrUserNotFound).
 		Once()
 	s.userRepository.On("GetUserByUsername", s.ctx, "@muxa").
-		Return(models.User{}, models.ErrUserNotFound).
+		Return(models.CurrentUser{}, models.ErrUserNotFound).
 		Once()
-	s.userRepository.On("CreateUser", s.ctx, mock.MatchedBy(func(user models.User) bool {
+	s.userRepository.On("CreateUser", s.ctx, mock.MatchedBy(func(user models.CurrentUser) bool {
 		return user.Email == "user@example.com" &&
 			user.FullName == "Dmitry" &&
 			user.FullSurname == "Mukhachev" &&
@@ -31,7 +31,7 @@ func (s *ServiceSuite) TestRegisterSuccess() {
 			user.Role == models.UserRoleUser &&
 			user.PasswordHash != ""
 	})).
-		Return(func(_ context.Context, user models.User) models.User {
+		Return(func(_ context.Context, user models.CurrentUser) models.CurrentUser {
 			return user
 		}, nil).
 		Once()
@@ -65,7 +65,7 @@ func (s *ServiceSuite) TestRegisterRejectsExistingUser() {
 	}
 
 	s.userRepository.On("GetUserByEmail", s.ctx, "user@example.com").
-		Return(models.User{Email: "user@example.com"}, nil).
+		Return(models.CurrentUser{Email: "user@example.com"}, nil).
 		Once()
 
 	_, err := s.service.Register(s.ctx, input)

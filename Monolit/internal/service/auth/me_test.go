@@ -10,7 +10,7 @@ func (s *ServiceSuite) TestMeSuccess() {
 	userID := uuid.New()
 
 	s.userRepository.On("GetUserByUUID", s.ctx, userID).
-		Return(models.User{ID: userID, Email: "user@example.com"}, nil).
+		Return(models.CurrentUser{ID: userID, Email: "user@example.com"}, nil).
 		Once()
 
 	got, err := s.service.Me(s.ctx, userID)
@@ -23,7 +23,7 @@ func (s *ServiceSuite) TestMeReturnsRepositoryError() {
 	userID := uuid.New()
 
 	s.userRepository.On("GetUserByUUID", s.ctx, userID).
-		Return(models.User{}, models.ErrUserNotFound).
+		Return(models.CurrentUser{}, models.ErrUserNotFound).
 		Once()
 
 	_, err := s.service.Me(s.ctx, userID)

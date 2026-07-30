@@ -9,7 +9,7 @@ import (
 
 const avatarURL = "/api/v1/auth/me/avatar"
 
-func UserModelToAPI(user models.User) (dto.UserResponse, error) {
+func UserModelToAPI(user models.CurrentUser) (dto.UserResponse, error) {
 	var userAvatarURL *string
 	if user.AvatarPath != nil {
 		value := avatarURL
@@ -23,7 +23,7 @@ func UserModelToAPI(user models.User) (dto.UserResponse, error) {
 		FullSurname: user.FullSurname,
 		Username:    user.Username,
 		Role:        string(user.Role),
-		Post:        user.Post,
+		Headline:    user.Post,
 		Phone:       user.Phone,
 		Timezone:    user.Timezone,
 		AvatarURL:   userAvatarURL,

@@ -25,25 +25,25 @@ func (_m *UserRepository) EXPECT() *UserRepository_Expecter {
 }
 
 // CreateUser provides a mock function with given fields: ctx, user
-func (_m *UserRepository) CreateUser(ctx context.Context, user models.User) (models.User, error) {
+func (_m *UserRepository) CreateUser(ctx context.Context, user models.CurrentUser) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, user)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateUser")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.User) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.CurrentUser) (models.CurrentUser, error)); ok {
 		return rf(ctx, user)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.User) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.CurrentUser) models.CurrentUser); ok {
 		r0 = rf(ctx, user)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, models.User) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, models.CurrentUser) error); ok {
 		r1 = rf(ctx, user)
 	} else {
 		r1 = ret.Error(1)
@@ -64,40 +64,40 @@ func (_e *UserRepository_Expecter) CreateUser(ctx interface{}, user interface{})
 	return &UserRepository_CreateUser_Call{Call: _e.mock.On("CreateUser", ctx, user)}
 }
 
-func (_c *UserRepository_CreateUser_Call) Run(run func(ctx context.Context, user models.User)) *UserRepository_CreateUser_Call {
+func (_c *UserRepository_CreateUser_Call) Run(run func(ctx context.Context, user models.CurrentUser)) *UserRepository_CreateUser_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(models.User))
+		run(args[0].(context.Context), args[1].(models.CurrentUser))
 	})
 	return _c
 }
 
-func (_c *UserRepository_CreateUser_Call) Return(_a0 models.User, _a1 error) *UserRepository_CreateUser_Call {
+func (_c *UserRepository_CreateUser_Call) Return(_a0 models.CurrentUser, _a1 error) *UserRepository_CreateUser_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *UserRepository_CreateUser_Call) RunAndReturn(run func(context.Context, models.User) (models.User, error)) *UserRepository_CreateUser_Call {
+func (_c *UserRepository_CreateUser_Call) RunAndReturn(run func(context.Context, models.CurrentUser) (models.CurrentUser, error)) *UserRepository_CreateUser_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // DeleteAvatar provides a mock function with given fields: ctx, userID
-func (_m *UserRepository) DeleteAvatar(ctx context.Context, userID uuid.UUID) (models.User, error) {
+func (_m *UserRepository) DeleteAvatar(ctx context.Context, userID uuid.UUID) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteAvatar")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (models.CurrentUser, error)); ok {
 		return rf(ctx, userID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) models.CurrentUser); ok {
 		r0 = rf(ctx, userID)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
@@ -128,33 +128,33 @@ func (_c *UserRepository_DeleteAvatar_Call) Run(run func(ctx context.Context, us
 	return _c
 }
 
-func (_c *UserRepository_DeleteAvatar_Call) Return(_a0 models.User, _a1 error) *UserRepository_DeleteAvatar_Call {
+func (_c *UserRepository_DeleteAvatar_Call) Return(_a0 models.CurrentUser, _a1 error) *UserRepository_DeleteAvatar_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *UserRepository_DeleteAvatar_Call) RunAndReturn(run func(context.Context, uuid.UUID) (models.User, error)) *UserRepository_DeleteAvatar_Call {
+func (_c *UserRepository_DeleteAvatar_Call) RunAndReturn(run func(context.Context, uuid.UUID) (models.CurrentUser, error)) *UserRepository_DeleteAvatar_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetUserByEmail provides a mock function with given fields: ctx, email
-func (_m *UserRepository) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
+func (_m *UserRepository) GetUserByEmail(ctx context.Context, email string) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, email)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserByEmail")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.CurrentUser, error)); ok {
 		return rf(ctx, email)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.CurrentUser); ok {
 		r0 = rf(ctx, email)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
@@ -185,33 +185,33 @@ func (_c *UserRepository_GetUserByEmail_Call) Run(run func(ctx context.Context, 
 	return _c
 }
 
-func (_c *UserRepository_GetUserByEmail_Call) Return(_a0 models.User, _a1 error) *UserRepository_GetUserByEmail_Call {
+func (_c *UserRepository_GetUserByEmail_Call) Return(_a0 models.CurrentUser, _a1 error) *UserRepository_GetUserByEmail_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *UserRepository_GetUserByEmail_Call) RunAndReturn(run func(context.Context, string) (models.User, error)) *UserRepository_GetUserByEmail_Call {
+func (_c *UserRepository_GetUserByEmail_Call) RunAndReturn(run func(context.Context, string) (models.CurrentUser, error)) *UserRepository_GetUserByEmail_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetUserByUUID provides a mock function with given fields: ctx, id
-func (_m *UserRepository) GetUserByUUID(ctx context.Context, id uuid.UUID) (models.User, error) {
+func (_m *UserRepository) GetUserByUUID(ctx context.Context, id uuid.UUID) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, id)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserByUUID")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (models.CurrentUser, error)); ok {
 		return rf(ctx, id)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) models.CurrentUser); ok {
 		r0 = rf(ctx, id)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
@@ -242,33 +242,33 @@ func (_c *UserRepository_GetUserByUUID_Call) Run(run func(ctx context.Context, i
 	return _c
 }
 
-func (_c *UserRepository_GetUserByUUID_Call) Return(_a0 models.User, _a1 error) *UserRepository_GetUserByUUID_Call {
+func (_c *UserRepository_GetUserByUUID_Call) Return(_a0 models.CurrentUser, _a1 error) *UserRepository_GetUserByUUID_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *UserRepository_GetUserByUUID_Call) RunAndReturn(run func(context.Context, uuid.UUID) (models.User, error)) *UserRepository_GetUserByUUID_Call {
+func (_c *UserRepository_GetUserByUUID_Call) RunAndReturn(run func(context.Context, uuid.UUID) (models.CurrentUser, error)) *UserRepository_GetUserByUUID_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetUserByUsername provides a mock function with given fields: ctx, username
-func (_m *UserRepository) GetUserByUsername(ctx context.Context, username string) (models.User, error) {
+func (_m *UserRepository) GetUserByUsername(ctx context.Context, username string) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, username)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserByUsername")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.CurrentUser, error)); ok {
 		return rf(ctx, username)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.CurrentUser); ok {
 		r0 = rf(ctx, username)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
@@ -299,33 +299,33 @@ func (_c *UserRepository_GetUserByUsername_Call) Run(run func(ctx context.Contex
 	return _c
 }
 
-func (_c *UserRepository_GetUserByUsername_Call) Return(_a0 models.User, _a1 error) *UserRepository_GetUserByUsername_Call {
+func (_c *UserRepository_GetUserByUsername_Call) Return(_a0 models.CurrentUser, _a1 error) *UserRepository_GetUserByUsername_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *UserRepository_GetUserByUsername_Call) RunAndReturn(run func(context.Context, string) (models.User, error)) *UserRepository_GetUserByUsername_Call {
+func (_c *UserRepository_GetUserByUsername_Call) RunAndReturn(run func(context.Context, string) (models.CurrentUser, error)) *UserRepository_GetUserByUsername_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateAvatar provides a mock function with given fields: ctx, input
-func (_m *UserRepository) UpdateAvatar(ctx context.Context, input models.UserAvatarUpdate) (models.User, error) {
+func (_m *UserRepository) UpdateAvatar(ctx context.Context, input models.UserAvatarUpdate) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, input)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateAvatar")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.UserAvatarUpdate) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UserAvatarUpdate) (models.CurrentUser, error)); ok {
 		return rf(ctx, input)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.UserAvatarUpdate) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UserAvatarUpdate) models.CurrentUser); ok {
 		r0 = rf(ctx, input)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.UserAvatarUpdate) error); ok {
@@ -356,33 +356,33 @@ func (_c *UserRepository_UpdateAvatar_Call) Run(run func(ctx context.Context, in
 	return _c
 }
 
-func (_c *UserRepository_UpdateAvatar_Call) Return(_a0 models.User, _a1 error) *UserRepository_UpdateAvatar_Call {
+func (_c *UserRepository_UpdateAvatar_Call) Return(_a0 models.CurrentUser, _a1 error) *UserRepository_UpdateAvatar_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *UserRepository_UpdateAvatar_Call) RunAndReturn(run func(context.Context, models.UserAvatarUpdate) (models.User, error)) *UserRepository_UpdateAvatar_Call {
+func (_c *UserRepository_UpdateAvatar_Call) RunAndReturn(run func(context.Context, models.UserAvatarUpdate) (models.CurrentUser, error)) *UserRepository_UpdateAvatar_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdatePasswordHash provides a mock function with given fields: ctx, userID, passwordHash
-func (_m *UserRepository) UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string) (models.User, error) {
+func (_m *UserRepository) UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, userID, passwordHash)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdatePasswordHash")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) (models.CurrentUser, error)); ok {
 		return rf(ctx, userID, passwordHash)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) models.CurrentUser); ok {
 		r0 = rf(ctx, userID, passwordHash)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string) error); ok {
@@ -414,33 +414,33 @@ func (_c *UserRepository_UpdatePasswordHash_Call) Run(run func(ctx context.Conte
 	return _c
 }
 
-func (_c *UserRepository_UpdatePasswordHash_Call) Return(_a0 models.User, _a1 error) *UserRepository_UpdatePasswordHash_Call {
+func (_c *UserRepository_UpdatePasswordHash_Call) Return(_a0 models.CurrentUser, _a1 error) *UserRepository_UpdatePasswordHash_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *UserRepository_UpdatePasswordHash_Call) RunAndReturn(run func(context.Context, uuid.UUID, string) (models.User, error)) *UserRepository_UpdatePasswordHash_Call {
+func (_c *UserRepository_UpdatePasswordHash_Call) RunAndReturn(run func(context.Context, uuid.UUID, string) (models.CurrentUser, error)) *UserRepository_UpdatePasswordHash_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateProfile provides a mock function with given fields: ctx, input
-func (_m *UserRepository) UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.User, error) {
+func (_m *UserRepository) UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, input)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateProfile")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserProfileInput) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserProfileInput) (models.CurrentUser, error)); ok {
 		return rf(ctx, input)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserProfileInput) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserProfileInput) models.CurrentUser); ok {
 		r0 = rf(ctx, input)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.UpdateUserProfileInput) error); ok {
@@ -471,33 +471,33 @@ func (_c *UserRepository_UpdateProfile_Call) Run(run func(ctx context.Context, i
 	return _c
 }
 
-func (_c *UserRepository_UpdateProfile_Call) Return(_a0 models.User, _a1 error) *UserRepository_UpdateProfile_Call {
+func (_c *UserRepository_UpdateProfile_Call) Return(_a0 models.CurrentUser, _a1 error) *UserRepository_UpdateProfile_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *UserRepository_UpdateProfile_Call) RunAndReturn(run func(context.Context, models.UpdateUserProfileInput) (models.User, error)) *UserRepository_UpdateProfile_Call {
+func (_c *UserRepository_UpdateProfile_Call) RunAndReturn(run func(context.Context, models.UpdateUserProfileInput) (models.CurrentUser, error)) *UserRepository_UpdateProfile_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateUsername provides a mock function with given fields: ctx, input
-func (_m *UserRepository) UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.User, error) {
+func (_m *UserRepository) UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, input)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateUsername")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUsernameInput) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUsernameInput) (models.CurrentUser, error)); ok {
 		return rf(ctx, input)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUsernameInput) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUsernameInput) models.CurrentUser); ok {
 		r0 = rf(ctx, input)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.UpdateUsernameInput) error); ok {
@@ -528,12 +528,12 @@ func (_c *UserRepository_UpdateUsername_Call) Run(run func(ctx context.Context, 
 	return _c
 }
 
-func (_c *UserRepository_UpdateUsername_Call) Return(_a0 models.User, _a1 error) *UserRepository_UpdateUsername_Call {
+func (_c *UserRepository_UpdateUsername_Call) Return(_a0 models.CurrentUser, _a1 error) *UserRepository_UpdateUsername_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *UserRepository_UpdateUsername_Call) RunAndReturn(run func(context.Context, models.UpdateUsernameInput) (models.User, error)) *UserRepository_UpdateUsername_Call {
+func (_c *UserRepository_UpdateUsername_Call) RunAndReturn(run func(context.Context, models.UpdateUsernameInput) (models.CurrentUser, error)) *UserRepository_UpdateUsername_Call {
 	_c.Call.Return(run)
 	return _c
 }

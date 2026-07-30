@@ -61,14 +61,16 @@ func (r *Repository) listActiveCompanyMembers(ctx context.Context, companyID uui
 	query := `
 	SELECT cm.company_uuid,
 	       cm.user_uuid,
-	       u.username,
-	       u.full_name,
-	       u.full_surname,
+	       p.username,
+	       p.full_name,
+	       p.full_surname,
+	       cm.job_title,
 	       cm.role,
 	       cm.status,
 	       cm.created_at
 	FROM company_members cm
 	JOIN users u ON u.user_uuid = cm.user_uuid
+	JOIN user_profiles p ON p.user_uuid = u.user_uuid
 	WHERE cm.company_uuid = $1
 	  AND cm.status = 'active'
 	ORDER BY cm.created_at ASC
@@ -89,6 +91,7 @@ func (r *Repository) listActiveCompanyMembers(ctx context.Context, companyID uui
 			&member.Username,
 			&member.FullName,
 			&member.FullSurname,
+			&member.JobTitle,
 			&member.Role,
 			&member.Status,
 			&member.CreatedAt,
@@ -152,15 +155,20 @@ func (r *Repository) listActiveDepartmentMembers(ctx context.Context, companyID 
 	query := `
 	SELECT dm.department_uuid,
 	       dm.user_uuid,
-	       u.username,
-	       u.full_name,
-	       u.full_surname,
+	       p.username,
+	       p.full_name,
+	       p.full_surname,
+	       cm.job_title,
 	       dm.role,
 	       dm.status,
 	       dm.created_at
 	FROM department_members dm
 	JOIN departments d ON d.department_uuid = dm.department_uuid
 	JOIN users u ON u.user_uuid = dm.user_uuid
+	JOIN user_profiles p ON p.user_uuid = u.user_uuid
+	JOIN company_members cm ON cm.company_uuid = d.company_uuid
+		AND cm.user_uuid = dm.user_uuid
+		AND cm.status = 'active'
 	WHERE d.company_uuid = $1
 	  AND d.deleted_at IS NULL
 	  AND dm.status = 'active'
@@ -182,6 +190,7 @@ func (r *Repository) listActiveDepartmentMembers(ctx context.Context, companyID 
 			&member.Username,
 			&member.FullName,
 			&member.FullSurname,
+			&member.JobTitle,
 			&member.Role,
 			&member.Status,
 			&member.CreatedAt,

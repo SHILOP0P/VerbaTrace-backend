@@ -293,6 +293,40 @@ func (_c *CompanyAPI_Update_Call) RunAndReturn(run func(http.ResponseWriter, *ht
 	return _c
 }
 
+// UpdateCompanyMemberJobTitle provides a mock function with given fields: w, r
+func (_m *CompanyAPI) UpdateCompanyMemberJobTitle(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_UpdateCompanyMemberJobTitle_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateCompanyMemberJobTitle'
+type CompanyAPI_UpdateCompanyMemberJobTitle_Call struct {
+	*mock.Call
+}
+
+// UpdateCompanyMemberJobTitle is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) UpdateCompanyMemberJobTitle(w interface{}, r interface{}) *CompanyAPI_UpdateCompanyMemberJobTitle_Call {
+	return &CompanyAPI_UpdateCompanyMemberJobTitle_Call{Call: _e.mock.On("UpdateCompanyMemberJobTitle", w, r)}
+}
+
+func (_c *CompanyAPI_UpdateCompanyMemberJobTitle_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_UpdateCompanyMemberJobTitle_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_UpdateCompanyMemberJobTitle_Call) Return() *CompanyAPI_UpdateCompanyMemberJobTitle_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_UpdateCompanyMemberJobTitle_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_UpdateCompanyMemberJobTitle_Call {
+	_c.Run(run)
+	return _c
+}
+
 // UpdateCompanyMemberRole provides a mock function with given fields: w, r
 func (_m *CompanyAPI) UpdateCompanyMemberRole(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)

@@ -196,22 +196,22 @@ func (_c *AuthService_GetPreferences_Call) RunAndReturn(run func(context.Context
 }
 
 // GetUserByUsername provides a mock function with given fields: ctx, username
-func (_m *AuthService) GetUserByUsername(ctx context.Context, username string) (models.User, error) {
+func (_m *AuthService) GetUserByUsername(ctx context.Context, username string) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, username)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetUserByUsername")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.CurrentUser, error)); ok {
 		return rf(ctx, username)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.CurrentUser); ok {
 		r0 = rf(ctx, username)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
@@ -242,12 +242,12 @@ func (_c *AuthService_GetUserByUsername_Call) Run(run func(ctx context.Context, 
 	return _c
 }
 
-func (_c *AuthService_GetUserByUsername_Call) Return(_a0 models.User, _a1 error) *AuthService_GetUserByUsername_Call {
+func (_c *AuthService_GetUserByUsername_Call) Return(_a0 models.CurrentUser, _a1 error) *AuthService_GetUserByUsername_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *AuthService_GetUserByUsername_Call) RunAndReturn(run func(context.Context, string) (models.User, error)) *AuthService_GetUserByUsername_Call {
+func (_c *AuthService_GetUserByUsername_Call) RunAndReturn(run func(context.Context, string) (models.CurrentUser, error)) *AuthService_GetUserByUsername_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -313,24 +313,24 @@ func (_c *AuthService_ListSessions_Call) RunAndReturn(run func(context.Context, 
 }
 
 // Login provides a mock function with given fields: ctx, input
-func (_m *AuthService) Login(ctx context.Context, input models.LoginInput) (models.User, string, string, error) {
+func (_m *AuthService) Login(ctx context.Context, input models.LoginInput) (models.CurrentUser, string, string, error) {
 	ret := _m.Called(ctx, input)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Login")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 string
 	var r2 string
 	var r3 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.LoginInput) (models.User, string, string, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.LoginInput) (models.CurrentUser, string, string, error)); ok {
 		return rf(ctx, input)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.LoginInput) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.LoginInput) models.CurrentUser); ok {
 		r0 = rf(ctx, input)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.LoginInput) string); ok {
@@ -373,12 +373,12 @@ func (_c *AuthService_Login_Call) Run(run func(ctx context.Context, input models
 	return _c
 }
 
-func (_c *AuthService_Login_Call) Return(_a0 models.User, _a1 string, _a2 string, _a3 error) *AuthService_Login_Call {
+func (_c *AuthService_Login_Call) Return(_a0 models.CurrentUser, _a1 string, _a2 string, _a3 error) *AuthService_Login_Call {
 	_c.Call.Return(_a0, _a1, _a2, _a3)
 	return _c
 }
 
-func (_c *AuthService_Login_Call) RunAndReturn(run func(context.Context, models.LoginInput) (models.User, string, string, error)) *AuthService_Login_Call {
+func (_c *AuthService_Login_Call) RunAndReturn(run func(context.Context, models.LoginInput) (models.CurrentUser, string, string, error)) *AuthService_Login_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -479,22 +479,22 @@ func (_c *AuthService_LogoutAll_Call) RunAndReturn(run func(context.Context, uui
 }
 
 // Me provides a mock function with given fields: ctx, userID
-func (_m *AuthService) Me(ctx context.Context, userID uuid.UUID) (models.User, error) {
+func (_m *AuthService) Me(ctx context.Context, userID uuid.UUID) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Me")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (models.CurrentUser, error)); ok {
 		return rf(ctx, userID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) models.CurrentUser); ok {
 		r0 = rf(ctx, userID)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
@@ -525,35 +525,35 @@ func (_c *AuthService_Me_Call) Run(run func(ctx context.Context, userID uuid.UUI
 	return _c
 }
 
-func (_c *AuthService_Me_Call) Return(_a0 models.User, _a1 error) *AuthService_Me_Call {
+func (_c *AuthService_Me_Call) Return(_a0 models.CurrentUser, _a1 error) *AuthService_Me_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *AuthService_Me_Call) RunAndReturn(run func(context.Context, uuid.UUID) (models.User, error)) *AuthService_Me_Call {
+func (_c *AuthService_Me_Call) RunAndReturn(run func(context.Context, uuid.UUID) (models.CurrentUser, error)) *AuthService_Me_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Refresh provides a mock function with given fields: ctx, input
-func (_m *AuthService) Refresh(ctx context.Context, input models.RefreshTokenInput) (models.User, string, string, error) {
+func (_m *AuthService) Refresh(ctx context.Context, input models.RefreshTokenInput) (models.CurrentUser, string, string, error) {
 	ret := _m.Called(ctx, input)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Refresh")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 string
 	var r2 string
 	var r3 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.RefreshTokenInput) (models.User, string, string, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.RefreshTokenInput) (models.CurrentUser, string, string, error)); ok {
 		return rf(ctx, input)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.RefreshTokenInput) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.RefreshTokenInput) models.CurrentUser); ok {
 		r0 = rf(ctx, input)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.RefreshTokenInput) string); ok {
@@ -596,33 +596,33 @@ func (_c *AuthService_Refresh_Call) Run(run func(ctx context.Context, input mode
 	return _c
 }
 
-func (_c *AuthService_Refresh_Call) Return(_a0 models.User, _a1 string, _a2 string, _a3 error) *AuthService_Refresh_Call {
+func (_c *AuthService_Refresh_Call) Return(_a0 models.CurrentUser, _a1 string, _a2 string, _a3 error) *AuthService_Refresh_Call {
 	_c.Call.Return(_a0, _a1, _a2, _a3)
 	return _c
 }
 
-func (_c *AuthService_Refresh_Call) RunAndReturn(run func(context.Context, models.RefreshTokenInput) (models.User, string, string, error)) *AuthService_Refresh_Call {
+func (_c *AuthService_Refresh_Call) RunAndReturn(run func(context.Context, models.RefreshTokenInput) (models.CurrentUser, string, string, error)) *AuthService_Refresh_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Register provides a mock function with given fields: ctx, input
-func (_m *AuthService) Register(ctx context.Context, input models.CreateUserInput) (models.User, error) {
+func (_m *AuthService) Register(ctx context.Context, input models.CreateUserInput) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, input)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Register")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.CreateUserInput) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateUserInput) (models.CurrentUser, error)); ok {
 		return rf(ctx, input)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.CreateUserInput) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateUserInput) models.CurrentUser); ok {
 		r0 = rf(ctx, input)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.CreateUserInput) error); ok {
@@ -653,12 +653,12 @@ func (_c *AuthService_Register_Call) Run(run func(ctx context.Context, input mod
 	return _c
 }
 
-func (_c *AuthService_Register_Call) Return(_a0 models.User, _a1 error) *AuthService_Register_Call {
+func (_c *AuthService_Register_Call) Return(_a0 models.CurrentUser, _a1 error) *AuthService_Register_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *AuthService_Register_Call) RunAndReturn(run func(context.Context, models.CreateUserInput) (models.User, error)) *AuthService_Register_Call {
+func (_c *AuthService_Register_Call) RunAndReturn(run func(context.Context, models.CreateUserInput) (models.CurrentUser, error)) *AuthService_Register_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -827,22 +827,22 @@ func (_c *AuthService_UpdatePreferences_Call) RunAndReturn(run func(context.Cont
 }
 
 // UpdateProfile provides a mock function with given fields: ctx, input
-func (_m *AuthService) UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.User, error) {
+func (_m *AuthService) UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, input)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateProfile")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserProfileInput) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserProfileInput) (models.CurrentUser, error)); ok {
 		return rf(ctx, input)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserProfileInput) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserProfileInput) models.CurrentUser); ok {
 		r0 = rf(ctx, input)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.UpdateUserProfileInput) error); ok {
@@ -873,33 +873,33 @@ func (_c *AuthService_UpdateProfile_Call) Run(run func(ctx context.Context, inpu
 	return _c
 }
 
-func (_c *AuthService_UpdateProfile_Call) Return(_a0 models.User, _a1 error) *AuthService_UpdateProfile_Call {
+func (_c *AuthService_UpdateProfile_Call) Return(_a0 models.CurrentUser, _a1 error) *AuthService_UpdateProfile_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *AuthService_UpdateProfile_Call) RunAndReturn(run func(context.Context, models.UpdateUserProfileInput) (models.User, error)) *AuthService_UpdateProfile_Call {
+func (_c *AuthService_UpdateProfile_Call) RunAndReturn(run func(context.Context, models.UpdateUserProfileInput) (models.CurrentUser, error)) *AuthService_UpdateProfile_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateUsername provides a mock function with given fields: ctx, input
-func (_m *AuthService) UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.User, error) {
+func (_m *AuthService) UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.CurrentUser, error) {
 	ret := _m.Called(ctx, input)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateUsername")
 	}
 
-	var r0 models.User
+	var r0 models.CurrentUser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUsernameInput) (models.User, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUsernameInput) (models.CurrentUser, error)); ok {
 		return rf(ctx, input)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUsernameInput) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUsernameInput) models.CurrentUser); ok {
 		r0 = rf(ctx, input)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(models.CurrentUser)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.UpdateUsernameInput) error); ok {
@@ -930,12 +930,12 @@ func (_c *AuthService_UpdateUsername_Call) Run(run func(ctx context.Context, inp
 	return _c
 }
 
-func (_c *AuthService_UpdateUsername_Call) Return(_a0 models.User, _a1 error) *AuthService_UpdateUsername_Call {
+func (_c *AuthService_UpdateUsername_Call) Return(_a0 models.CurrentUser, _a1 error) *AuthService_UpdateUsername_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *AuthService_UpdateUsername_Call) RunAndReturn(run func(context.Context, models.UpdateUsernameInput) (models.User, error)) *AuthService_UpdateUsername_Call {
+func (_c *AuthService_UpdateUsername_Call) RunAndReturn(run func(context.Context, models.UpdateUsernameInput) (models.CurrentUser, error)) *AuthService_UpdateUsername_Call {
 	_c.Call.Return(run)
 	return _c
 }

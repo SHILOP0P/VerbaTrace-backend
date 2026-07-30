@@ -126,7 +126,7 @@ func (h *Handler) UpdateUserProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := h.service.UpdateUserProfile(r.Context(), models.UpdateAdminUserProfileInput{
 		ActorUserUUID: actor, TargetUserUUID: target, FullName: req.FullName, FullSurname: req.FullSurname,
-		Username: req.Username, Post: req.Post,
+		Username: req.Username, Post: req.Headline,
 		Metadata: adminMetadata(r, req.Reason),
 	})
 	if err != nil {
@@ -262,7 +262,7 @@ func adminUserID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	return id, true
 }
 func adminUserResponse(u models.AdminUser) dto.AdminUserResponse {
-	return dto.AdminUserResponse{ID: u.ID.String(), Email: u.Email, FullName: u.FullName, FullSurname: u.FullSurname, Username: u.Username, Role: string(u.Role), Post: u.Post, Phone: u.Phone, Timezone: u.Timezone, CreatedAt: u.CreatedAt.Format(time.RFC3339)}
+	return dto.AdminUserResponse{ID: u.ID.String(), Email: u.Email, FullName: u.FullName, FullSurname: u.FullSurname, Username: u.Username, Role: string(u.Role), Headline: u.Post, Phone: u.Phone, Timezone: u.Timezone, CreatedAt: u.CreatedAt.Format(time.RFC3339)}
 }
 func adminMetadata(r *http.Request, reason string) models.AdminMutationMetadata {
 	var ip *string

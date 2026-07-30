@@ -31,7 +31,7 @@ func TestUpdateUsername(t *testing.T) {
 			input: models.UpdateUsernameInput{UserUUID: userID, Username: "Taken Name"},
 			setup: func(repo *repositoryMocks.UserRepository) {
 				repo.EXPECT().GetUserByUsername(mock.Anything, "@taken_name").
-					Return(models.User{ID: uuid.New()}, nil).Once()
+					Return(models.CurrentUser{ID: uuid.New()}, nil).Once()
 			},
 			wantError: models.ErrUserAlreadyExists,
 		},
@@ -40,7 +40,7 @@ func TestUpdateUsername(t *testing.T) {
 			input: models.UpdateUsernameInput{UserUUID: userID, Username: "valid name"},
 			setup: func(repo *repositoryMocks.UserRepository) {
 				repo.EXPECT().GetUserByUsername(mock.Anything, "@valid_name").
-					Return(models.User{}, errors.New("db")).Once()
+					Return(models.CurrentUser{}, errors.New("db")).Once()
 			},
 		},
 		{
@@ -48,10 +48,10 @@ func TestUpdateUsername(t *testing.T) {
 			input: models.UpdateUsernameInput{UserUUID: userID, Username: "Valid Name"},
 			setup: func(repo *repositoryMocks.UserRepository) {
 				repo.EXPECT().GetUserByUsername(mock.Anything, "@valid_name").
-					Return(models.User{}, models.ErrUserNotFound).Once()
+					Return(models.CurrentUser{}, models.ErrUserNotFound).Once()
 				repo.EXPECT().UpdateUsername(mock.Anything, models.UpdateUsernameInput{
 					UserUUID: userID, Username: "@valid_name",
-				}).Return(models.User{ID: userID, Username: "@valid_name"}, nil).Once()
+				}).Return(models.CurrentUser{ID: userID, Username: "@valid_name"}, nil).Once()
 			},
 		},
 	}
@@ -90,7 +90,7 @@ func TestGetUserByUsernameAndHelpers(t *testing.T) {
 		t.Fatalf("invalid username error = %v", err)
 	}
 	repo.EXPECT().GetUserByUsername(mock.Anything, "@valid_name").
-		Return(models.User{Username: "@valid_name"}, nil).Once()
+		Return(models.CurrentUser{Username: "@valid_name"}, nil).Once()
 	got, err := service.GetUserByUsername(context.Background(), "Valid Name")
 	if err != nil || got.Username != "@valid_name" {
 		t.Fatalf("GetUserByUsername = %+v, %v", got, err)
@@ -119,7 +119,7 @@ func TestUsernameForNewUserGeneratedAndCollisions(t *testing.T) {
 	repo := repositoryMocks.NewUserRepository(t)
 	repo.On("GetUserByUsername", mock.Anything, mock.MatchedBy(func(value string) bool {
 		return len(value) > 7 && value[0] == '@'
-	})).Return(models.User{}, models.ErrUserNotFound).Once()
+	})).Return(models.CurrentUser{}, models.ErrUserNotFound).Once()
 	service := NewService(repo, nil, "pepper", "jwt", time.Minute, "refresh", time.Hour, nil)
 	got, err := service.usernameForNewUser(context.Background(), input)
 	if err != nil || got == "" {
@@ -128,7 +128,7 @@ func TestUsernameForNewUserGeneratedAndCollisions(t *testing.T) {
 
 	repo = repositoryMocks.NewUserRepository(t)
 	repo.On("GetUserByUsername", mock.Anything, mock.Anything).
-		Return(models.User{ID: uuid.New()}, nil).Times(10)
+		Return(models.CurrentUser{ID: uuid.New()}, nil).Times(10)
 	service = NewService(repo, nil, "pepper", "jwt", time.Minute, "refresh", time.Hour, nil)
 	if _, err := service.usernameForNewUser(context.Background(), input); !errors.Is(err, models.ErrUserAlreadyExists) {
 		t.Fatalf("collision error = %v", err)
@@ -144,7 +144,7 @@ func TestRegisterAdditionalErrors(t *testing.T) {
 	t.Run("email lookup error", func(t *testing.T) {
 		repo := repositoryMocks.NewUserRepository(t)
 		repo.EXPECT().GetUserByEmail(mock.Anything, valid.Email).
-			Return(models.User{}, errors.New("db")).Once()
+			Return(models.CurrentUser{}, errors.New("db")).Once()
 		service := NewService(repo, nil, "pepper", "jwt", time.Minute, "refresh", time.Hour, nil)
 		if _, err := service.Register(context.Background(), valid); err == nil {
 			t.Fatal("expected lookup error")
@@ -154,7 +154,7 @@ func TestRegisterAdditionalErrors(t *testing.T) {
 	t.Run("invalid explicit username", func(t *testing.T) {
 		repo := repositoryMocks.NewUserRepository(t)
 		repo.EXPECT().GetUserByEmail(mock.Anything, valid.Email).
-			Return(models.User{}, models.ErrUserNotFound).Once()
+			Return(models.CurrentUser{}, models.ErrUserNotFound).Once()
 		input := valid
 		input.Username = "x"
 		service := NewService(repo, nil, "pepper", "jwt", time.Minute, "refresh", time.Hour, nil)
@@ -166,11 +166,11 @@ func TestRegisterAdditionalErrors(t *testing.T) {
 	t.Run("create error", func(t *testing.T) {
 		repo := repositoryMocks.NewUserRepository(t)
 		repo.EXPECT().GetUserByEmail(mock.Anything, valid.Email).
-			Return(models.User{}, models.ErrUserNotFound).Once()
+			Return(models.CurrentUser{}, models.ErrUserNotFound).Once()
 		repo.EXPECT().GetUserByUsername(mock.Anything, "@valid_name").
-			Return(models.User{}, models.ErrUserNotFound).Once()
+			Return(models.CurrentUser{}, models.ErrUserNotFound).Once()
 		repo.EXPECT().CreateUser(mock.Anything, mock.Anything).
-			Return(models.User{}, errors.New("create")).Once()
+			Return(models.CurrentUser{}, errors.New("create")).Once()
 		service := NewService(repo, nil, "pepper", "jwt", time.Minute, "refresh", time.Hour, nil)
 		if _, err := service.Register(context.Background(), valid); err == nil {
 			t.Fatal("expected create error")
@@ -186,7 +186,7 @@ func TestLoginRefreshHashError(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo.EXPECT().GetUserByEmail(mock.Anything, "user@example.com").
-		Return(models.User{
+		Return(models.CurrentUser{
 			ID: uuid.New(), Email: "user@example.com", PasswordHash: hash, Role: models.UserRoleUser,
 		}, nil).Once()
 	service := NewService(repo, sessionRepo, "pepper", "jwt", time.Minute, "", time.Hour, nil)

@@ -34,8 +34,13 @@ func TestGetMonitoringAggregatesQueueAndLastFailures(t *testing.T) {
 
 	managerID := uuid.New()
 	_, err := db.ExecContext(ctx, `
-		INSERT INTO users (user_uuid, email, password_hash, full_name, full_surname, username, role, created_at)
-		VALUES ($1, 'manager@example.com', 'hash', 'Dmitry', 'Mukhachev', '@manager', 'user', $2)
+		WITH account AS (
+			INSERT INTO users (user_uuid, email, password_hash, role, created_at)
+			VALUES ($1, 'manager@example.com', 'hash', 'user', $2)
+			RETURNING user_uuid
+		)
+		INSERT INTO user_profiles (user_uuid, full_name, full_surname, username)
+		SELECT user_uuid, 'Dmitry', 'Mukhachev', '@manager' FROM account
 	`, managerID, now)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `

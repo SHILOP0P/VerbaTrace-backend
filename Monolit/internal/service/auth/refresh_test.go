@@ -41,7 +41,7 @@ func (s *ServiceSuite) TestRefreshSuccess() {
 		Return(rotatedSession, nil).
 		Once()
 	s.userRepository.On("GetUserByUUID", s.ctx, userID).
-		Return(models.User{ID: userID, Email: "user@example.com", Role: models.UserRoleUser}, nil).
+		Return(models.CurrentUser{ID: userID, Email: "user@example.com", Role: models.UserRoleUser}, nil).
 		Once()
 
 	user, accessToken, newRefreshToken, err := s.service.Refresh(s.ctx, models.RefreshTokenInput{

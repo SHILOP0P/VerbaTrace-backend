@@ -42,7 +42,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		FullSurname: userResponse.FullSurname,
 		Username:    userResponse.Username,
 		Role:        userResponse.Role,
-		Post:        userResponse.Post,
+		Headline:    userResponse.Headline,
 		Phone:       userResponse.Phone,
 		Timezone:    userResponse.Timezone,
 		AvatarURL:   userResponse.AvatarURL,

@@ -17,7 +17,7 @@ func (s *APISuite) TestRefreshSuccess() {
 	userID := uuid.New()
 
 	s.service.On("Refresh", mock.Anything, models.RefreshTokenInput{RefreshToken: "refresh"}).
-		Return(models.User{ID: userID, Email: "user@example.com", FullName: "Dmitry", FullSurname: "Mukhachev", Username: "muxa", Role: models.UserRoleUser, CreatedAt: time.Now().UTC()}, "access", "new-refresh", nil).
+		Return(models.CurrentUser{ID: userID, Email: "user@example.com", FullName: "Dmitry", FullSurname: "Mukhachev", Username: "muxa", Role: models.UserRoleUser, CreatedAt: time.Now().UTC()}, "access", "new-refresh", nil).
 		Once()
 
 	rec, req := s.request(http.MethodPost, "/api/v1/auth/refresh", "")
@@ -37,7 +37,7 @@ func (s *APISuite) TestRefreshSuccess() {
 
 func (s *APISuite) TestRefreshIgnoresBodyTokenWithoutCookie() {
 	s.service.On("Refresh", mock.Anything, models.RefreshTokenInput{RefreshToken: ""}).
-		Return(models.User{}, "", "", models.ErrInvalidRefreshToken).
+		Return(models.CurrentUser{}, "", "", models.ErrInvalidRefreshToken).
 		Once()
 
 	rec, req := s.request(http.MethodPost, "/api/v1/auth/refresh", `{"refresh_token":"body-token"}`)
@@ -51,7 +51,7 @@ func (s *APISuite) TestRefreshIgnoresBodyTokenWithoutCookie() {
 
 func (s *APISuite) TestRefreshMapsInvalidRefreshToken() {
 	s.service.On("Refresh", mock.Anything, models.RefreshTokenInput{RefreshToken: "bad"}).
-		Return(models.User{}, "", "", models.ErrInvalidRefreshToken).
+		Return(models.CurrentUser{}, "", "", models.ErrInvalidRefreshToken).
 		Once()
 
 	rec, req := s.request(http.MethodPost, "/api/v1/auth/refresh", "")
@@ -66,7 +66,7 @@ func (s *APISuite) TestRefreshMapsInvalidRefreshToken() {
 
 func (s *APISuite) TestRefreshConflictDoesNotClearWinningCookies() {
 	s.service.On("Refresh", mock.Anything, models.RefreshTokenInput{RefreshToken: "old"}).
-		Return(models.User{}, "", "", models.ErrRefreshRotationConflict).
+		Return(models.CurrentUser{}, "", "", models.ErrRefreshRotationConflict).
 		Once()
 
 	rec, req := s.request(http.MethodPost, "/api/v1/auth/refresh", "")

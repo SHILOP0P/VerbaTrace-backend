@@ -25,7 +25,7 @@ func TestBootstrapSuperAdminPromotesOnceAndInvalidatesAccess(t *testing.T) {
 	users := userRepo.NewUserRepository(db)
 	sessions := refreshRepo.NewRepository(db)
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	user := models.User{
+	user := models.CurrentUser{
 		ID:           uuid.New(),
 		Email:        "owner@example.com",
 		PasswordHash: "hash",

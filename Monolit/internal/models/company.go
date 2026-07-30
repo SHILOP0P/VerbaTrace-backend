@@ -22,6 +22,7 @@ type CompanyMember struct {
 	Username    string
 	FullName    string
 	FullSurname string
+	JobTitle    *string
 	Role        CompanyMemberRole
 	Status      MembershipStatus
 	CreatedAt   time.Time
@@ -68,6 +69,13 @@ type UpdateCompanyMemberStatusInput struct {
 	Status      MembershipStatus
 }
 
+type UpdateCompanyMemberJobTitleInput struct {
+	CompanyUUID uuid.UUID
+	RequestUser uuid.UUID
+	UserUUID    uuid.UUID
+	JobTitle    *string
+}
+
 type UpdateCompanyInput struct {
 	CompanyUUID uuid.UUID
 	RequestUser uuid.UUID
@@ -109,6 +117,7 @@ type CompanyMemberListItem struct {
 	Username    string
 	FullName    string
 	FullSurname string
+	JobTitle    *string
 	CompanyRole CompanyMemberRole
 	Status      MembershipStatus
 	Departments []CompanyMemberDepartment

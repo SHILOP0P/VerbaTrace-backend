@@ -74,7 +74,7 @@ func createInstructionUser(t *testing.T, ctx context.Context, repository *userRe
 	t.Helper()
 
 	id := uuid.New()
-	_, err := repository.CreateUser(ctx, models.User{
+	_, err := repository.CreateUser(ctx, models.CurrentUser{
 		ID: id, Email: id.String() + "@example.com", PasswordHash: "hash",
 		FullName: "Dmitry", FullSurname: "Mukhachev", Username: "user_" + id.String()[:8],
 		Role: models.UserRoleUser, CreatedAt: time.Now().UTC().Truncate(time.Microsecond),

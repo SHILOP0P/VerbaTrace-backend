@@ -12,7 +12,7 @@ type AdminUserResponse struct {
 	FullSurname string  `json:"full_surname"`
 	Username    string  `json:"username"`
 	Role        string  `json:"role"`
-	Post        *string `json:"post,omitempty"`
+	Headline    *string `json:"headline,omitempty"`
 	Phone       *string `json:"phone,omitempty"`
 	Timezone    *string `json:"timezone,omitempty"`
 	CreatedAt   string  `json:"created_at"`
@@ -32,7 +32,7 @@ type UpdateAdminUserProfileRequest struct {
 	FullName    *string `json:"full_name"`
 	FullSurname *string `json:"full_surname"`
 	Username    *string `json:"username"`
-	Post        *string `json:"post"`
+	Headline    *string `json:"headline"`
 	Reason      string  `json:"reason"`
 }
 type AdminSessionResponse struct {

@@ -7,8 +7,8 @@ import (
 	repoModel "calllens/monolit/internal/repository/models"
 )
 
-func RepoUserToModel(repoUser repoModel.User) (model.User, error) {
-	return model.User{
+func RepoUserToModel(repoUser repoModel.CurrentUserRecord) (model.CurrentUser, error) {
+	return model.CurrentUser{
 		ID:              repoUser.ID,
 		Email:           repoUser.Email,
 		PasswordHash:    repoUser.PasswordHash,
@@ -27,8 +27,8 @@ func RepoUserToModel(repoUser repoModel.User) (model.User, error) {
 	}, nil
 }
 
-func ModelUserToRepoModel(user model.User) (repoModel.User, error) {
-	return repoModel.User{
+func ModelUserToRepoModel(user model.CurrentUser) (repoModel.CurrentUserRecord, error) {
+	return repoModel.CurrentUserRecord{
 		ID:              user.ID,
 		Email:           user.Email,
 		PasswordHash:    user.PasswordHash,

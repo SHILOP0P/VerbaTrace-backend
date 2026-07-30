@@ -21,19 +21,19 @@ func NewService(contacts repository.ContactRepository, users repository.UserRepo
 	return &Service{contacts: contacts, users: users, calls: calls}
 }
 
-func (s *Service) SearchContacts(ctx context.Context, userID uuid.UUID, value string) ([]models.User, error) {
+func (s *Service) SearchContacts(ctx context.Context, userID uuid.UUID, value string) ([]models.PublicUser, error) {
 	if userID == uuid.Nil {
 		return nil, models.ErrInvalidContactInput
 	}
 	prefix := "@" + strings.ToLower(strings.TrimPrefix(strings.TrimSpace(value), "@"))
 	if len([]rune(prefix)) < 3 {
-		return []models.User{}, nil
+		return []models.PublicUser{}, nil
 	}
-	users, err := s.contacts.SearchUsers(ctx, prefix, 10)
+	users, err := s.contacts.SearchPublicUsers(ctx, prefix, 10)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]models.User, 0, len(users))
+	result := make([]models.PublicUser, 0, len(users))
 	for _, user := range users {
 		if user.ID != userID {
 			result = append(result, user)
@@ -67,9 +67,9 @@ func (s *Service) ListContacts(ctx context.Context, userID uuid.UUID) (models.Co
 	if err != nil {
 		return models.ContactList{}, err
 	}
-	result := models.ContactList{Users: make([]models.User, 0, len(ids))}
+	result := models.ContactList{Users: make([]models.PublicUser, 0, len(ids))}
 	for _, id := range ids {
-		user, err := s.users.GetUserByUUID(ctx, id)
+		user, err := s.contacts.GetPublicUserByUUID(ctx, id)
 		if err != nil {
 			return models.ContactList{}, err
 		}

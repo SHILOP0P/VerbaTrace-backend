@@ -5,28 +5,28 @@ import (
 	"fmt"
 	"strings"
 
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository/converter"
-	"calllens/monolit/internal/repository/scaner"
-
 	"github.com/google/uuid"
+
+	"calllens/monolit/internal/models"
 )
 
-func (r *Repository) SearchUsers(ctx context.Context, usernamePrefix string, limit int) ([]models.User, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT user_uuid, email, password_hash, full_name, full_surname, username, role, post, phone, timezone, avatar_path, avatar_mime_type, avatar_size_bytes, avatar_updated_at, created_at FROM users WHERE username ILIKE $1 ESCAPE E'\\' ORDER BY username ASC LIMIT $2`, escapeLike(usernamePrefix)+"%", limit)
+func (r *Repository) SearchPublicUsers(ctx context.Context, usernamePrefix string, limit int) ([]models.PublicUser, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT p.user_uuid, p.full_name, p.full_surname, p.username, p.headline
+		FROM user_profiles p
+		WHERE p.username ILIKE $1 ESCAPE E'\\'
+		ORDER BY p.username ASC
+		LIMIT $2`,
+		escapeLike(usernamePrefix)+"%", limit)
 	if err != nil {
 		return nil, wrap("search users", err)
 	}
 	defer func() { _ = rows.Close() }()
-	users := make([]models.User, 0)
+	users := make([]models.PublicUser, 0)
 	for rows.Next() {
-		item, err := scaner.ScanUser(rows)
-		if err != nil {
+		var user models.PublicUser
+		if err := rows.Scan(&user.ID, &user.FullName, &user.FullSurname, &user.Username, &user.Headline); err != nil {
 			return nil, wrap("scan user search", err)
-		}
-		user, err := converter.RepoUserToModel(item)
-		if err != nil {
-			return nil, wrap("convert user search", err)
 		}
 		users = append(users, user)
 	}
@@ -34,6 +34,19 @@ func (r *Repository) SearchUsers(ctx context.Context, usernamePrefix string, lim
 		return nil, wrap("iterate user search", err)
 	}
 	return users, nil
+}
+
+func (r *Repository) GetPublicUserByUUID(ctx context.Context, userID uuid.UUID) (models.PublicUser, error) {
+	var user models.PublicUser
+	err := r.db.QueryRowContext(ctx, `
+		SELECT user_uuid, full_name, full_surname, username, headline
+		FROM user_profiles
+		WHERE user_uuid = $1`, userID).
+		Scan(&user.ID, &user.FullName, &user.FullSurname, &user.Username, &user.Headline)
+	if err != nil {
+		return models.PublicUser{}, wrap("get public user", err)
+	}
+	return user, nil
 }
 
 func escapeLike(value string) string {

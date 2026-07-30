@@ -58,7 +58,7 @@ type MonitoringService interface {
 }
 
 type ContactService interface {
-	SearchContacts(ctx context.Context, userID uuid.UUID, value string) ([]models.User, error)
+	SearchContacts(ctx context.Context, userID uuid.UUID, value string) ([]models.PublicUser, error)
 	AddContact(ctx context.Context, input models.AddContactInput) error
 	RemoveContact(ctx context.Context, input models.AddContactInput) error
 	ListContacts(ctx context.Context, userID uuid.UUID) (models.ContactList, error)
@@ -79,18 +79,18 @@ type NotificationService interface {
 }
 
 type AuthService interface {
-	Register(ctx context.Context, input models.CreateUserInput) (models.User, error)
-	Login(ctx context.Context, input models.LoginInput) (models.User, string, string, error)
-	Refresh(ctx context.Context, input models.RefreshTokenInput) (models.User, string, string, error)
+	Register(ctx context.Context, input models.CreateUserInput) (models.CurrentUser, error)
+	Login(ctx context.Context, input models.LoginInput) (models.CurrentUser, string, string, error)
+	Refresh(ctx context.Context, input models.RefreshTokenInput) (models.CurrentUser, string, string, error)
 	Logout(ctx context.Context, sessionID uuid.UUID) error
 	LogoutAll(ctx context.Context, userID uuid.UUID, currentSessionID uuid.UUID) error
-	Me(ctx context.Context, userID uuid.UUID) (models.User, error)
-	UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.User, error)
+	Me(ctx context.Context, userID uuid.UUID) (models.CurrentUser, error)
+	UpdateUsername(ctx context.Context, input models.UpdateUsernameInput) (models.CurrentUser, error)
 	UpdatePassword(ctx context.Context, input models.UpdatePasswordInput) (models.UpdatePasswordResult, error)
 	ListSessions(ctx context.Context, userID uuid.UUID, currentSessionID uuid.UUID) ([]models.UserSession, error)
 	RevokeSession(ctx context.Context, userID uuid.UUID, currentSessionID uuid.UUID, sessionID uuid.UUID) error
-	GetUserByUsername(ctx context.Context, username string) (models.User, error)
-	UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.User, error)
+	GetUserByUsername(ctx context.Context, username string) (models.CurrentUser, error)
+	UpdateProfile(ctx context.Context, input models.UpdateUserProfileInput) (models.CurrentUser, error)
 	UploadAvatar(ctx context.Context, input models.SaveUserAvatarInput) (models.UserAvatarResponse, error)
 	DeleteAvatar(ctx context.Context, userID uuid.UUID) (models.UserAvatarResponse, error)
 	GetAvatar(ctx context.Context, userID uuid.UUID) (models.File, error)
@@ -129,6 +129,7 @@ type CompanyService interface {
 	AddCompanyMember(ctx context.Context, input models.AddCompanyMemberInput) (models.CompanyMember, error)
 	UpdateCompanyMemberRole(ctx context.Context, input models.UpdateCompanyMemberRoleInput) (models.CompanyMember, error)
 	UpdateCompanyMemberStatus(ctx context.Context, input models.UpdateCompanyMemberStatusInput) (models.CompanyMember, error)
+	UpdateCompanyMemberJobTitle(ctx context.Context, input models.UpdateCompanyMemberJobTitleInput) (models.CompanyMember, error)
 	LeaveCompany(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.CompanyMember, error)
 	ListUserCompanies(ctx context.Context, userID uuid.UUID) ([]models.Company, error)
 	GetCompanyByUUID(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.Company, error)

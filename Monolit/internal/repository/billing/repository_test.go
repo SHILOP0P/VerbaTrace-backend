@@ -176,8 +176,13 @@ func (s *RepositorySuite) TestResourceCountsAndMissingCompanySubscription() {
 	companyID := s.createCompany(ownerID)
 	memberID := uuid.New()
 	_, err := s.db.ExecContext(s.ctx, `
-		INSERT INTO users (user_uuid, email, password_hash, full_name, full_surname, username, role, created_at)
-		VALUES ($1, $2, 'hash', 'Member', 'User', $3, 'user', now())`,
+		WITH account AS (
+			INSERT INTO users (user_uuid, email, password_hash, role, created_at)
+			VALUES ($1, $2, 'hash', 'user', now())
+			RETURNING user_uuid
+		)
+		INSERT INTO user_profiles (user_uuid, full_name, full_surname, username)
+		SELECT user_uuid, 'Member', 'User', $3 FROM account`,
 		memberID, memberID.String()+"@example.com", "member_"+memberID.String()[:8])
 	s.Require().NoError(err)
 	departmentID := uuid.New()
@@ -227,8 +232,13 @@ func (s *RepositorySuite) createUser(email string) uuid.UUID {
 	id := uuid.New()
 	_, err := s.db.ExecContext(
 		s.ctx,
-		`INSERT INTO users (user_uuid, email, password_hash, full_name, full_surname, username, role, created_at)
-		 VALUES ($1, $2, 'hash', 'Dmitry', 'Mukhachev', 'muxa', 'user', $3)`,
+		`WITH account AS (
+			INSERT INTO users (user_uuid, email, password_hash, role, created_at)
+			VALUES ($1, $2, 'hash', 'user', $3)
+			RETURNING user_uuid
+		)
+		INSERT INTO user_profiles (user_uuid, full_name, full_surname, username)
+		SELECT user_uuid, 'Dmitry', 'Mukhachev', 'muxa' FROM account`,
 		id,
 		email,
 		time.Now().UTC(),

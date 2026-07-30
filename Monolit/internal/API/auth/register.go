@@ -25,7 +25,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		FullName:    req.FullName,
 		FullSurname: req.FullSurname,
 		Username:    firstNonEmpty(req.Username, req.NickName),
-		Post:        req.Post,
+		Post:        req.Headline,
 	})
 	if err != nil {
 		if errors.Is(err, models.ErrInvalidUserInput) {
