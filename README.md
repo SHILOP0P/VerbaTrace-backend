@@ -43,10 +43,10 @@ CallLens - backend-монолит на Go для будущего продукт
 - Загрузка звонка с аудио- или видеофайлом.
 - Проверка типа медиафайла.
 - Определение длительности медиа через `ffprobe`.
-- Локальное сохранение исходного медиа; для STT из видео извлекается mono WAV 16 kHz через `ffmpeg`.
+- Локальное сохранение исходного медиа и отдельный внутренний ASR-кэш `asr.ogg` (mono 16 kHz, Opus 24 kbit/s) для облачной транскрибации; оригинал сохраняется для воспроизведения и используется только как fallback.
 - Список/получение/скачивание аудио/получение транскрипции/обновление title/удаление звонка.
 - Очередь `processing_jobs` и worker для фоновой транскрибации и анализа.
-- Абстракция transcriber с mock-, OpenRouter- и локальным `faster-whisper + pyannote.audio` провайдерами, а также factory-заглушкой для OpenAI.
+- Абстракция transcriber с mock- и AssemblyAI-провайдерами; штатный production-путь транскрибации — AssemblyAI.
 - Сохранение транскрипций звонков в `call_transcriptions`.
 - Управление markdown-инструкциями анализа для личного, корпоративного и отделского scope.
 - Абстракция analyzer с mock-провайдером, OpenRouter-провайдером и factory-заглушкой для OpenAI.
@@ -55,7 +55,8 @@ CallLens - backend-монолит на Go для будущего продукт
 - Сохранение анализа звонка в `call_analyses`.
 - Создание компании.
 - Создание отдела.
-- Управление участниками компании и отдела.
+- Управление участниками компании и отдела, включая независимую должность `company_members.job_title`.
+- Разделение учётных данных (`users`) и редактируемого профиля (`user_profiles`).
 - Приглашения в компанию и отдел с подтверждением пользователем.
 - Глобальный поиск по видимым звонкам, компаниям, отчетам и инструкциям.
 - Уведомления для bell с read/unread API; автоматическое создание подключено для invitation-событий.
@@ -67,8 +68,6 @@ CallLens - backend-монолит на Go для будущего продукт
 Пока не реализовано:
 
 - Реальные OpenAI-провайдеры для transcriber и analyzer.
-- Асинхронная очередь для анализа звонков.
-- Frontend.
 - Оплата и тарифы.
 - Email-приглашения.
 - Сброс пароля.
@@ -79,10 +78,11 @@ CallLens - backend-монолит на Go для будущего продукт
 
 ```mermaid
 flowchart LR
-    users["users<br/>user_uuid PK<br/>email<br/>password_hash<br/>full_name<br/>full_surname<br/>nick_name<br/>role<br/>post<br/>created_at"]
+    users["users<br/>user_uuid PK<br/>email<br/>password_hash<br/>role<br/>access_version<br/>created_at"]
+    user_profiles["user_profiles<br/>user_uuid PK/FK<br/>username<br/>full_name<br/>full_surname<br/>headline<br/>phone<br/>timezone<br/>avatar_path"]
     refresh_sessions["refresh_sessions<br/>session_uuid PK<br/>user_uuid FK<br/>refresh_token_hash<br/>user_agent<br/>ip_address<br/>created_at<br/>last_used_at<br/>expires_at<br/>revoked_at<br/>revoked_reason"]
     companies["companies<br/>company_uuid PK<br/>name<br/>manager_user_uuid FK<br/>member_limit<br/>created_at"]
-    company_members["company_members<br/>company_uuid FK<br/>user_uuid FK<br/>role<br/>status<br/>created_at"]
+    company_members["company_members<br/>company_uuid FK<br/>user_uuid FK<br/>job_title nullable<br/>role<br/>status<br/>created_at"]
     departments["departments<br/>department_uuid PK<br/>company_uuid FK<br/>name<br/>created_at"]
     department_members["department_members<br/>department_uuid FK<br/>user_uuid FK<br/>role<br/>status<br/>created_at"]
     membership_invitations["membership_invitations<br/>invitation_uuid PK<br/>company_uuid FK<br/>department_uuid FK nullable<br/>invited_user_uuid FK<br/>invited_by_user_uuid FK<br/>company_role<br/>department_role nullable<br/>status<br/>expires_at<br/>responded_at nullable<br/>created_at<br/>updated_at"]
@@ -94,6 +94,7 @@ flowchart LR
     call_analyses["call_analyses<br/>analysis_uuid PK<br/>call_uuid FK unique<br/>status<br/>provider<br/>model<br/>result_json<br/>result_text<br/>error_message<br/>created_at<br/>updated_at"]
 
     users -->|"1:N"| refresh_sessions
+    users -->|"1:1"| user_profiles
     users -->|"1:N"| company_members
     users -->|"1:N"| department_members
     users -->|"1:N invited"| membership_invitations
@@ -379,7 +380,7 @@ Backend проверяет текущий пароль, применяет де�
 
 `DELETE /api/v1/auth/me/sessions/{session_uuid}` отзывает только session текущего пользователя. Если удаляется текущая session, backend дополнительно очищает auth cookies. `POST /api/v1/auth/logout-all` сохранен и по-прежнему отзывает все refresh session пользователя.
 
-`PATCH /api/v1/auth/me/profile` принимает частичный JSON с полями `full_name`, `full_surname`, `post`, `phone`, `timezone` и возвращает обновленный `UserResponse`. `timezone` проверяется через IANA timezone database, например `Europe/Moscow`.
+`PATCH /api/v1/auth/me/profile` принимает частичный JSON с полями `full_name`, `full_surname`, `headline`, `phone`, `timezone` и возвращает обновленный `UserResponse`. `headline` — общее профессиональное описание пользователя и не зависит от членства в компаниях. `timezone` проверяется через IANA timezone database, например `Europe/Moscow`.
 
 `POST /api/v1/auth/me/avatar` принимает multipart upload в поле `avatar`, сохраняет image-файл в локальном storage и возвращает:
 
@@ -959,6 +960,7 @@ Companies and departments:
 | POST | `/api/v1/companies/{uuid}/invitations/{invitation_uuid}/cancel` | Да | Отменить приглашение в компанию |
 | PATCH | `/api/v1/companies/{uuid}/members/{user_uuid}/role` | Да | Изменить роль участника компании |
 | PATCH | `/api/v1/companies/{uuid}/members/{user_uuid}/status` | Да | Изменить статус участника компании. Нельзя вывести последнего активного `company_manager`; `left`/`suspended` отключает effective access к company/department ресурсам |
+| PATCH | `/api/v1/companies/{uuid}/members/{user_uuid}/job-title` | Да | Изменить или очистить должность участника. Доступ: `company_manager` |
 | POST | `/api/v1/companies/{uuid}/departments` | Да | Создать отдел |
 | GET | `/api/v1/companies/{uuid}/departments` | Да | Получить список видимых отделов |
 | PATCH | `/api/v1/companies/{uuid}/departments/{department_uuid}` | Да | Переименовать отдел. Доступ: `company_manager` |
@@ -991,8 +993,8 @@ Invitations:
   "password": "Qwerty123!",
   "full_name": "Dmitry",
   "full_surname": "Manager",
-  "nick_name": "manager",
-  "post": "Manager"
+  "username": "manager",
+  "headline": "Руководитель отдела продаж"
 }
 ```
 
@@ -1044,6 +1046,7 @@ GET /api/v1/companies/{uuid}/members?status=active&role=department_leader&depart
       "username": "@petrov",
       "full_name": "Ivan",
       "full_surname": "Petrov",
+      "job_title": "Руководитель отдела продаж",
       "company_role": "employee",
       "status": "active",
       "departments": [
@@ -1080,6 +1083,16 @@ GET /api/v1/companies/{uuid}/members?status=active&role=department_leader&depart
   "role": "department_leader"
 }
 ```
+
+Изменение должности участника компании:
+
+```json
+{
+  "job_title": "Руководитель отдела продаж"
+}
+```
+
+Для очистки должности передаётся `{"job_title": null}`.
 
 Создание приглашения в компанию:
 
@@ -1137,20 +1150,16 @@ department_uuid = optional UUID
 
 Поддерживаемые форматы загрузки: `.mp3`, `.wav`, `.m4a`, `.ogg`, `.mp4`, `.mov`, `.webm`, `.mkv`.
 
-### Локальная транскрибация с разделением спикеров
+### Облачная транскрибация и диаризация
 
-OpenRouter `/audio/transcriptions` гарантирует текст, но не гарантирует временные сегменты. Поэтому режим диаризации использует отдельный локальный provider: `faster-whisper` строит временные сегменты речи, `pyannote.audio Community-1` определяет exclusive speaker turns, а CallLens назначает каждому сегменту спикера по максимальному пересечению интервалов. В `call_transcriptions.text` сохраняется готовый диалог вида `Спикер 1: ...`, а в `segments` — те же реплики с `speaker`, `start_seconds` и `end_seconds`. Анализ звонка получает уже размеченный диалог.
+Штатный production-провайдер — AssemblyAI (`TRANSCRIBER_PROVIDER=assemblyai`,
+`ASSEMBLYAI_API_KEY`). Worker готовит и повторно использует технический
+`asr.ogg` (mono 16 kHz, Opus 24 kbit/s), а оригинальный файл сохраняет для
+воспроизведения и fallback.
 
-Перед первым запуском необходимо принять условия модели `pyannote/speaker-diarization-community-1` на Hugging Face и создать read token. Затем:
-
-```powershell
-$env:HF_TOKEN='hf_...'
-$env:TRANSCRIBER_PROVIDER='local'
-$env:TRANSCRIBER_URL='http://transcriber:8090'
-docker compose -f Monolit/deploy/docker-compose.yaml --profile diarization up --build
-```
-
-На CPU по умолчанию используются `WHISPER_DEVICE=cpu` и `WHISPER_COMPUTE_TYPE=int8`. Для CUDA задаются совместимые `WHISPER_DEVICE=cuda` и `WHISPER_COMPUTE_TYPE=float16`; сам Docker runtime при этом также должен получить GPU. Модели загружаются один раз при старте sidecar и кэшируются в volume `transcription_models`.
+Без выбранных кандидатов выполняется обычная транскрибация. Если клиент передал
+speaker hints, AssemblyAI выполняет диаризацию и идентификацию произвольного
+набора выбранных людей и ролей; фиксированной пары ролей в backend нет.
 
 Запуск анализа не требует body и возвращает `202 Accepted` с записью анализа в статусе `pending`:
 
@@ -1255,6 +1264,30 @@ http://localhost:8080/health
 ```
 
 Миграции выполняются при старте приложения из директории `MIGRATION_DIRECTORY`.
+
+## Проверки и CI
+
+Полная локальная проверка backend повторяет GitHub Actions:
+
+```powershell
+Set-Location C:\projects\CallLens
+.\scripts\verify-ci.ps1
+```
+
+Она последовательно выполняет форматирование, `golangci-lint`, unit-тесты,
+integration-тесты с PostgreSQL, `go vet` и сборку Docker-образа. Репозиторный
+pre-commit hook запускает ту же проверку и отменяет создание коммита при любом
+ненулевом результате. Включение hook для нового checkout:
+
+```powershell
+.\scripts\install-git-hooks.ps1
+```
+
+GitHub Actions сводит обязательные backend jobs в check `CI Gate`. Чтобы
+неуспешный удалённый CI блокировал merge, в branch protection/ruleset основной
+ветки check `CI Gate` должен быть отмечен как required. Frontend находится в
+соседнем репозитории `C:\projects\CallLens-frontend` и имеет собственные
+workflow, `CI Gate` и pre-commit build.
 
 ## Переменные окружения
 
