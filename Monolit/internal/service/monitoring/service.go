@@ -3,8 +3,8 @@ package monitoring
 import (
 	"context"
 
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository"
 
 	"github.com/google/uuid"
 )

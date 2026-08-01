@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/httpserver/middleware"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )

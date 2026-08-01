@@ -3,11 +3,11 @@ package processing
 import (
 	"context"
 
-	"calllens/monolit/internal/logger"
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository"
-	"calllens/monolit/internal/storage"
-	"calllens/monolit/internal/transcriber"
+	"verbatrace/monolit/internal/logger"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository"
+	"verbatrace/monolit/internal/storage"
+	"verbatrace/monolit/internal/transcriber"
 
 	"github.com/google/uuid"
 )

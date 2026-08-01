@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	model "calllens/monolit/internal/models"
+	model "verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )

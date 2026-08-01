@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/auth/password"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/auth/password"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

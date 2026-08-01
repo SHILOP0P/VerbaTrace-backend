@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"calllens/monolit/internal/logger"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/logger"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"

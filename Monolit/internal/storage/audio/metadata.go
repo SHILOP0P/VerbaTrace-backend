@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 type FFProbeDurationDetector struct {

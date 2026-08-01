@@ -7,9 +7,9 @@ import (
 	"database/sql"
 	"testing"
 
-	companyRepo "calllens/monolit/internal/repository/company"
-	"calllens/monolit/internal/repository/repositorytest"
-	userRepo "calllens/monolit/internal/repository/user"
+	companyRepo "verbatrace/monolit/internal/repository/company"
+	"verbatrace/monolit/internal/repository/repositorytest"
+	userRepo "verbatrace/monolit/internal/repository/user"
 
 	"github.com/stretchr/testify/suite"
 )

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )

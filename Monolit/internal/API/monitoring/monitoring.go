@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"calllens/monolit/internal/API/dto"
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/httpserver/middleware"
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/service"
+	"verbatrace/monolit/internal/API/dto"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/service"
 
 	"github.com/google/uuid"
 )

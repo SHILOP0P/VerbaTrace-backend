@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	model "calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository/converter"
-	repoModel "calllens/monolit/internal/repository/models"
-	"calllens/monolit/internal/repository/scaner"
+	model "verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/converter"
+	repoModel "verbatrace/monolit/internal/repository/models"
+	"verbatrace/monolit/internal/repository/scaner"
 
 	"github.com/google/uuid"
 )

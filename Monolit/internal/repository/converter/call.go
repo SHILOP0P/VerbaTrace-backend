@@ -1,8 +1,8 @@
 package converter
 
 import (
-	model "calllens/monolit/internal/models"
-	repoModel "calllens/monolit/internal/repository/models"
+	model "verbatrace/monolit/internal/models"
+	repoModel "verbatrace/monolit/internal/repository/models"
 )
 
 func RepoCallToModel(repoCall repoModel.Call) (model.Call, error) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -124,7 +124,7 @@ func (s *Service) notifyInvitationCreated(ctx context.Context, invitation models
 		UserUUID:   invitation.InvitedUserUUID,
 		Type:       models.NotificationTypeInvitation,
 		Title:      "Новое приглашение",
-		Body:       "Вам отправили приглашение в CallLens",
+		Body:       "Вам отправили приглашение в VerbaTrace",
 		EntityType: &entityType,
 		EntityUUID: uuid.NullUUID{UUID: invitation.ID, Valid: true},
 		CreatedAt:  invitation.CreatedAt,

@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 type AudioStorage interface {

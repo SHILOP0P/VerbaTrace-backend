@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"calllens/monolit/internal/models"
-	repositoryMocks "calllens/monolit/internal/repository/mocks"
-	instructionMocks "calllens/monolit/internal/service/analysis_instruction/mocks"
-	storageMocks "calllens/monolit/internal/storage/mocks"
+	"verbatrace/monolit/internal/models"
+	repositoryMocks "verbatrace/monolit/internal/repository/mocks"
+	instructionMocks "verbatrace/monolit/internal/service/analysis_instruction/mocks"
+	storageMocks "verbatrace/monolit/internal/storage/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

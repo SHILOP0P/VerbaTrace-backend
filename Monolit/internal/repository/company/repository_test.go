@@ -5,7 +5,7 @@ package company
 import (
 	"time"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )
@@ -32,7 +32,7 @@ func (s *RepositorySuite) createUser(email string) models.CurrentUser {
 func testCompany(managerID uuid.UUID) models.Company {
 	return models.Company{
 		ID:              uuid.New(),
-		Name:            "CallLens",
+		Name:            "VerbaTrace",
 		ManagerUserUUID: managerID,
 		MemberLimit:     5,
 		CreatedAt:       time.Now().UTC().Truncate(time.Microsecond),
@@ -63,7 +63,7 @@ func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.Cur
 func (s *RepositorySuite) TestCreateCompanyCreatesManagerMember() {
 	company, manager := s.createCompanyWithManager()
 
-	s.Require().Equal("CallLens", company.Name)
+	s.Require().Equal("VerbaTrace", company.Name)
 	s.Require().Equal(manager.ID, company.ManagerUserUUID)
 	s.Require().Equal("@"+company.ID.String(), company.Tag)
 
@@ -79,9 +79,9 @@ func (s *RepositorySuite) TestCreateCompanyCreatesManagerMember() {
 
 func (s *RepositorySuite) TestUpdateCompanyTag() {
 	company, _ := s.createCompanyWithManager()
-	updated, err := s.repository.UpdateCompanyTag(s.ctx, company.ID, "@calllens_team")
+	updated, err := s.repository.UpdateCompanyTag(s.ctx, company.ID, "@verbatrace_team")
 	s.Require().NoError(err)
-	s.Require().Equal("@calllens_team", updated.Tag)
+	s.Require().Equal("@verbatrace_team", updated.Tag)
 }
 
 func (s *RepositorySuite) TestCreateCompanyAllowsSecondManagedCompanyForSameUser() {

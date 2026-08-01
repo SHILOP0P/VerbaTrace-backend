@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	models "calllens/monolit/internal/models"
+	models "verbatrace/monolit/internal/models"
 	context "context"
 
 	mock "github.com/stretchr/testify/mock"

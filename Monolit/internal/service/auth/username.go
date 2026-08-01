@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/username"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/username"
 
 	"github.com/google/uuid"
 )

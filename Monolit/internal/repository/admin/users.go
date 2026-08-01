@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"

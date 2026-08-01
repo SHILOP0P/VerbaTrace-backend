@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/auth/password"
-	"calllens/monolit/internal/models"
-	repositoryMocks "calllens/monolit/internal/repository/mocks"
+	"verbatrace/monolit/internal/auth/password"
+	"verbatrace/monolit/internal/models"
+	repositoryMocks "verbatrace/monolit/internal/repository/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

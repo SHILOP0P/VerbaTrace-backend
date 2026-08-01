@@ -1,6 +1,6 @@
 package scaner
 
-import repoModel "calllens/monolit/internal/repository/models"
+import repoModel "verbatrace/monolit/internal/repository/models"
 
 func ScanDepartment(row rowScanner) (repoModel.Department, error) {
 	var department repoModel.Department

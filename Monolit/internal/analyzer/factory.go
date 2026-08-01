@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	mockAnalyzer "calllens/monolit/internal/analyzer/mock"
-	openrouterAnalyzer "calllens/monolit/internal/analyzer/openrouter"
+	mockAnalyzer "verbatrace/monolit/internal/analyzer/mock"
+	openrouterAnalyzer "verbatrace/monolit/internal/analyzer/openrouter"
 )
 
 type Config interface {

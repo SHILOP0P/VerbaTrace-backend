@@ -27,7 +27,7 @@ func TestConfigsFromEnvironment(t *testing.T) {
 		"LOG_AS_JSON":            "true",
 		"POSTGRES_HOST":          "localhost",
 		"POSTGRES_PORT":          "5432",
-		"POSTGRES_DB":            "calllens",
+		"POSTGRES_DB":            "verbatrace",
 		"POSTGRES_USER":          "postgres",
 		"POSTGRES_PASSWORD":      "password",
 		"POSTGRES_SSL_MODE":      "disable",
@@ -67,8 +67,8 @@ func TestConfigsFromEnvironment(t *testing.T) {
 		t.Fatalf("logger config: %+v err=%v", logger, err)
 	}
 	postgres, err := NewPostgresConfig()
-	if err != nil || postgres.DatabaseName() != "calllens" || postgres.MigrationDir() != "migrations" ||
-		!strings.Contains(postgres.URI(), "postgres://postgres:password@localhost:5432/calllens?sslmode=disable") {
+	if err != nil || postgres.DatabaseName() != "verbatrace" || postgres.MigrationDir() != "migrations" ||
+		!strings.Contains(postgres.URI(), "postgres://postgres:password@localhost:5432/verbatrace?sslmode=disable") {
 		t.Fatalf("postgres config: %+v err=%v", postgres, err)
 	}
 	transcriber, err := NewTranscriberConfig()
@@ -102,5 +102,39 @@ func TestConfigValidationErrors(t *testing.T) {
 	t.Setenv("WORKER_POLL_INTERVAL", "invalid")
 	if _, err := NewWorkerConfig(); err == nil {
 		t.Fatal("expected worker config validation error")
+	}
+}
+
+func TestAuthConfigDecodesBase64Secrets(t *testing.T) {
+	t.Setenv("PASSWORD_PEPPER", "base64:cGVwcGVy")
+	t.Setenv("JWT_SECRET", "base64:and0LXNlY3JldA==")
+	t.Setenv("JWT_ACCESS_TOKEN_TTL", "15m")
+	t.Setenv("REFRESH_TOKEN_SECRET", "base64:cmVmcmVzaC1zZWNyZXQ=")
+	t.Setenv("REFRESH_TOKEN_TTL", "24h")
+
+	auth, err := NewAuthConfig()
+	if err != nil {
+		t.Fatalf("NewAuthConfig: %v", err)
+	}
+	if auth.PasswordPepper() != "pepper" {
+		t.Fatalf("PasswordPepper = %q", auth.PasswordPepper())
+	}
+	if auth.JWTSecret() != "jwt-secret" {
+		t.Fatalf("JWTSecret = %q", auth.JWTSecret())
+	}
+	if auth.RefreshTokenSecret() != "refresh-secret" {
+		t.Fatalf("RefreshTokenSecret = %q", auth.RefreshTokenSecret())
+	}
+}
+
+func TestAuthConfigRejectsInvalidBase64Secret(t *testing.T) {
+	t.Setenv("PASSWORD_PEPPER", "base64:not-valid")
+	t.Setenv("JWT_SECRET", "secret")
+	t.Setenv("JWT_ACCESS_TOKEN_TTL", "15m")
+	t.Setenv("REFRESH_TOKEN_SECRET", "refresh")
+	t.Setenv("REFRESH_TOKEN_TTL", "24h")
+
+	if _, err := NewAuthConfig(); err == nil {
+		t.Fatal("NewAuthConfig() error = nil, want invalid base64 error")
 	}
 }

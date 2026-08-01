@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/converter"
-	"calllens/monolit/internal/httpserver/middleware"
-	"calllens/monolit/internal/models"
-	serviceMocks "calllens/monolit/internal/service/mocks"
+	"verbatrace/monolit/internal/converter"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	"verbatrace/monolit/internal/models"
+	serviceMocks "verbatrace/monolit/internal/service/mocks"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"

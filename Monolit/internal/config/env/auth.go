@@ -1,6 +1,9 @@
 package env
 
 import (
+	"encoding/base64"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -24,7 +27,38 @@ func NewAuthConfig() (*authConfig, error) {
 	if err := env.Parse(&raw); err != nil {
 		return nil, err
 	}
+
+	var err error
+	raw.PasswordPepper, err = decodeSecret("PASSWORD_PEPPER", raw.PasswordPepper)
+	if err != nil {
+		return nil, err
+	}
+	raw.JWTSecret, err = decodeSecret("JWT_SECRET", raw.JWTSecret)
+	if err != nil {
+		return nil, err
+	}
+	raw.RefreshTokenSecret, err = decodeSecret("REFRESH_TOKEN_SECRET", raw.RefreshTokenSecret)
+	if err != nil {
+		return nil, err
+	}
+
 	return &authConfig{raw: raw}, nil
+}
+
+func decodeSecret(name, value string) (string, error) {
+	const base64Prefix = "base64:"
+	if !strings.HasPrefix(value, base64Prefix) {
+		return value, nil
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(value, base64Prefix))
+	if err != nil {
+		return "", fmt.Errorf("decode %s: %w", name, err)
+	}
+	if len(decoded) == 0 {
+		return "", fmt.Errorf("decode %s: empty value", name)
+	}
+	return string(decoded), nil
 }
 
 func (cfg *authConfig) PasswordPepper() string {

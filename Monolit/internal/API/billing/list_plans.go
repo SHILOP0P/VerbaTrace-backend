@@ -3,9 +3,9 @@ package billing
 import (
 	"net/http"
 
-	"calllens/monolit/internal/API/dto"
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/converter"
+	"verbatrace/monolit/internal/API/dto"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
 )
 
 func (h *Handler) ListPlans(w http.ResponseWriter, r *http.Request) {

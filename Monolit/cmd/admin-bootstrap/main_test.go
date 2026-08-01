@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/models"
-	refreshRepo "calllens/monolit/internal/repository/refresh_session"
-	"calllens/monolit/internal/repository/repositorytest"
-	userRepo "calllens/monolit/internal/repository/user"
+	"verbatrace/monolit/internal/models"
+	refreshRepo "verbatrace/monolit/internal/repository/refresh_session"
+	"verbatrace/monolit/internal/repository/repositorytest"
+	userRepo "verbatrace/monolit/internal/repository/user"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"

@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"calllens/monolit/internal/analyzer"
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository"
-	"calllens/monolit/internal/storage"
+	"verbatrace/monolit/internal/analyzer"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository"
+	"verbatrace/monolit/internal/storage"
 
 	"github.com/google/uuid"
 )

@@ -13,7 +13,7 @@ func TestLoadAndAppConfig(t *testing.T) {
 	}
 	values := map[string]string{
 		"HTTP_HOST": "127.0.0.1", "HTTP_PORT": "8080", "HTTP_READ_TIMEOUT": "5s",
-		"POSTGRES_HOST": "localhost", "POSTGRES_PORT": "5432", "POSTGRES_DB": "calllens",
+		"POSTGRES_HOST": "localhost", "POSTGRES_PORT": "5432", "POSTGRES_DB": "verbatrace",
 		"POSTGRES_USER": "postgres", "POSTGRES_PASSWORD": "password", "POSTGRES_SSL_MODE": "disable",
 		"MIGRATION_DIRECTORY": "migrations", "UPLOAD_PATH": "uploads", "PASSWORD_PEPPER": "pepper",
 		"JWT_SECRET": "jwt-secret", "JWT_ACCESS_TOKEN_TTL": "15m",
@@ -27,7 +27,7 @@ func TestLoadAndAppConfig(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	cfg := AppConfig()
-	if cfg == nil || cfg.HTTPConfig.Address() != "127.0.0.1:8080" || cfg.Postgres.DatabaseName() != "calllens" ||
+	if cfg == nil || cfg.HTTPConfig.Address() != "127.0.0.1:8080" || cfg.Postgres.DatabaseName() != "verbatrace" ||
 		cfg.Upload.Path() != "uploads" || cfg.Auth.JWTSecret() != "jwt-secret" {
 		t.Fatalf("unexpected app config: %+v", cfg)
 	}
@@ -53,7 +53,7 @@ func TestLoadErrorsAndNewConfig(t *testing.T) {
 func TestLoadAllowsMissingEnvFileWhenEnvironmentIsSet(t *testing.T) {
 	values := map[string]string{
 		"HTTP_HOST": "127.0.0.1", "HTTP_PORT": "8080", "HTTP_READ_TIMEOUT": "5s",
-		"POSTGRES_HOST": "localhost", "POSTGRES_PORT": "5432", "POSTGRES_DB": "calllens",
+		"POSTGRES_HOST": "localhost", "POSTGRES_PORT": "5432", "POSTGRES_DB": "verbatrace",
 		"POSTGRES_USER": "postgres", "POSTGRES_PASSWORD": "password", "POSTGRES_SSL_MODE": "disable",
 		"MIGRATION_DIRECTORY": "migrations", "UPLOAD_PATH": "uploads", "PASSWORD_PEPPER": "pepper",
 		"JWT_SECRET": "jwt-secret", "JWT_ACCESS_TOKEN_TTL": "15m",
@@ -75,7 +75,7 @@ func TestLoadLaterValidationErrors(t *testing.T) {
 	}
 	values := map[string]string{
 		"HTTP_HOST": "localhost", "HTTP_PORT": "8080", "HTTP_READ_TIMEOUT": "5s",
-		"POSTGRES_HOST": "localhost", "POSTGRES_PORT": "5432", "POSTGRES_DB": "calllens",
+		"POSTGRES_HOST": "localhost", "POSTGRES_PORT": "5432", "POSTGRES_DB": "verbatrace",
 		"POSTGRES_USER": "postgres", "POSTGRES_PASSWORD": "password", "POSTGRES_SSL_MODE": "disable",
 		"MIGRATION_DIRECTORY": "migrations", "UPLOAD_PATH": "uploads", "PASSWORD_PEPPER": "pepper",
 		"JWT_SECRET": "jwt-secret", "JWT_ACCESS_TOKEN_TTL": "15m",

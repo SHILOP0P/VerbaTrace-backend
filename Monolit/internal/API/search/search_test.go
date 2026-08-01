@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"calllens/monolit/internal/httpserver/middleware"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"

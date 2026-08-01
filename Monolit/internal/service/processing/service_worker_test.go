@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/logger"
-	"calllens/monolit/internal/models"
-	repositoryMocks "calllens/monolit/internal/repository/mocks"
-	processingMocks "calllens/monolit/internal/service/processing/mocks"
-	storageMocks "calllens/monolit/internal/storage/mocks"
-	transcriberMocks "calllens/monolit/internal/transcriber/mocks"
+	"verbatrace/monolit/internal/logger"
+	"verbatrace/monolit/internal/models"
+	repositoryMocks "verbatrace/monolit/internal/repository/mocks"
+	processingMocks "verbatrace/monolit/internal/service/processing/mocks"
+	storageMocks "verbatrace/monolit/internal/storage/mocks"
+	transcriberMocks "verbatrace/monolit/internal/transcriber/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

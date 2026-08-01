@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	mockAnalyzer "calllens/monolit/internal/analyzer/mock"
-	analyzerMocks "calllens/monolit/internal/analyzer/mocks"
-	"calllens/monolit/internal/models"
-	repositoryMocks "calllens/monolit/internal/repository/mocks"
+	mockAnalyzer "verbatrace/monolit/internal/analyzer/mock"
+	analyzerMocks "verbatrace/monolit/internal/analyzer/mocks"
+	"verbatrace/monolit/internal/models"
+	repositoryMocks "verbatrace/monolit/internal/repository/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

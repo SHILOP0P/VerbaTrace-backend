@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func TestParseFFProbeDuration(t *testing.T) {
@@ -70,7 +70,7 @@ func TestFFProbeDurationDetectorDetectDurationMapsMissingProbe(t *testing.T) {
 		t.Fatalf("failed to write audio file: %v", err)
 	}
 
-	detector := NewFFProbeDurationDetector(dir, "ffprobe-calllens-test-missing")
+	detector := NewFFProbeDurationDetector(dir, "ffprobe-verbatrace-test-missing")
 
 	_, err := detector.DetectDuration(context.Background(), filename)
 	if !errors.Is(err, models.ErrAudioProbeNotFound) {

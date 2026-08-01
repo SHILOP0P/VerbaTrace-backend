@@ -3,7 +3,7 @@ package call
 import (
 	"errors"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

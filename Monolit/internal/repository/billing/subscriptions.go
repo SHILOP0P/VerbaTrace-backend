@@ -3,7 +3,7 @@ package billing
 import (
 	"database/sql"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func subscriptionColumns(subscriptionAlias string, planAlias string) string {

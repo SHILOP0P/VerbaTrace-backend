@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/httpserver/middleware"
-	serviceMocks "calllens/monolit/internal/service/mocks"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	serviceMocks "verbatrace/monolit/internal/service/mocks"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"

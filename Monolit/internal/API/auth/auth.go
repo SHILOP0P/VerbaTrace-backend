@@ -3,7 +3,7 @@ package auth
 import (
 	"time"
 
-	"calllens/monolit/internal/service"
+	"verbatrace/monolit/internal/service"
 )
 
 type AuthHandler struct {

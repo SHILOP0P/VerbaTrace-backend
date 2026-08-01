@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/httpserver/middleware"
-	serviceMocks "calllens/monolit/internal/service/mocks"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	serviceMocks "verbatrace/monolit/internal/service/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"

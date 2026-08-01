@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -16,13 +16,13 @@ func (s *APISuite) TestCreateSuccess() {
 	companyID := uuid.New()
 
 	s.service.On("CreateCompany", mock.Anything, models.CreateCompanyInput{
-		Name:          "CallLens",
+		Name:          "VerbaTrace",
 		ManagerUserID: userID,
 	}).
-		Return(models.Company{ID: companyID, Name: "CallLens", ManagerUserUUID: userID, MemberLimit: 1, CreatedAt: time.Now().UTC()}, nil).
+		Return(models.Company{ID: companyID, Name: "VerbaTrace", ManagerUserUUID: userID, MemberLimit: 1, CreatedAt: time.Now().UTC()}, nil).
 		Once()
 
-	rec, req := s.request(http.MethodPost, "/api/v1/companies", `{"name":"CallLens"}`, userID, nil)
+	rec, req := s.request(http.MethodPost, "/api/v1/companies", `{"name":"VerbaTrace"}`, userID, nil)
 
 	s.api.Create(rec, req)
 
@@ -30,7 +30,7 @@ func (s *APISuite) TestCreateSuccess() {
 }
 
 func (s *APISuite) TestCreateRequiresAuth() {
-	rec, req := s.request(http.MethodPost, "/api/v1/companies", `{"name":"CallLens"}`, uuid.Nil, nil)
+	rec, req := s.request(http.MethodPost, "/api/v1/companies", `{"name":"VerbaTrace"}`, uuid.Nil, nil)
 
 	s.api.Create(rec, req)
 
@@ -51,13 +51,13 @@ func (s *APISuite) TestCreateMapsAlreadyManagedCompany() {
 	userID := uuid.New()
 
 	s.service.On("CreateCompany", mock.Anything, models.CreateCompanyInput{
-		Name:          "CallLens",
+		Name:          "VerbaTrace",
 		ManagerUserID: userID,
 	}).
 		Return(models.Company{}, models.ErrUserAlreadyManagesCompany).
 		Once()
 
-	rec, req := s.request(http.MethodPost, "/api/v1/companies", `{"name":"CallLens"}`, userID, nil)
+	rec, req := s.request(http.MethodPost, "/api/v1/companies", `{"name":"VerbaTrace"}`, userID, nil)
 
 	s.api.Create(rec, req)
 

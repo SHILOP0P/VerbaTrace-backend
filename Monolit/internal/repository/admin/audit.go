@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )

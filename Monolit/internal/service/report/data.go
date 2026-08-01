@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 type ReportData struct {

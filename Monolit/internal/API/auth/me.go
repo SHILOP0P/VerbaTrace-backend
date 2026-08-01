@@ -1,11 +1,11 @@
 package auth
 
 import (
-	"calllens/monolit/internal/API/dto"
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/converter"
-	"calllens/monolit/internal/httpserver/middleware"
-	model "calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/dto"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	model "verbatrace/monolit/internal/models"
 
 	"errors"
 	"net/http"

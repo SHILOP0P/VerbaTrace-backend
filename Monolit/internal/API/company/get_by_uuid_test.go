@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -19,7 +19,7 @@ func (s *APISuite) TestGetByUUIDSuccess() {
 	s.service.On("GetCompanyByUUID", mock.Anything, companyID, userID).
 		Return(models.Company{
 			ID:              companyID,
-			Name:            "CallLens",
+			Name:            "VerbaTrace",
 			ManagerUserUUID: userID,
 			MemberLimit:     10,
 			CreatedAt:       time.Now().UTC(),

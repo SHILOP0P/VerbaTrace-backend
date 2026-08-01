@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"calllens/monolit/internal/models"
-	repositoryMocks "calllens/monolit/internal/repository/mocks"
-	callMocks "calllens/monolit/internal/service/call/mocks"
+	"verbatrace/monolit/internal/models"
+	repositoryMocks "verbatrace/monolit/internal/repository/mocks"
+	callMocks "verbatrace/monolit/internal/service/call/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

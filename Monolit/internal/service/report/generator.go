@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func generateReport(format models.ReportFormat, data ReportData) ([]byte, error) {

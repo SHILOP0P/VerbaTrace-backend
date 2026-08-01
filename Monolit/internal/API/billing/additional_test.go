@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/models"
-	serviceMocks "calllens/monolit/internal/service/mocks"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/models"
+	serviceMocks "verbatrace/monolit/internal/service/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

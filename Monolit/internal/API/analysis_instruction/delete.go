@@ -3,7 +3,7 @@ package analysis_instruction
 import (
 	"net/http"
 
-	"calllens/monolit/internal/API/response"
+	"verbatrace/monolit/internal/API/response"
 
 	"github.com/go-chi/chi/v5"
 )

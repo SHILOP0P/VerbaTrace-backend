@@ -61,14 +61,14 @@ tasks:
     cmds:
       - echo "==> Building backend binary"
       - powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path ./bin | Out-Null"
-      - go build -o ./bin/calllens.exe ./cmd
+      - go build -o ./bin/verbatrace.exe ./cmd
 
   # Сборка Docker-образа backend без публикации куда-либо.
   image:
     desc: Build backend Docker image locally.
     cmds:
-      - echo "==> Building local Docker image calllens-backend"
-      - docker build -f deploy/Dockerfile -t calllens-backend .
+      - echo "==> Building local Docker image verbatrace-backend"
+      - docker build -f deploy/Dockerfile -t verbatrace-backend .
 
   # Локальный production-like стек: backend + PostgreSQL + persistent uploads volume.
   up:

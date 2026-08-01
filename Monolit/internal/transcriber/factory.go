@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	mockTranscriber "calllens/monolit/internal/transcriber/mock"
+	mockTranscriber "verbatrace/monolit/internal/transcriber/mock"
 )
 
 type Config interface {

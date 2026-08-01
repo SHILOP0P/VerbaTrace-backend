@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 
-	"calllens/monolit/internal/config/env"
+	"verbatrace/monolit/internal/config/env"
 
 	"github.com/joho/godotenv"
 )

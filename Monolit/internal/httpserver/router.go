@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"time"
 
-	"calllens/monolit/internal/API"
-	"calllens/monolit/internal/API/health"
-	authMiddleware "calllens/monolit/internal/httpserver/middleware"
-	"calllens/monolit/internal/logger"
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository"
+	"verbatrace/monolit/internal/API"
+	"verbatrace/monolit/internal/API/health"
+	authMiddleware "verbatrace/monolit/internal/httpserver/middleware"
+	"verbatrace/monolit/internal/logger"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"

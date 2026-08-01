@@ -3,7 +3,7 @@ package scaner
 import (
 	"encoding/json"
 
-	repoModel "calllens/monolit/internal/repository/models"
+	repoModel "verbatrace/monolit/internal/repository/models"
 )
 
 func ScanCallAnalysis(row rowScanner) (repoModel.CallAnalysis, error) {

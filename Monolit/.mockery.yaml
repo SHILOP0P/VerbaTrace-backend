@@ -7,39 +7,39 @@ resolve-type-alias: false
 issue-845-fix: true
 
 packages:
-  "calllens/monolit/internal/API":
+  "verbatrace/monolit/internal/API":
     config:
       include-regex: ".*API"
-  "calllens/monolit/internal/repository":
+  "verbatrace/monolit/internal/repository":
     config:
       include-regex: ".*Repository"
-  "calllens/monolit/internal/service":
+  "verbatrace/monolit/internal/service":
     config:
       include-regex: ".*Service"
-  "calllens/monolit/internal/storage":
+  "verbatrace/monolit/internal/storage":
     config:
       include-regex: "Storage"
-  "calllens/monolit/internal/analyzer":
+  "verbatrace/monolit/internal/analyzer":
     config:
       include-regex: "Analyzer"
-  "calllens/monolit/internal/transcriber":
+  "verbatrace/monolit/internal/transcriber":
     config:
       include-regex: "Transcriber"
-  "calllens/monolit/internal/service/processing":
+  "verbatrace/monolit/internal/service/processing":
     config:
       include-regex: "AnalysisProcessor"
-  "calllens/monolit/internal/service/call":
+  "verbatrace/monolit/internal/service/call":
     config:
       include-regex: "DurationDetector|BillingLimiter"
-  "calllens/monolit/internal/service/report":
+  "verbatrace/monolit/internal/service/report":
     config:
       include-regex: "BillingLimiter"
-  "calllens/monolit/internal/service/analysis_instruction":
+  "verbatrace/monolit/internal/service/analysis_instruction":
     config:
       include-regex: "BillingLimiter"
-  "calllens/monolit/internal/service/billing":
+  "verbatrace/monolit/internal/service/billing":
     config:
       include-regex: "Repository|CompanyRepository"
-  "calllens/monolit/internal/service/invitation":
+  "verbatrace/monolit/internal/service/invitation":
     config:
       include-regex: "BillingLimiter"

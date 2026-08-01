@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"calllens/monolit/internal/logger"
+	"verbatrace/monolit/internal/logger"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"

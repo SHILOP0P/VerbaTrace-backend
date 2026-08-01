@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 const defaultSearchLimit = 10

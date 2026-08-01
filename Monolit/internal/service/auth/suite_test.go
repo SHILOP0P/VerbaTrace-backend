@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/logger"
-	repositoryMocks "calllens/monolit/internal/repository/mocks"
+	"verbatrace/monolit/internal/logger"
+	repositoryMocks "verbatrace/monolit/internal/repository/mocks"
 
 	"github.com/stretchr/testify/suite"
 )

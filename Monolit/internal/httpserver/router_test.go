@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	apiMocks "calllens/monolit/internal/API/mocks"
-	"calllens/monolit/internal/logger"
-	repositoryMocks "calllens/monolit/internal/repository/mocks"
+	apiMocks "verbatrace/monolit/internal/API/mocks"
+	"verbatrace/monolit/internal/logger"
+	repositoryMocks "verbatrace/monolit/internal/repository/mocks"
 
 	"github.com/stretchr/testify/require"
 )

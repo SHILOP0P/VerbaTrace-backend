@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"calllens/monolit/internal/API/response"
+	"verbatrace/monolit/internal/API/response"
 )
 
 type healthResponse struct {

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"calllens/monolit/internal/auth/refresh"
-	"calllens/monolit/internal/auth/token"
-	model "calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/auth/refresh"
+	"verbatrace/monolit/internal/auth/token"
+	model "verbatrace/monolit/internal/models"
 
 	"go.uber.org/zap"
 )

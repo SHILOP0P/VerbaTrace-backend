@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	model "calllens/monolit/internal/models"
+	model "verbatrace/monolit/internal/models"
 )
 
 func (r *Repository) GetAnalyticsOverview(ctx context.Context, input model.AnalyticsOverviewInput) (model.AnalyticsOverview, error) {

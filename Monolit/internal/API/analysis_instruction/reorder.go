@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )

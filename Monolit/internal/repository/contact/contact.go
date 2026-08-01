@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func (r *Repository) SearchPublicUsers(ctx context.Context, usernamePrefix string, limit int) ([]models.PublicUser, error) {

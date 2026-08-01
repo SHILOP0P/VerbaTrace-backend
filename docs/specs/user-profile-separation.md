@@ -1,7 +1,7 @@
 # Спецификация: разделение учетной записи, профиля и корпоративной должности
 
 Статус: ready for implementation  
-Область: `CallLens/Monolit` и согласованные изменения `CallLens-frontend`  
+Область: `VerbaTrace/Monolit` и согласованные изменения `VerbaTrace-frontend`
 Тип изменения: изменение внутренней архитектуры и схемы данных с контролируемой эволюцией API  
 
 ## 1. Цель
@@ -807,7 +807,7 @@ user_profile_invariant_violation
 
 ## 13. Изменения frontend
 
-Обновить `CallLens-frontend`:
+Обновить `VerbaTrace-frontend`:
 
 1. `UserResponse.post` → `headline`.
 2. `UpdateProfileRequest.post` → `headline`.
@@ -1041,7 +1041,7 @@ task verify:int
 
 ### 18.2. Frontend local
 
-В текущем `CallLens-frontend/package.json` определены только `dev`, `build` и
+В текущем `VerbaTrace-frontend/package.json` определены только `dev`, `build` и
 `preview`; отдельных lint/test scripts нет. Поэтому обязательны:
 
 ```powershell

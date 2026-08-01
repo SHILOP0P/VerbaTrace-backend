@@ -3,7 +3,7 @@ package processing
 import (
 	"testing"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func TestSpeakerCandidatesKeepPeopleAndRolesIndependent(t *testing.T) {

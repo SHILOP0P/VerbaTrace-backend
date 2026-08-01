@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/storage"
-	"calllens/monolit/internal/username"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/storage"
+	"verbatrace/monolit/internal/username"
 
 	"github.com/google/uuid"
 )

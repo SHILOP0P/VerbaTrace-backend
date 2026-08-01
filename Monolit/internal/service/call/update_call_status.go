@@ -3,7 +3,7 @@ package call
 import (
 	"context"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"

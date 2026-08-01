@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	model "calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository/converter"
-	"calllens/monolit/internal/repository/scaner"
+	model "verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/converter"
+	"verbatrace/monolit/internal/repository/scaner"
 )
 
 func (r *Repository) RotateRefreshSession(ctx context.Context, oldRefreshTokenHash string, newRefreshTokenHash string, expiresAt time.Time) (model.RefreshSession, error) {

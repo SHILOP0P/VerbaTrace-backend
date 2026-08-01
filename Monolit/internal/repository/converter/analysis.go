@@ -3,8 +3,8 @@ package converter
 import (
 	"encoding/json"
 
-	model "calllens/monolit/internal/models"
-	repoModel "calllens/monolit/internal/repository/models"
+	model "verbatrace/monolit/internal/models"
+	repoModel "verbatrace/monolit/internal/repository/models"
 )
 
 func RepoCallAnalysisToModel(repoAnalysis repoModel.CallAnalysis) (model.CallAnalysis, error) {

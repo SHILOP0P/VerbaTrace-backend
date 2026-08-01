@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func (l *LocalStorage) Save(ctx context.Context, input models.SaveInput) (models.SavedFile, error) {

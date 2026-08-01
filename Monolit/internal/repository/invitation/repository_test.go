@@ -5,7 +5,7 @@ package invitation
 import (
 	"time"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )
@@ -33,7 +33,7 @@ func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.Cur
 	manager := s.createUser(uuid.NewString() + "@example.com")
 	company := models.Company{
 		ID:              uuid.New(),
-		Name:            "CallLens",
+		Name:            "VerbaTrace",
 		ManagerUserUUID: manager.ID,
 		MemberLimit:     5,
 		CreatedAt:       time.Now().UTC().Truncate(time.Microsecond),

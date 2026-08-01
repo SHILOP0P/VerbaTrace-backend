@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	model "calllens/monolit/internal/models"
+	model "verbatrace/monolit/internal/models"
 )
 
 func (r *Repository) CountActive(ctx context.Context, input model.ListAnalysisInstructionsInput) (int, error) {

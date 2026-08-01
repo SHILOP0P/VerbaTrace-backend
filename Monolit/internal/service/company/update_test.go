@@ -1,7 +1,7 @@
 package company
 
 import (
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -47,23 +47,23 @@ func (s *ServiceSuite) TestUpdateCompanyTagRequiresManagerAndNormalizesTag() {
 		GetCompanyMember(mock.Anything, companyID, managerID).
 		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: managerID, Role: models.CompanyMemberRoleManager, Status: models.MembershipStatusActive}, nil).
 		Once()
-	s.repository.On("UpdateCompanyTag", mock.Anything, companyID, "@calllens_team").
-		Return(models.Company{ID: companyID, Tag: "@calllens_team"}, nil).Once()
+	s.repository.On("UpdateCompanyTag", mock.Anything, companyID, "@verbatrace_team").
+		Return(models.Company{ID: companyID, Tag: "@verbatrace_team"}, nil).Once()
 
-	updated, err := s.service.UpdateCompanyTag(s.ctx, models.UpdateCompanyTagInput{CompanyUUID: companyID, RequestUser: managerID, Tag: " CallLens Team "})
+	updated, err := s.service.UpdateCompanyTag(s.ctx, models.UpdateCompanyTagInput{CompanyUUID: companyID, RequestUser: managerID, Tag: " VerbaTrace Team "})
 	s.Require().NoError(err)
-	s.Require().Equal("@calllens_team", updated.Tag)
+	s.Require().Equal("@verbatrace_team", updated.Tag)
 }
 
 func (s *ServiceSuite) TestUpdateCompanyTagAsAdminNormalizesWithoutMembershipCheck() {
 	companyID := uuid.New()
-	s.repository.On("UpdateCompanyTag", mock.Anything, companyID, "@calllens_team").
-		Return(models.Company{ID: companyID, Tag: "@calllens_team"}, nil).Once()
+	s.repository.On("UpdateCompanyTag", mock.Anything, companyID, "@verbatrace_team").
+		Return(models.Company{ID: companyID, Tag: "@verbatrace_team"}, nil).Once()
 
-	updated, err := s.service.UpdateCompanyTagAsAdmin(s.ctx, companyID, " CallLens Team ")
+	updated, err := s.service.UpdateCompanyTagAsAdmin(s.ctx, companyID, " VerbaTrace Team ")
 
 	s.Require().NoError(err)
-	s.Require().Equal("@calllens_team", updated.Tag)
+	s.Require().Equal("@verbatrace_team", updated.Tag)
 }
 
 func (s *ServiceSuite) TestDeleteCompanySuccess() {

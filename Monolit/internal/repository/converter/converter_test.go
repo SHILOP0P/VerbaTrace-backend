@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/models"
-	repoModel "calllens/monolit/internal/repository/models"
+	"verbatrace/monolit/internal/models"
+	repoModel "verbatrace/monolit/internal/repository/models"
 )
 
 func TestConverters(t *testing.T) {

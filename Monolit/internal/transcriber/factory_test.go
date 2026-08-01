@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 type testConfig struct{ provider, assemblyAIAPIKey string }

@@ -7,10 +7,10 @@ import (
 	"database/sql"
 	"testing"
 
-	companyRepo "calllens/monolit/internal/repository/company"
-	departmentRepo "calllens/monolit/internal/repository/department"
-	"calllens/monolit/internal/repository/repositorytest"
-	userRepo "calllens/monolit/internal/repository/user"
+	companyRepo "verbatrace/monolit/internal/repository/company"
+	departmentRepo "verbatrace/monolit/internal/repository/department"
+	"verbatrace/monolit/internal/repository/repositorytest"
+	userRepo "verbatrace/monolit/internal/repository/user"
 
 	"github.com/stretchr/testify/suite"
 )

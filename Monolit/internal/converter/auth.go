@@ -3,8 +3,8 @@ package converter
 import (
 	"time"
 
-	"calllens/monolit/internal/API/dto"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/dto"
+	"verbatrace/monolit/internal/models"
 )
 
 const avatarURL = "/api/v1/auth/me/avatar"

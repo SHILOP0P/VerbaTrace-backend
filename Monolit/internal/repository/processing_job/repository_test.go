@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository/repositorytest"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/repositorytest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"calllens/monolit/internal/repository/repositorytest"
+	"verbatrace/monolit/internal/repository/repositorytest"
 
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"

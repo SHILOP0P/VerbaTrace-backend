@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/httpserver/middleware"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"

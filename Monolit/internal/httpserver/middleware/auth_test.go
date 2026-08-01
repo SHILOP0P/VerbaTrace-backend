@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/auth/token"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/auth/token"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"

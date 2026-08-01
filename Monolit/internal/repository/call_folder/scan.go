@@ -3,7 +3,7 @@ package call_folder
 import (
 	"database/sql"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )

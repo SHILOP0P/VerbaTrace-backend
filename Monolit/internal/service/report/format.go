@@ -1,6 +1,6 @@
 package report
 
-import "calllens/monolit/internal/models"
+import "verbatrace/monolit/internal/models"
 
 func normalizeFormat(format models.ReportFormat) (models.ReportFormat, error) {
 	switch format {

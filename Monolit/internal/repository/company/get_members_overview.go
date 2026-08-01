@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	model "calllens/monolit/internal/models"
-	repoModel "calllens/monolit/internal/repository/models"
-	"calllens/monolit/internal/repository/scaner"
+	model "verbatrace/monolit/internal/models"
+	repoModel "verbatrace/monolit/internal/repository/models"
+	"verbatrace/monolit/internal/repository/scaner"
 
 	"github.com/google/uuid"
 )

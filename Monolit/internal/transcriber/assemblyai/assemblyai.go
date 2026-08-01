@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/transcriber/cleaner"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/transcriber/cleaner"
 )
 
 const (

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	model "calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository/converter"
-	"calllens/monolit/internal/repository/scaner"
+	model "verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/converter"
+	"verbatrace/monolit/internal/repository/scaner"
 )
 
 func (r *Repository) UpdateUsername(ctx context.Context, input model.UpdateUsernameInput) (model.CurrentUser, error) {

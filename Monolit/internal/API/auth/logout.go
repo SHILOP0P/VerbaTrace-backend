@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/httpserver/middleware"
-	model "calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	model "verbatrace/monolit/internal/models"
 )
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {

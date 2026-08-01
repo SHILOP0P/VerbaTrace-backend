@@ -1,7 +1,7 @@
 package scaner
 
 import (
-	repoModel "calllens/monolit/internal/repository/models"
+	repoModel "verbatrace/monolit/internal/repository/models"
 )
 
 type rowScanner interface {

@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

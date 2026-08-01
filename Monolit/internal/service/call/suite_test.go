@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"calllens/monolit/internal/logger"
-	repositoryMocks "calllens/monolit/internal/repository/mocks"
-	storageMocks "calllens/monolit/internal/storage/mocks"
+	"verbatrace/monolit/internal/logger"
+	repositoryMocks "verbatrace/monolit/internal/repository/mocks"
+	storageMocks "verbatrace/monolit/internal/storage/mocks"
 
 	"github.com/stretchr/testify/suite"
 )

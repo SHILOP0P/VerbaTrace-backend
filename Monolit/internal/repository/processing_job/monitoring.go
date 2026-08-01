@@ -7,7 +7,7 @@ import (
 	"math"
 	"strings"
 
-	model "calllens/monolit/internal/models"
+	model "verbatrace/monolit/internal/models"
 )
 
 const lastFailedJobsLimit = 10

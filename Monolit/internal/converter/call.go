@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"calllens/monolit/internal/API/dto"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/dto"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )

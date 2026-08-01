@@ -3,8 +3,8 @@ package company
 import (
 	"net/http"
 
-	"calllens/monolit/internal/httpserver/middleware"
-	"calllens/monolit/internal/service"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	"verbatrace/monolit/internal/service"
 
 	"github.com/google/uuid"
 )

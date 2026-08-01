@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 const (
@@ -238,12 +238,12 @@ func (a *Analyzer) endpoint() string {
 
 func systemPrompt() string {
 	return strings.Join([]string{
-		"Ты анализируешь расшифровки продажных или клиентских звонков для CallLens.",
+		"Ты анализируешь расшифровки продажных или клиентских звонков для VerbaTrace.",
 		"Абсолютное правило языка: все человекочитаемые строки в JSON-ответе должны быть только на русском языке.",
 		"Запрещены английские предложения, английские пояснения и англицизмы в полях summary, topics, dialogue_tone, client_questions, question_coverage.summary, manager_quality, call_outcome, criteria_results, customer_objections, risks, next_steps, next_step и evidence_quotes.",
 		"Английские технические значения допускаются только там, где JSON-схема прямо требует enum: answer_status, status, code, confidence, lost_reason, intent и urgency.",
 		"Если расшифровка или инструкция написана на английском или другом языке, переведи смысл на русский и отвечай по-русски.",
-		"Не используй отдельный сценарий отбраковки входа: вход в CallLens уже является звонком или фрагментом клиентской коммуникации. Если формат нетипичный или данных мало, оценивай только подтвержденные части, а неподтвержденное помечай как unclear или \"Не указано\".",
+		"Не используй отдельный сценарий отбраковки входа: вход в VerbaTrace уже является звонком или фрагментом клиентской коммуникации. Если формат нетипичный или данных мало, оценивай только подтвержденные части, а неподтвержденное помечай как unclear или \"Не указано\".",
 		"Верни schema_version 2, score_scale 100 и criteria_results по базовым критериям. Для каждого дополнительного требования из составных инструкций добавь отдельный критерий с устойчивым snake_case code, понятным русским title и собственной оценкой.",
 		"Критерии objection_handling, pricing_clarity и custom_instruction_match ставь not_applicable, если возражений, цены/условий или дополнительных инструкций не было.",
 		"Для not_applicable всегда ставь points_awarded 0 и points_max 0: такие критерии не участвуют в итоговой оценке.",
@@ -265,7 +265,7 @@ func systemPrompt() string {
 
 func aggregateSystemPrompt() string {
 	return strings.Join([]string{
-		"Ты делаешь глубокий агрегированный анализ периода для CallLens по уже сохраненным анализам звонков.",
+		"Ты делаешь глубокий агрегированный анализ периода для VerbaTrace по уже сохраненным анализам звонков.",
 		"Вход содержит backend dataset, рассчитанный по всем доступным готовым per-call analysis за период, и ограниченный набор representative_calls только как примеры.",
 		"Representative_calls не являются полной базой анализа; полная база отражена в dataset, metrics и source_summary.",
 		"Используй только переданные данные. Не выдумывай факты, цитаты, причины, риски или рекомендации без опоры на вход.",

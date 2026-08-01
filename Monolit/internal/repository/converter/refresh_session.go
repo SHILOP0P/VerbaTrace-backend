@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
-	model "calllens/monolit/internal/models"
-	repoModel "calllens/monolit/internal/repository/models"
+	model "verbatrace/monolit/internal/models"
+	repoModel "verbatrace/monolit/internal/repository/models"
 )
 
 func RepoRefreshSessionToModel(repoSession repoModel.RefreshSession) (model.RefreshSession, error) {

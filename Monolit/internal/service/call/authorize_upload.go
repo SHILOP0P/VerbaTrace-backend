@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func (s *Service) authorizeUpload(ctx context.Context, input models.CreateCallInput) error {

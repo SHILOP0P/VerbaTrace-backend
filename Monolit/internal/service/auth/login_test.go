@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"calllens/monolit/internal/auth/password"
-	"calllens/monolit/internal/auth/token"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/auth/password"
+	"verbatrace/monolit/internal/auth/token"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

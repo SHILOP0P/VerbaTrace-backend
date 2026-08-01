@@ -1,6 +1,6 @@
 package scaner
 
-import repoModel "calllens/monolit/internal/repository/models"
+import repoModel "verbatrace/monolit/internal/repository/models"
 
 func ScanUser(row rowScanner) (repoModel.CurrentUserRecord, error) {
 	var user repoModel.CurrentUserRecord

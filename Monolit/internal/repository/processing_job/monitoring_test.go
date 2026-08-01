@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository/repositorytest"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/repositorytest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -45,7 +45,7 @@ func TestGetMonitoringAggregatesQueueAndLastFailures(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO companies (company_uuid, name, tag, manager_user_uuid, member_limit, created_at)
-		VALUES ($1, 'CallLens', $2, $3, 5, $4)
+		VALUES ($1, 'VerbaTrace', $2, $3, 5, $4)
 	`, companyID, "@"+companyID.String(), managerID, now)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `

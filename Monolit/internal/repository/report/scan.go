@@ -3,7 +3,7 @@ package report
 import (
 	"database/sql"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 type rowScanner interface {

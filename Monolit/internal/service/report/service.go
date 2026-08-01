@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"calllens/monolit/internal/models"
-	repo "calllens/monolit/internal/repository"
-	"calllens/monolit/internal/storage"
+	"verbatrace/monolit/internal/models"
+	repo "verbatrace/monolit/internal/repository"
+	"verbatrace/monolit/internal/storage"
 
 	"github.com/google/uuid"
 )

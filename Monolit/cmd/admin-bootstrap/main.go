@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"calllens/monolit/internal/config"
+	"verbatrace/monolit/internal/config"
 
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"

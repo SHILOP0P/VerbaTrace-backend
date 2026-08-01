@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/logger"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/logger"
 
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"

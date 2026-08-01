@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/auth/token"
-	"calllens/monolit/internal/logger"
-	"calllens/monolit/internal/repository"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/auth/token"
+	"verbatrace/monolit/internal/logger"
+	"verbatrace/monolit/internal/repository"
 
 	"github.com/google/uuid"
 )

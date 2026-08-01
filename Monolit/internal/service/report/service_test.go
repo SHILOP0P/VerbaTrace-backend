@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/models"
-	repositoryMocks "calllens/monolit/internal/repository/mocks"
-	storageMocks "calllens/monolit/internal/storage/mocks"
+	"verbatrace/monolit/internal/models"
+	repositoryMocks "verbatrace/monolit/internal/repository/mocks"
+	storageMocks "verbatrace/monolit/internal/storage/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"calllens/monolit/internal/auth/password"
-	model "calllens/monolit/internal/models"
-	"calllens/monolit/internal/username"
+	"verbatrace/monolit/internal/auth/password"
+	model "verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/username"
 
 	"github.com/google/uuid"
 )

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"

@@ -3,8 +3,8 @@ package converter
 import (
 	"database/sql"
 
-	model "calllens/monolit/internal/models"
-	repoModel "calllens/monolit/internal/repository/models"
+	model "verbatrace/monolit/internal/models"
+	repoModel "verbatrace/monolit/internal/repository/models"
 )
 
 func RepoUserToModel(repoUser repoModel.CurrentUserRecord) (model.CurrentUser, error) {

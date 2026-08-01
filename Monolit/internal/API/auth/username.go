@@ -5,11 +5,11 @@ import (
 	"errors"
 	"net/http"
 
-	"calllens/monolit/internal/API/dto"
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/converter"
-	"calllens/monolit/internal/httpserver/middleware"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/dto"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
+	"verbatrace/monolit/internal/httpserver/middleware"
+	"verbatrace/monolit/internal/models"
 )
 
 func (h *AuthHandler) UpdateUsername(w http.ResponseWriter, r *http.Request) {

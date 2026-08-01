@@ -3,9 +3,9 @@ package invitation
 import (
 	"net/http"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/converter"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
+	"verbatrace/monolit/internal/models"
 )
 
 func (h *Handler) ListUserInvitations(w http.ResponseWriter, r *http.Request) {

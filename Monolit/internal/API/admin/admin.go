@@ -1,6 +1,6 @@
 package admin
 
-import "calllens/monolit/internal/service"
+import "verbatrace/monolit/internal/service"
 
 type Handler struct {
 	service service.AdminService

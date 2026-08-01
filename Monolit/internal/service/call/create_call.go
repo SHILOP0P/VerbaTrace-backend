@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"calllens/monolit/internal/converter"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/converter"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"

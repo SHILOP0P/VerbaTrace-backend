@@ -3,7 +3,7 @@ package billing
 import (
 	"testing"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func TestTranscriptionModeForPlan(t *testing.T) {

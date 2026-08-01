@@ -3,7 +3,7 @@ package processing
 import (
 	"errors"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func isPermanentProcessingError(err error) bool {

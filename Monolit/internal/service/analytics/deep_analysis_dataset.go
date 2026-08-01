@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 const (

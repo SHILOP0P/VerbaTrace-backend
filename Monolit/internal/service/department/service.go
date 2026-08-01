@@ -3,8 +3,8 @@ package department
 import (
 	"context"
 
-	"calllens/monolit/internal/logger"
-	repo "calllens/monolit/internal/repository"
+	"verbatrace/monolit/internal/logger"
+	repo "verbatrace/monolit/internal/repository"
 
 	"github.com/google/uuid"
 )

@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultTestDatabase = "calllens_test"
+const defaultTestDatabase = "verbatrace_test"
 
 func OpenTestDB(t *testing.T) *sql.DB {
 	t.Helper()
@@ -100,7 +100,7 @@ func postgresConfigFromEnv() postgresTestConfig {
 	return postgresTestConfig{
 		host:         getenvDefault("POSTGRES_HOST", "localhost"),
 		port:         getenvDefault("POSTGRES_PORT", "5432"),
-		user:         getenvDefault("POSTGRES_USER", "calllens"),
+		user:         getenvDefault("POSTGRES_USER", "verbatrace"),
 		password:     getenvDefault("POSTGRES_PASSWORD", "change-me"),
 		sslMode:      getenvDefault("POSTGRES_SSL_MODE", "disable"),
 		testDatabase: os.Getenv("POSTGRES_TEST_DB"),

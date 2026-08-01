@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	model "calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository/converter"
-	"calllens/monolit/internal/repository/scaner"
+	model "verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/converter"
+	"verbatrace/monolit/internal/repository/scaner"
 )
 
 func (r *Repository) TakeNext(ctx context.Context, workerID string, staleAfter time.Duration) (model.ProcessingJob, error) {

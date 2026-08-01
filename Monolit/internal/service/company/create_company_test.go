@@ -3,7 +3,7 @@ package company
 import (
 	"errors"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -14,7 +14,7 @@ func (s *ServiceSuite) TestCreateCompanySuccess() {
 
 	s.repository.EXPECT().
 		CreateCompany(mock.Anything, mock.MatchedBy(func(company models.Company) bool {
-			return company.Name == "CallLens" &&
+			return company.Name == "VerbaTrace" &&
 				company.ManagerUserUUID == userID &&
 				company.MemberLimit == defaultMemberLimit
 		}), mock.MatchedBy(func(member models.CompanyMember) bool {
@@ -22,16 +22,16 @@ func (s *ServiceSuite) TestCreateCompanySuccess() {
 				member.Role == models.CompanyMemberRoleManager &&
 				member.Status == models.MembershipStatusActive
 		})).
-		Return(models.Company{Name: "CallLens", ManagerUserUUID: userID, MemberLimit: defaultMemberLimit}, nil).
+		Return(models.Company{Name: "VerbaTrace", ManagerUserUUID: userID, MemberLimit: defaultMemberLimit}, nil).
 		Once()
 
 	got, err := s.service.CreateCompany(s.ctx, models.CreateCompanyInput{
-		Name:          "  CallLens  ",
+		Name:          "  VerbaTrace  ",
 		ManagerUserID: userID,
 	})
 
 	s.Require().NoError(err)
-	s.Require().Equal("CallLens", got.Name)
+	s.Require().Equal("VerbaTrace", got.Name)
 	s.Require().Equal(userID, got.ManagerUserUUID)
 }
 
@@ -43,7 +43,7 @@ func (s *ServiceSuite) TestCreateCompanyRejectsInvalidInput() {
 	s.Require().ErrorIs(err, models.ErrInvalidCompanyInput)
 
 	_, err = s.service.CreateCompany(s.ctx, models.CreateCompanyInput{
-		Name:          "CallLens",
+		Name:          "VerbaTrace",
 		ManagerUserID: uuid.Nil,
 	})
 	s.Require().ErrorIs(err, models.ErrInvalidCompanyInput)
@@ -59,7 +59,7 @@ func (s *ServiceSuite) TestCreateCompanyReturnsCreateError() {
 		Once()
 
 	_, err := s.service.CreateCompany(s.ctx, models.CreateCompanyInput{
-		Name:          "CallLens",
+		Name:          "VerbaTrace",
 		ManagerUserID: userID,
 	})
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 type Analyzer struct {

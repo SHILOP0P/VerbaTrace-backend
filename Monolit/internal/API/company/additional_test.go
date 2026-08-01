@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -24,7 +24,7 @@ func (s *APISuite) TestCreateAdditionalErrors() {
 	} {
 		s.service.EXPECT().CreateCompany(mock.Anything, mock.Anything).
 			Return(models.Company{}, tt.err).Once()
-		rec, req := s.request(http.MethodPost, "/", `{"name":"CallLens"}`, userID, nil)
+		rec, req := s.request(http.MethodPost, "/", `{"name":"VerbaTrace"}`, userID, nil)
 		s.api.Create(rec, req)
 		s.Equal(tt.code, rec.Code)
 	}

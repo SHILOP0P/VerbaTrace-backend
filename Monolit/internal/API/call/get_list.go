@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"calllens/monolit/internal/API/dto"
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/converter"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/dto"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )

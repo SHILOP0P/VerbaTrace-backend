@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/repository/converter"
-	repoModel "calllens/monolit/internal/repository/models"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/converter"
+	repoModel "verbatrace/monolit/internal/repository/models"
 
 	"github.com/google/uuid"
 )

@@ -3,7 +3,7 @@ package analyzer
 import (
 	"context"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 type Analyzer interface {

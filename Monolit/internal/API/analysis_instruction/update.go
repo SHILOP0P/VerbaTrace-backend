@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/converter"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/go-chi/chi/v5"
 )

@@ -66,10 +66,10 @@ jobs:
       HTTP_READ_TIMEOUT: 5s
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
-      POSTGRES_DB: calllens
-      POSTGRES_TEST_DB: calllens_test
-      POSTGRES_USER: calllens
-      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: verbatrace
+      POSTGRES_TEST_DB: verbatrace_test
+      POSTGRES_USER: verbatrace_user
+      POSTGRES_PASSWORD: verbatrace
       POSTGRES_SSL_MODE: disable
       MIGRATION_DIRECTORY: ./migrations
       UPLOAD_PATH: ./uploads

@@ -3,7 +3,7 @@ package transcriber
 import (
 	"context"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 type ModeAware interface {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"calllens/monolit/internal/models"
-	"calllens/monolit/internal/transcriber/assemblyai"
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/transcriber/assemblyai"
 )
 
 type tieredTranscriber struct {

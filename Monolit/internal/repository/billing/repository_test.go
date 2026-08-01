@@ -5,7 +5,7 @@ package billing
 import (
 	"time"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )
@@ -253,7 +253,7 @@ func (s *RepositorySuite) createCompany(ownerID uuid.UUID) uuid.UUID {
 	_, err := s.db.ExecContext(
 		s.ctx,
 		`INSERT INTO companies (company_uuid, name, tag, manager_user_uuid, member_limit, created_at)
-		 VALUES ($1, 'CallLens', $2, $3, 25, $4)`,
+		 VALUES ($1, 'VerbaTrace', $2, $3, 25, $4)`,
 		companyID,
 		"@"+companyID.String(),
 		ownerID,

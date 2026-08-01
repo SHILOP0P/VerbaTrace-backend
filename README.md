@@ -1,14 +1,14 @@
-# CallLens
+# VerbaTrace
 
 Backend-код расположен в [`Monolit/`](Monolit). Все команды Go, Task и Docker Compose ниже нужно запускать из этой директории:
 
 ```powershell
-Set-Location C:\projects\CallLens\Monolit
+Set-Location C:\projects\VerbaTrace\Monolit
 ```
 
-# CallLens Monolith
+# VerbaTrace Monolith
 
-CallLens - backend-монолит на Go для будущего продукта, который хранит аудио- и видеозаписи звонков продаж/поддержки, транскрибирует их и сохраняет результат анализа звонка.
+VerbaTrace - backend-монолит на Go для будущего продукта, который хранит аудио- и видеозаписи звонков продаж/поддержки, транскрибирует их и сохраняет результат анализа звонка.
 
 На текущем этапе проект реализует авторизацию, локальную загрузку и хранение аудио, права доступа к звонкам, структуру компаний/отделов, управление участниками, фоновые задания транскрибации, инструкции анализа и mock-анализ звонков по готовой транскрипции.
 
@@ -576,7 +576,7 @@ Search:
   "companies": [
     {
       "id": "company_uuid",
-      "name": "CallLens Test Company"
+      "name": "VerbaTrace Test Company"
     }
   ],
   "reports": [
@@ -616,7 +616,7 @@ Notifications:
       "id": "notification_uuid",
       "type": "invitation",
       "title": "Новое приглашение",
-      "body": "Вам отправили приглашение в CallLens",
+      "body": "Вам отправили приглашение в VerbaTrace",
       "entity_type": "invitation",
       "entity_uuid": "invitation_uuid",
       "read_at": null,
@@ -1011,7 +1011,7 @@ Invitations:
 
 ```json
 {
-  "name": "CallLens Test Company"
+  "name": "VerbaTrace Test Company"
 }
 ```
 
@@ -1270,7 +1270,7 @@ http://localhost:8080/health
 Полная локальная проверка backend повторяет GitHub Actions:
 
 ```powershell
-Set-Location C:\projects\CallLens
+Set-Location C:\projects\VerbaTrace
 .\scripts\verify-ci.ps1
 ```
 
@@ -1286,7 +1286,7 @@ pre-commit hook запускает ту же проверку и отменяе�
 GitHub Actions сводит обязательные backend jobs в check `CI Gate`. Чтобы
 неуспешный удалённый CI блокировал merge, в branch protection/ruleset основной
 ветки check `CI Gate` должен быть отмечен как required. Frontend находится в
-соседнем репозитории `C:\projects\CallLens-frontend` и имеет собственные
+соседнем репозитории `C:\projects\VerbaTrace-frontend` и имеет собственные
 workflow, `CI Gate` и pre-commit build.
 
 ## Переменные окружения

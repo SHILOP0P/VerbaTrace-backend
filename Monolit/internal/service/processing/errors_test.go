@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func TestIsPermanentProcessingError(t *testing.T) {

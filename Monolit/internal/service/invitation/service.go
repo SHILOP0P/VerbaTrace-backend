@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"calllens/monolit/internal/logger"
-	"calllens/monolit/internal/models"
-	repo "calllens/monolit/internal/repository"
-	"calllens/monolit/internal/username"
+	"verbatrace/monolit/internal/logger"
+	"verbatrace/monolit/internal/models"
+	repo "verbatrace/monolit/internal/repository"
+	"verbatrace/monolit/internal/username"
 
 	"github.com/google/uuid"
 )

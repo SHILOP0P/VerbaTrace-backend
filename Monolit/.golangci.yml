@@ -19,7 +19,7 @@ formatters:
       simplify: true
     goimports:
       local-prefixes:
-        - calllens/monolit
+        - verbatrace/monolit
   exclusions:
     generated: strict
     paths:

@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"calllens/monolit/internal/API/response"
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/models"
 )
 
 func RequirePermission(permission models.AdminPermission) func(http.Handler) http.Handler {

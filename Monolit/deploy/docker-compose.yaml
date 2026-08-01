@@ -1,9 +1,11 @@
+name: verbatrace
+
 services:
   api:
     build:
       context: .
       dockerfile: deploy/Dockerfile
-    container_name: call-api
+    container_name: verbatrace-api
     restart: unless-stopped
     environment:
       HTTP_HOST: 0.0.0.0
@@ -11,9 +13,9 @@ services:
       HTTP_READ_TIMEOUT: ${HTTP_READ_TIMEOUT:-5s}
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: ${POSTGRES_DB:-calllens}
-      POSTGRES_USER: ${POSTGRES_USER:-calllens}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-verbatrace}
+      POSTGRES_USER: ${POSTGRES_USER:-verbatrace_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-verbatrace}
       POSTGRES_SSL_MODE: ${POSTGRES_SSL_MODE:-disable}
       MIGRATION_DIRECTORY: /app/migrations
       UPLOAD_PATH: /app/uploads
@@ -41,7 +43,7 @@ services:
     ports:
       - "${HTTP_PORT:-8080}:${HTTP_PORT:-8080}"
     volumes:
-      - call_uploads:/app/uploads
+      - verbatrace_uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -53,16 +55,16 @@ services:
 
   db:
     image: postgres:16-alpine
-    container_name: call-db
+    container_name: verbatrace-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-calllens}
-      POSTGRES_USER: ${POSTGRES_USER:-calllens}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-verbatrace}
+      POSTGRES_USER: ${POSTGRES_USER:-verbatrace_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-verbatrace}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_call_data:/var/lib/postgresql/data
+      - verbatrace_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -70,5 +72,9 @@ services:
       retries: 10
 
 volumes:
-  postgres_call_data:
-  call_uploads:
+  verbatrace_postgres_data:
+    external: true
+    name: verbatrace_postgres_data
+  verbatrace_uploads:
+    external: true
+    name: verbatrace_uploads

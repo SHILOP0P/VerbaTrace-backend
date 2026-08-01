@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"calllens/monolit/internal/models"
-	billingMocks "calllens/monolit/internal/service/billing/mocks"
+	"verbatrace/monolit/internal/models"
+	billingMocks "verbatrace/monolit/internal/service/billing/mocks"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

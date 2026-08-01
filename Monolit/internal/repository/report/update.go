@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"calllens/monolit/internal/models"
+	"verbatrace/monolit/internal/models"
 )
 
 func (r *Repository) MarkReady(ctx context.Context, input models.MarkReportReadyInput) (models.ReportExport, error) {

@@ -1,4 +1,4 @@
-module calllens/monolit
+module verbatrace/monolit
 
 go 1.25.7
 
