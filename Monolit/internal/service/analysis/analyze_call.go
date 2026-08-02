@@ -183,6 +183,10 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		s.log.Error(ctx, "call analysis result is invalid", zap.String("call_id", call.ID.String()), zap.Error(err))
 		return analysis, fmt.Errorf("normalize analysis result: %w", err)
 	}
+	result.ResultJSON, err = enrichEvidence(result.ResultJSON, transcription.Words)
+	if err != nil {
+		return models.CallAnalysis{}, fmt.Errorf("enrich analysis evidence: %w", err)
+	}
 
 	analysis, err = s.analysisRepository.MarkDone(ctx, analysis.ID, result)
 	if err != nil {

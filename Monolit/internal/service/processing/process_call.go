@@ -139,7 +139,7 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 		result.Segments = nil
 	}
 
-	if _, err = s.transcriptionRepository.MarkTranscribed(ctx, transcription.ID, result.Text, result.Segments, result.Language); err != nil {
+	if _, err = s.transcriptionRepository.MarkTranscribed(ctx, transcription.ID, result.Text, result.Segments, result.Words, result.Language); err != nil {
 		return fmt.Errorf("mark transcription transcribed: %w", err)
 	}
 

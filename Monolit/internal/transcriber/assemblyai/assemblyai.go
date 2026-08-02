@@ -62,6 +62,7 @@ type transcriptResponse struct {
 	Text         string      `json:"text"`
 	LanguageCode string      `json:"language_code"`
 	Utterances   []utterance `json:"utterances"`
+	Words        []word      `json:"words"`
 }
 
 type utterance struct {
@@ -69,6 +70,15 @@ type utterance struct {
 	Start   float64 `json:"start"`
 	End     float64 `json:"end"`
 	Text    string  `json:"text"`
+	Words   []word  `json:"words"`
+}
+
+type word struct {
+	Text       string   `json:"text"`
+	Start      float64  `json:"start"`
+	End        float64  `json:"end"`
+	Confidence *float64 `json:"confidence"`
+	Speaker    string   `json:"speaker"`
 }
 
 func New(apiKey string, speakerLabels, identifyRoles bool) (*Transcriber, error) {
@@ -259,6 +269,12 @@ func normalizeTranscript(result transcriptResponse) (models.TranscriptionResult,
 	if text == "" {
 		return models.TranscriptionResult{}, errors.New("AssemblyAI transcription response is empty")
 	}
+	words := normalizeWords(result.Words)
+	if len(words) == 0 {
+		for _, utterance := range result.Utterances {
+			words = append(words, normalizeWords(utterance.Words)...)
+		}
+	}
 	segments := make([]models.TranscriptionSegment, 0, len(result.Utterances))
 	for _, utterance := range result.Utterances {
 		segmentText := cleaner.Clean(utterance.Text)
@@ -271,11 +287,26 @@ func normalizeTranscript(result transcriptResponse) (models.TranscriptionResult,
 		})
 	}
 	language := strings.TrimSpace(result.LanguageCode)
-	transcript := models.TranscriptionResult{Text: text, Segments: segments}
+	transcript := models.TranscriptionResult{Text: text, Segments: segments, Words: words}
 	if language != "" {
 		transcript.Language = &language
 	}
 	return transcript, nil
+}
+
+func normalizeWords(input []word) []models.TranscriptionWord {
+	words := make([]models.TranscriptionWord, 0, len(input))
+	var previousStart float64
+	for i, item := range input {
+		text := strings.TrimSpace(item.Text)
+		start, end := item.Start/1000, item.End/1000
+		if text == "" || start < 0 || end < start || (i > 0 && start < previousStart) {
+			continue
+		}
+		words = append(words, models.TranscriptionWord{Text: text, StartSeconds: start, EndSeconds: end, Confidence: item.Confidence, Speaker: strings.TrimSpace(item.Speaker)})
+		previousStart = start
+	}
+	return words
 }
 
 func (t *Transcriber) endpoint(path string) string {

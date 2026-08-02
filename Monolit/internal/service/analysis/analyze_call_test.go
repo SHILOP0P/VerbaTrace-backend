@@ -569,7 +569,7 @@ func (r *analysisTranscriptionRepository) GetByCallUUID(ctx context.Context, cal
 	return r.transcription, nil
 }
 
-func (r *analysisTranscriptionRepository) MarkTranscribed(ctx context.Context, id uuid.UUID, text string, segments []models.TranscriptionSegment, language *string) (models.Transcription, error) {
+func (r *analysisTranscriptionRepository) MarkTranscribed(ctx context.Context, id uuid.UUID, text string, segments []models.TranscriptionSegment, words []models.TranscriptionWord, language *string) (models.Transcription, error) {
 	panic("not implemented")
 }
 

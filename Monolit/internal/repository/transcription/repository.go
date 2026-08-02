@@ -18,6 +18,7 @@ const transcriptionReturningColumns = `
 	status,
 	text,
 	segments,
+	words,
 	language,
 	provider,
 	error_message,

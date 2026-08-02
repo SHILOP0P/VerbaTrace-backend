@@ -14,12 +14,24 @@ func TranscriptionModelToAPI(transcription models.Transcription) (dto.Transcript
 		Status:       string(transcription.Status),
 		Text:         transcription.Text,
 		Segments:     transcriptionSegmentsToAPI(transcription.Segments),
+		Words:        transcriptionWordsToAPI(transcription.Words),
 		Language:     transcription.Language,
 		Provider:     transcription.Provider,
 		ErrorMessage: transcription.ErrorMessage,
 		CreatedAt:    transcription.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:    transcription.UpdatedAt.Format(time.RFC3339),
 	}, nil
+}
+
+func transcriptionWordsToAPI(words []models.TranscriptionWord) []dto.TranscriptionWordResponse {
+	result := make([]dto.TranscriptionWordResponse, 0, len(words))
+	for _, word := range words {
+		result = append(result, dto.TranscriptionWordResponse{
+			Text: word.Text, StartSeconds: word.StartSeconds, EndSeconds: word.EndSeconds,
+			Confidence: word.Confidence, Speaker: word.Speaker,
+		})
+	}
+	return result
 }
 
 func transcriptionSegmentsToAPI(segments []models.TranscriptionSegment) []dto.TranscriptionSegmentResponse {

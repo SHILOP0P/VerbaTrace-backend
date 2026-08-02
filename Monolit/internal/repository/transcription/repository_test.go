@@ -45,7 +45,7 @@ func TestRepositoryLifecycle(t *testing.T) {
 	start, end := 0.0, 2.5
 	transcribed, err := repository.MarkTranscribed(ctx, created.ID, "Здравствуйте", []models.TranscriptionSegment{{
 		Speaker: "manager", StartSeconds: &start, EndSeconds: &end, Text: "Здравствуйте",
-	}}, &language)
+	}}, nil, &language)
 	require.NoError(t, err)
 	require.Equal(t, models.TranscriptionStatusTranscribed, transcribed.Status)
 	require.Equal(t, "Здравствуйте", *transcribed.Text)
@@ -58,7 +58,7 @@ func TestRepositoryLifecycle(t *testing.T) {
 
 	_, err = repository.GetByCallUUID(ctx, uuid.New())
 	require.ErrorIs(t, err, models.ErrTranscriptionNotFound)
-	_, err = repository.MarkTranscribed(ctx, uuid.New(), "", nil, nil)
+	_, err = repository.MarkTranscribed(ctx, uuid.New(), "", nil, nil, nil)
 	require.ErrorIs(t, err, models.ErrTranscriptionNotFound)
 	_, err = repository.MarkFailed(ctx, uuid.New(), "missing")
 	require.ErrorIs(t, err, models.ErrTranscriptionNotFound)

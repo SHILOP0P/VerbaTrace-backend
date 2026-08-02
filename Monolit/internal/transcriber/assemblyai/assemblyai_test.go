@@ -41,7 +41,7 @@ func TestTranscribeUploadsDiarizesAndIdentifiesCandidates(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(`{"id":"transcript-id","status":"queued"}`))
 		case "/v2/transcript/transcript-id":
-			_, _ = w.Write([]byte(`{"id":"transcript-id","status":"completed","text":"hello world","language_code":"ru","utterances":[{"speaker":"Менеджер","start":1000,"end":2500,"text":"hello world"}]}`))
+			_, _ = w.Write([]byte(`{"id":"transcript-id","status":"completed","text":"hello world","language_code":"ru","words":[{"text":"hello","start":1000,"end":1500,"confidence":0.99},{"text":"world","start":1600,"end":2500,"confidence":0.98}],"utterances":[{"speaker":"Менеджер","start":1000,"end":2500,"text":"hello world"}]}`))
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -66,6 +66,9 @@ func TestTranscribeUploadsDiarizesAndIdentifiesCandidates(t *testing.T) {
 	}
 	if len(result.Segments) != 1 || result.Segments[0].Speaker != "Менеджер" || *result.Segments[0].StartSeconds != 1 || *result.Segments[0].EndSeconds != 2.5 {
 		t.Fatalf("segments = %+v", result.Segments)
+	}
+	if len(result.Words) != 2 || result.Words[0].Text != "hello" || result.Words[0].StartSeconds != 1 || result.Words[1].EndSeconds != 2.5 {
+		t.Fatalf("words = %+v", result.Words)
 	}
 }
 

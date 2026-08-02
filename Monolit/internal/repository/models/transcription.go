@@ -13,6 +13,7 @@ type Transcription struct {
 	Status       TranscriptionStatus
 	Text         sql.NullString
 	Segments     sql.NullString
+	Words        sql.NullString
 	Language     sql.NullString
 	Provider     string
 	ErrorMessage sql.NullString

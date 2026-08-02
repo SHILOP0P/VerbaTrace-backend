@@ -3,8 +3,8 @@
 package mocks
 
 import (
-	models "verbatrace/monolit/internal/models"
 	context "context"
+	models "verbatrace/monolit/internal/models"
 
 	mock "github.com/stretchr/testify/mock"
 
@@ -197,8 +197,8 @@ func (_c *TranscriptionRepository_MarkFailed_Call) RunAndReturn(run func(context
 }
 
 // MarkTranscribed provides a mock function with given fields: ctx, id, text, segments, language
-func (_m *TranscriptionRepository) MarkTranscribed(ctx context.Context, id uuid.UUID, text string, segments []models.TranscriptionSegment, language *string) (models.Transcription, error) {
-	ret := _m.Called(ctx, id, text, segments, language)
+func (_m *TranscriptionRepository) MarkTranscribed(ctx context.Context, id uuid.UUID, text string, segments []models.TranscriptionSegment, words []models.TranscriptionWord, language *string) (models.Transcription, error) {
+	ret := _m.Called(ctx, id, text, segments, words, language)
 
 	if len(ret) == 0 {
 		panic("no return value specified for MarkTranscribed")
@@ -206,17 +206,17 @@ func (_m *TranscriptionRepository) MarkTranscribed(ctx context.Context, id uuid.
 
 	var r0 models.Transcription
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, []models.TranscriptionSegment, *string) (models.Transcription, error)); ok {
-		return rf(ctx, id, text, segments, language)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, []models.TranscriptionSegment, []models.TranscriptionWord, *string) (models.Transcription, error)); ok {
+		return rf(ctx, id, text, segments, words, language)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, []models.TranscriptionSegment, *string) models.Transcription); ok {
-		r0 = rf(ctx, id, text, segments, language)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, []models.TranscriptionSegment, []models.TranscriptionWord, *string) models.Transcription); ok {
+		r0 = rf(ctx, id, text, segments, words, language)
 	} else {
 		r0 = ret.Get(0).(models.Transcription)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, []models.TranscriptionSegment, *string) error); ok {
-		r1 = rf(ctx, id, text, segments, language)
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, []models.TranscriptionSegment, []models.TranscriptionWord, *string) error); ok {
+		r1 = rf(ctx, id, text, segments, words, language)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -235,13 +235,13 @@ type TranscriptionRepository_MarkTranscribed_Call struct {
 //   - text string
 //   - segments []models.TranscriptionSegment
 //   - language *string
-func (_e *TranscriptionRepository_Expecter) MarkTranscribed(ctx interface{}, id interface{}, text interface{}, segments interface{}, language interface{}) *TranscriptionRepository_MarkTranscribed_Call {
-	return &TranscriptionRepository_MarkTranscribed_Call{Call: _e.mock.On("MarkTranscribed", ctx, id, text, segments, language)}
+func (_e *TranscriptionRepository_Expecter) MarkTranscribed(ctx interface{}, id interface{}, text interface{}, segments interface{}, words interface{}, language interface{}) *TranscriptionRepository_MarkTranscribed_Call {
+	return &TranscriptionRepository_MarkTranscribed_Call{Call: _e.mock.On("MarkTranscribed", ctx, id, text, segments, words, language)}
 }
 
-func (_c *TranscriptionRepository_MarkTranscribed_Call) Run(run func(ctx context.Context, id uuid.UUID, text string, segments []models.TranscriptionSegment, language *string)) *TranscriptionRepository_MarkTranscribed_Call {
+func (_c *TranscriptionRepository_MarkTranscribed_Call) Run(run func(ctx context.Context, id uuid.UUID, text string, segments []models.TranscriptionSegment, words []models.TranscriptionWord, language *string)) *TranscriptionRepository_MarkTranscribed_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(string), args[3].([]models.TranscriptionSegment), args[4].(*string))
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(string), args[3].([]models.TranscriptionSegment), args[4].([]models.TranscriptionWord), args[5].(*string))
 	})
 	return _c
 }
@@ -251,7 +251,7 @@ func (_c *TranscriptionRepository_MarkTranscribed_Call) Return(_a0 models.Transc
 	return _c
 }
 
-func (_c *TranscriptionRepository_MarkTranscribed_Call) RunAndReturn(run func(context.Context, uuid.UUID, string, []models.TranscriptionSegment, *string) (models.Transcription, error)) *TranscriptionRepository_MarkTranscribed_Call {
+func (_c *TranscriptionRepository_MarkTranscribed_Call) RunAndReturn(run func(context.Context, uuid.UUID, string, []models.TranscriptionSegment, []models.TranscriptionWord, *string) (models.Transcription, error)) *TranscriptionRepository_MarkTranscribed_Call {
 	_c.Call.Return(run)
 	return _c
 }

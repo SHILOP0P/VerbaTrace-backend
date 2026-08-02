@@ -383,7 +383,7 @@ func (f *fakeTranscriptionRepository) Create(context.Context, models.Transcripti
 func (f *fakeTranscriptionRepository) GetByCallUUID(context.Context, uuid.UUID) (models.Transcription, error) {
 	return models.Transcription{Text: &f.text}, nil
 }
-func (f *fakeTranscriptionRepository) MarkTranscribed(context.Context, uuid.UUID, string, []models.TranscriptionSegment, *string) (models.Transcription, error) {
+func (f *fakeTranscriptionRepository) MarkTranscribed(context.Context, uuid.UUID, string, []models.TranscriptionSegment, []models.TranscriptionWord, *string) (models.Transcription, error) {
 	return models.Transcription{}, nil
 }
 func (f *fakeTranscriptionRepository) MarkFailed(context.Context, uuid.UUID, string) (models.Transcription, error) {

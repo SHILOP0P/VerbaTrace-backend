@@ -45,6 +45,8 @@ func TestProcessTranscribeCallHappyPath(t *testing.T) {
 		Return(models.TranscriptionResult{Text: "transcribed", Segments: []models.TranscriptionSegment{{Speaker: "speaker_0", Text: "transcribed"}}}, nil).Once()
 	transcriptionRepo.EXPECT().MarkTranscribed(mock.Anything, transcriptionID, "transcribed", mock.MatchedBy(func(segments []models.TranscriptionSegment) bool {
 		return len(segments) == 0
+	}), mock.MatchedBy(func(words []models.TranscriptionWord) bool {
+		return len(words) == 0
 	}), mock.Anything).
 		Return(models.Transcription{ID: transcriptionID}, nil).Once()
 	callRepo.EXPECT().UpdateCallStatus(mock.Anything, callID, models.CallStatusTranscribed).

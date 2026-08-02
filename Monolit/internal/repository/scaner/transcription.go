@@ -11,6 +11,7 @@ func ScanTranscription(row rowScanner) (repoModel.Transcription, error) {
 		&transcription.Status,
 		&transcription.Text,
 		&transcription.Segments,
+		&transcription.Words,
 		&transcription.Language,
 		&transcription.Provider,
 		&transcription.ErrorMessage,

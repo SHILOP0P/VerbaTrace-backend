@@ -14,6 +14,10 @@ func RepoTranscriptionToModel(repoTranscription repoModel.Transcription) (model.
 	if err != nil {
 		return model.Transcription{}, err
 	}
+	words, err := nullStringToTranscriptionWords(repoTranscription.Words)
+	if err != nil {
+		return model.Transcription{}, err
+	}
 
 	return model.Transcription{
 		ID:           repoTranscription.ID,
@@ -21,6 +25,7 @@ func RepoTranscriptionToModel(repoTranscription repoModel.Transcription) (model.
 		Status:       model.TranscriptionStatus(repoTranscription.Status),
 		Text:         nullStringToStringPtr(repoTranscription.Text),
 		Segments:     segments,
+		Words:        words,
 		Language:     nullStringToStringPtr(repoTranscription.Language),
 		Provider:     repoTranscription.Provider,
 		ErrorMessage: nullStringToStringPtr(repoTranscription.ErrorMessage),
@@ -34,6 +39,10 @@ func ModelTranscriptionToRepoModel(transcription model.Transcription) (repoModel
 	if err != nil {
 		return repoModel.Transcription{}, err
 	}
+	words, err := TranscriptionWordsToNullString(transcription.Words)
+	if err != nil {
+		return repoModel.Transcription{}, err
+	}
 
 	return repoModel.Transcription{
 		ID:           transcription.ID,
@@ -41,6 +50,7 @@ func ModelTranscriptionToRepoModel(transcription model.Transcription) (repoModel
 		Status:       repoModel.TranscriptionStatus(transcription.Status),
 		Text:         stringPtrToNullString(transcription.Text),
 		Segments:     segments,
+		Words:        words,
 		Language:     stringPtrToNullString(transcription.Language),
 		Provider:     transcription.Provider,
 		ErrorMessage: stringPtrToNullString(transcription.ErrorMessage),
@@ -73,4 +83,26 @@ func nullStringToTranscriptionSegments(value sql.NullString) ([]model.Transcript
 	}
 
 	return segments, nil
+}
+
+func TranscriptionWordsToNullString(words []model.TranscriptionWord) (sql.NullString, error) {
+	if len(words) == 0 {
+		return sql.NullString{}, nil
+	}
+	data, err := json.Marshal(words)
+	if err != nil {
+		return sql.NullString{}, fmt.Errorf("marshal transcription words: %w", err)
+	}
+	return sql.NullString{String: string(data), Valid: true}, nil
+}
+
+func nullStringToTranscriptionWords(value sql.NullString) ([]model.TranscriptionWord, error) {
+	if !value.Valid || value.String == "" {
+		return []model.TranscriptionWord{}, nil
+	}
+	var words []model.TranscriptionWord
+	if err := json.Unmarshal([]byte(value.String), &words); err != nil {
+		return nil, fmt.Errorf("decode transcription words: %w", err)
+	}
+	return words, nil
 }

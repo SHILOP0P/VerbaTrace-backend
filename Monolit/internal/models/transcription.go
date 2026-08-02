@@ -12,6 +12,7 @@ type Transcription struct {
 	Status       TranscriptionStatus
 	Text         *string
 	Segments     []TranscriptionSegment
+	Words        []TranscriptionWord
 	Language     *string
 	Provider     string
 	ErrorMessage *string
@@ -24,6 +25,14 @@ type TranscriptionSegment struct {
 	StartSeconds *float64 `json:"start_seconds,omitempty"`
 	EndSeconds   *float64 `json:"end_seconds,omitempty"`
 	Text         string   `json:"text"`
+}
+
+type TranscriptionWord struct {
+	Text         string   `json:"text"`
+	StartSeconds float64  `json:"start_seconds"`
+	EndSeconds   float64  `json:"end_seconds"`
+	Confidence   *float64 `json:"confidence,omitempty"`
+	Speaker      string   `json:"speaker,omitempty"`
 }
 
 type TranscriptionStatus string
