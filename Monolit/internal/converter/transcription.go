@@ -20,6 +20,14 @@ func TranscriptionModelToAPI(transcription models.Transcription) (dto.Transcript
 		ErrorMessage: transcription.ErrorMessage,
 		CreatedAt:    transcription.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:    transcription.UpdatedAt.Format(time.RFC3339),
+		Revision:     1,
+		Editable:     transcription.Status == models.TranscriptionStatusTranscribed && len(transcription.Words) > 0,
+		EditabilityReason: func() string {
+			if len(transcription.Words) == 0 {
+				return "words_unavailable"
+			}
+			return ""
+		}(),
 	}, nil
 }
 

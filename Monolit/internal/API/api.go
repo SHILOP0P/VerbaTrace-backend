@@ -13,6 +13,12 @@ type CallAPI interface {
 	GetFilterOptions(w http.ResponseWriter, r *http.Request)
 	GetAudioByUUID(w http.ResponseWriter, r *http.Request)
 	GetTranscriptionByCallUUID(w http.ResponseWriter, r *http.Request)
+	UpdateTranscription(w http.ResponseWriter, r *http.Request)
+	ListTranscriptionRevisions(w http.ResponseWriter, r *http.Request)
+	GetTranscriptionRevision(w http.ResponseWriter, r *http.Request)
+	RestoreTranscriptionRevision(w http.ResponseWriter, r *http.Request)
+	ListTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request)
+	ReplaceTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request)
 
 	//UPDATE
 	UpdateCallTitle(w http.ResponseWriter, r *http.Request)

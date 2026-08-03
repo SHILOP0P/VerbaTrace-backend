@@ -20,6 +20,13 @@ type FolderInstructionReader interface {
 	ListInstructionsForCall(ctx context.Context, callID uuid.UUID) ([]models.AnalysisInstruction, error)
 }
 
+type attemptRepository interface {
+	CreateAttempt(context.Context, uuid.UUID, uuid.UUID) (models.CallAnalysisAttempt, error)
+	ActiveAttempt(context.Context, uuid.UUID) (models.CallAnalysisAttempt, error)
+	MarkAttempt(context.Context, uuid.UUID, string, error) error
+	CurrentTranscriptionRevision(context.Context, uuid.UUID) (int, error)
+}
+
 type Service struct {
 	callRepository           repo.CallRepository
 	transcriptionRepository  repo.TranscriptionRepository

@@ -13,6 +13,18 @@ type CallAPI struct {
 	mock.Mock
 }
 
+func (_m *CallAPI) UpdateTranscription(w http.ResponseWriter, r *http.Request) { _m.Called(w, r) }
+func (_m *CallAPI) ListTranscriptionRevisions(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+func (_m *CallAPI) RestoreTranscriptionRevision(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+func (_m *CallAPI) GetTranscriptionRevision(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
 type CallAPI_Expecter struct {
 	mock *mock.Mock
 }
@@ -328,6 +340,14 @@ func (_c *CallAPI_UpdateCallTitle_Call) RunAndReturn(run func(http.ResponseWrite
 }
 
 // NewCallAPI creates a new instance of CallAPI. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
+func (_m *CallAPI) ListTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+func (_m *CallAPI) ReplaceTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
 // The first argument is typically a *testing.T value.
 func NewCallAPI(t interface {
 	mock.TestingT

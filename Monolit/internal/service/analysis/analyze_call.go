@@ -34,6 +34,11 @@ func (s *Service) AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput
 	if transcription.Status != models.TranscriptionStatusTranscribed || transcription.Text == nil {
 		return models.CallAnalysis{}, models.ErrInvalidAnalysisStatus
 	}
+	if attempts, ok := s.analysisRepository.(attemptRepository); ok {
+		if _, err = attempts.CreateAttempt(ctx, call.ID, input.UserUUID); err != nil {
+			return models.CallAnalysis{}, fmt.Errorf("create analysis attempt: %w", err)
+		}
+	}
 	analysis, err := s.createPendingAnalysis(ctx, call.ID)
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("create analysis: %w", err)
@@ -71,9 +76,40 @@ func (s *Service) ProcessAnalyzeCall(ctx context.Context, callID uuid.UUID) erro
 		return models.ErrInvalidAnalysisInput
 	}
 
+	var attempt *models.CallAnalysisAttempt
+	if attempts, ok := s.analysisRepository.(attemptRepository); ok {
+		active, attemptErr := attempts.ActiveAttempt(ctx, callID)
+		if attemptErr == nil {
+			attempt = &active
+			if err := attempts.MarkAttempt(ctx, active.ID, "processing", nil); err != nil {
+				return fmt.Errorf("mark analysis attempt processing: %w", err)
+			}
+		}
+	}
 	_, err = s.analyzeCall(ctx, call, call.UploadedByUserUUID.UUID, analyzeCallOptions{
 		markAttemptFailed: false,
 	})
+	if attempts, ok := s.analysisRepository.(attemptRepository); ok && attempt != nil {
+		if errors.Is(err, models.ErrAnalysisSuperseded) {
+			_ = attempts.MarkAttempt(ctx, attempt.ID, "superseded", nil)
+			return nil
+		}
+		if err != nil {
+			_ = attempts.MarkAttempt(ctx, attempt.ID, "failed", err)
+			return err
+		}
+		currentRevision, revisionErr := attempts.CurrentTranscriptionRevision(ctx, callID)
+		if revisionErr != nil {
+			return revisionErr
+		}
+		status := "done"
+		if currentRevision != attempt.TranscriptionRevision {
+			status = "superseded"
+		}
+		if markErr := attempts.MarkAttempt(ctx, attempt.ID, status, nil); markErr != nil {
+			return markErr
+		}
+	}
 	return err
 }
 
@@ -186,6 +222,13 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 	result.ResultJSON, err = enrichEvidence(result.ResultJSON, transcription.Words)
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("enrich analysis evidence: %w", err)
+	}
+	if attempts, ok := s.analysisRepository.(attemptRepository); ok {
+		if active, activeErr := attempts.ActiveAttempt(ctx, call.ID); activeErr == nil {
+			if revision, revisionErr := attempts.CurrentTranscriptionRevision(ctx, call.ID); revisionErr != nil || revision != active.TranscriptionRevision {
+				return analysis, models.ErrAnalysisSuperseded
+			}
+		}
 	}
 
 	analysis, err = s.analysisRepository.MarkDone(ctx, analysis.ID, result)

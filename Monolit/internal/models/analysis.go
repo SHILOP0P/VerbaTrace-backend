@@ -53,3 +53,13 @@ type AnalysisResult struct {
 	ResultText *string
 	Model      *string
 }
+
+type CallAnalysisAttempt struct {
+	ID                    uuid.UUID
+	CallUUID              uuid.UUID
+	TranscriptionRevision int
+	Status                string
+	ErrorMessage          *string
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}

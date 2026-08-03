@@ -45,6 +45,16 @@ func (h *CallHandler) GetTranscriptionByCallUUID(w http.ResponseWriter, r *http.
 		response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToConvertTranscription, "failed to convert transcription")
 		return
 	}
+	if h.editor != nil {
+		if revision, revisionErr := h.editor.CurrentRevision(r.Context(), callUUID, userID); revisionErr == nil {
+			resp.Revision = revision
+			resp.Edited = revision > 1
+			resp.Editable = transcription.Status == models.TranscriptionStatusTranscribed && len(transcription.Words) > 0
+		} else if errors.Is(revisionErr, models.ErrCallNotFound) {
+			response.WriteError(w, http.StatusNotFound, response.CodeCallNotFound, "call not found")
+			return
+		}
+	}
 
 	if err := response.WriteJSON(w, http.StatusOK, resp); err != nil {
 		return

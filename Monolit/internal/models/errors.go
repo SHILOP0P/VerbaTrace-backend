@@ -68,6 +68,11 @@ var ErrSessionNotTrusted = errors.New("session is not trusted yet")
 // TRANSCRIPT
 var ErrTranscriptionNotFound = errors.New("transcription not found")
 var ErrInvalidTranscriptionInput = errors.New("invalid transcription input")
+var ErrInvalidTranscriptionEdit = errors.New("invalid transcription edit")
+var ErrNoTranscriptionChanges = errors.New("no transcription changes")
+var ErrTranscriptionRevisionConflict = errors.New("transcription revision conflict")
+var ErrTranscriptionEditForbidden = errors.New("transcription edit forbidden")
+var ErrTranscriptionNotEditable = errors.New("transcription not editable")
 var ErrNoCallsForProcessing = errors.New("no calls for processing")
 
 // TRANSCRIBER
@@ -78,6 +83,7 @@ var ErrAnalysisNotFound = errors.New("analysis not found")
 var ErrInvalidAnalysisInput = errors.New("invalid analysis input")
 var ErrAnalyzerNotConfigured = errors.New("analyzer not configured")
 var ErrInvalidAnalysisStatus = errors.New("invalid analysis status")
+var ErrAnalysisSuperseded = errors.New("analysis superseded by newer transcription")
 
 // PROCESSING JOB
 var ErrProcessingJobNotFound = errors.New("processing job not found")

@@ -69,6 +69,7 @@ import (
 	processingService "verbatrace/monolit/internal/service/processing"
 	reportService "verbatrace/monolit/internal/service/report"
 	searchService "verbatrace/monolit/internal/service/search"
+	transcriptionEditService "verbatrace/monolit/internal/service/transcriptionedit"
 	"verbatrace/monolit/internal/storage/audio"
 	avatarStorage "verbatrace/monolit/internal/storage/avatar"
 	"verbatrace/monolit/internal/storage/instruction"
@@ -284,6 +285,7 @@ func main() {
 
 	adminHandler := adminAPI.NewHandler(adminSvc)
 	callHandler := call.NewCallHandler(callSvc)
+	callHandler.SetTranscriptionEditor(transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository))
 	callFolderHandler := callFolderAPI.NewHandler(callFolderSvc)
 	contactHandler := contactAPI.NewHandler(contactSvc)
 	authHandler := authAPI.NewAuthHandler(authSvc, config.AppConfig().Auth.AccessTokenTTL(), config.AppConfig().Auth.RefreshTokenTTL())

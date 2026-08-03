@@ -33,8 +33,6 @@ func (r *Repository) Create(ctx context.Context, analysis model.CallAnalysis) (m
 	SET status = EXCLUDED.status,
 	    provider = EXCLUDED.provider,
 	    model = EXCLUDED.model,
-	    result_json = NULL,
-	    result_text = NULL,
 	    error_message = NULL,
 	    updated_at = now()
 	RETURNING ` + analysisReturningColumns

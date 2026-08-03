@@ -17,8 +17,6 @@ func (r *Repository) MarkProcessing(ctx context.Context, id uuid.UUID) (model.Ca
 	query := `
 	UPDATE call_analyses
 	SET status = $2,
-	    result_json = NULL,
-	    result_text = NULL,
 	    error_message = NULL,
 	    updated_at = now()
 	WHERE analysis_uuid = $1
@@ -50,8 +48,6 @@ func (r *Repository) MarkFailed(ctx context.Context, id uuid.UUID, errorMessage 
 	query := `
 	UPDATE call_analyses
 	SET status = $2,
-	    result_json = NULL,
-	    result_text = NULL,
 	    error_message = $3,
 	    updated_at = now()
 	WHERE analysis_uuid = $1
