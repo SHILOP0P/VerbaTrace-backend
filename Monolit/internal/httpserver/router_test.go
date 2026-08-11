@@ -23,6 +23,7 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 		apiMocks.NewAnalysisInstructionAPI(t),
 		stubAnalysisContextAPI{},
 		apiMocks.NewAnalysisAPI(t),
+		stubQualityReviewAPI{},
 		apiMocks.NewReportAPI(t),
 		apiMocks.NewBillingAPI(t),
 		apiMocks.NewInvitationAPI(t),
@@ -66,6 +67,21 @@ type stubAnalysisContextAPI struct{}
 
 func (stubAnalysisContextAPI) Get(w http.ResponseWriter, r *http.Request)  {}
 func (stubAnalysisContextAPI) Save(w http.ResponseWriter, r *http.Request) {}
+
+type stubQualityReviewAPI struct{}
+
+func (stubQualityReviewAPI) Create(http.ResponseWriter, *http.Request)             {}
+func (stubQualityReviewAPI) GetAnalysisContext(http.ResponseWriter, *http.Request) {}
+func (stubQualityReviewAPI) ChallengeAnalysis(http.ResponseWriter, *http.Request)  {}
+func (stubQualityReviewAPI) List(http.ResponseWriter, *http.Request)               {}
+func (stubQualityReviewAPI) Get(http.ResponseWriter, *http.Request)                {}
+func (stubQualityReviewAPI) Claim(http.ResponseWriter, *http.Request)              {}
+func (stubQualityReviewAPI) SaveDraft(http.ResponseWriter, *http.Request)          {}
+func (stubQualityReviewAPI) DiscardDraft(http.ResponseWriter, *http.Request)       {}
+func (stubQualityReviewAPI) Publish(http.ResponseWriter, *http.Request)            {}
+func (stubQualityReviewAPI) CreateAppeal(http.ResponseWriter, *http.Request)       {}
+func (stubQualityReviewAPI) ResolveAppeal(http.ResponseWriter, *http.Request)      {}
+func (stubQualityReviewAPI) ListEvents(http.ResponseWriter, *http.Request)         {}
 
 type stubCallFolderAPI struct{}
 

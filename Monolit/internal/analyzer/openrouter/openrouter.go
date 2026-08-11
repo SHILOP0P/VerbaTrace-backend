@@ -17,6 +17,12 @@ const (
 	defaultBaseURL = "https://openrouter.ai/api/v1"
 	chatPath       = "/chat/completions"
 	providerName   = "openrouter"
+
+	shortTranscriptionWordLimit = 3000
+	longTranscriptionWordLimit  = 8000
+	shortAnalysisMaxTokens      = 12288
+	mediumAnalysisMaxTokens     = 24576
+	longAnalysisMaxTokens       = 32768
 )
 
 type Analyzer struct {
@@ -27,16 +33,21 @@ type Analyzer struct {
 }
 
 type chatRequest struct {
-	Model          string         `json:"model"`
-	Messages       []message      `json:"messages"`
-	Temperature    *float64       `json:"temperature,omitempty"`
-	ResponseFormat responseFormat `json:"response_format"`
-	MaxTokens      int            `json:"max_tokens,omitempty"`
-	Provider       provider       `json:"provider,omitempty"`
+	Model               string         `json:"model"`
+	Messages            []message      `json:"messages"`
+	ResponseFormat      responseFormat `json:"response_format"`
+	MaxCompletionTokens int            `json:"max_completion_tokens,omitempty"`
+	Reasoning           reasoning      `json:"reasoning"`
+	Provider            provider       `json:"provider,omitempty"`
 }
 
 type provider struct {
-	Sort string `json:"sort,omitempty"`
+	RequireParameters bool `json:"require_parameters"`
+}
+
+type reasoning struct {
+	Effort  string `json:"effort"`
+	Exclude bool   `json:"exclude"`
 }
 
 type message struct {
@@ -58,8 +69,14 @@ type jsonSchema struct {
 type chatResponse struct {
 	Model   string `json:"model"`
 	Choices []struct {
-		Message message `json:"message"`
+		Message            message `json:"message"`
+		FinishReason       string  `json:"finish_reason"`
+		NativeFinishReason string  `json:"native_finish_reason"`
 	} `json:"choices"`
+	Usage struct {
+		CompletionTokens int `json:"completion_tokens"`
+		ReasoningTokens  int `json:"reasoning_tokens"`
+	} `json:"usage"`
 }
 
 type errorResponse struct {
@@ -98,7 +115,6 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 		return models.AnalysisResult{}, models.ErrInvalidAnalysisInput
 	}
 
-	temperature := 0.0
 	payload := chatRequest{
 		Model: a.model,
 		Messages: []message{
@@ -111,13 +127,13 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 				Content: userPrompt(request.CallUUID.String(), transcription, request.Instructions, request.Personalization),
 			},
 		},
-		Temperature:    &temperature,
 		ResponseFormat: callAnalysisResponseFormat(),
 		// A complete V2 analysis contains a summary, criteria and evidence. 2048
 		// tokens is not enough for longer interviews and makes the provider cut a
 		// JSON string in the middle, which cannot be rendered or normalized.
-		MaxTokens: 8192,
-		Provider:  provider{Sort: "latency"},
+		MaxCompletionTokens: maxAnalysisTokens(transcription),
+		Reasoning:           reasoning{Effort: "minimal", Exclude: true},
+		Provider:            compatibleProvider(),
 	}
 
 	requestBody, err := json.Marshal(payload)
@@ -157,7 +173,8 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 
 	resultJSON, resultText, err := normalizeAnalysisContent(content)
 	if err != nil {
-		return models.AnalysisResult{}, err
+		choice := result.Choices[0]
+		return models.AnalysisResult{}, fmt.Errorf("%w (finish_reason=%s native_finish_reason=%s completion_tokens=%d reasoning_tokens=%d content_bytes=%d)", err, fallbackDiagnostic(choice.FinishReason), fallbackDiagnostic(choice.NativeFinishReason), result.Usage.CompletionTokens, result.Usage.ReasoningTokens, len(content))
 	}
 
 	model := result.Model
@@ -180,17 +197,16 @@ func (a *Analyzer) AnalyzeAggregate(ctx context.Context, request models.Aggregat
 	if err != nil {
 		return models.AnalysisResult{}, fmt.Errorf("marshal aggregate analysis source: %w", err)
 	}
-	temperature := 0.0
 	payload := chatRequest{
 		Model: a.model,
 		Messages: []message{
 			{Role: "system", Content: aggregateSystemPrompt()},
 			{Role: "user", Content: aggregateUserPrompt(string(sourceJSON))},
 		},
-		Temperature:    &temperature,
-		ResponseFormat: aggregateAnalysisResponseFormat(),
-		MaxTokens:      8192,
-		Provider:       provider{Sort: "latency"},
+		ResponseFormat:      aggregateAnalysisResponseFormat(),
+		MaxCompletionTokens: longAnalysisMaxTokens,
+		Reasoning:           reasoning{Effort: "minimal", Exclude: true},
+		Provider:            compatibleProvider(),
 	}
 	requestBody, err := json.Marshal(payload)
 	if err != nil {
@@ -223,13 +239,41 @@ func (a *Analyzer) AnalyzeAggregate(ctx context.Context, request models.Aggregat
 	}
 	resultJSON, resultText, err := normalizeAnalysisContent(content)
 	if err != nil {
-		return models.AnalysisResult{}, err
+		choice := result.Choices[0]
+		return models.AnalysisResult{}, fmt.Errorf("%w (finish_reason=%s native_finish_reason=%s completion_tokens=%d reasoning_tokens=%d content_bytes=%d)", err, fallbackDiagnostic(choice.FinishReason), fallbackDiagnostic(choice.NativeFinishReason), result.Usage.CompletionTokens, result.Usage.ReasoningTokens, len(content))
 	}
 	model := result.Model
 	if model == "" {
 		model = a.model
 	}
 	return models.AnalysisResult{ResultJSON: resultJSON, ResultText: &resultText, Model: &model}, nil
+}
+
+func maxAnalysisTokens(transcription string) int {
+	switch wordCount := len(strings.Fields(transcription)); {
+	case wordCount <= shortTranscriptionWordLimit:
+		return shortAnalysisMaxTokens
+	case wordCount <= longTranscriptionWordLimit:
+		return mediumAnalysisMaxTokens
+	default:
+		return longAnalysisMaxTokens
+	}
+}
+
+func compatibleProvider() provider {
+	// Do not pin GPT-5 Mini to a single upstream endpoint. OpenRouter may expose
+	// different supported parameter sets for different endpoints, and combining
+	// `only: ["openai"]`, disabled fallbacks and require_parameters can leave no
+	// valid route at all. require_parameters keeps structured output safe while
+	// allowing OpenRouter to select any compatible endpoint for this model.
+	return provider{RequireParameters: true}
+}
+
+func fallbackDiagnostic(value string) string {
+	if value == "" {
+		return "unknown"
+	}
+	return value
 }
 
 func (a *Analyzer) endpoint() string {

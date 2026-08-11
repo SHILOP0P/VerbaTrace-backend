@@ -17,6 +17,12 @@ func (f durationDetectorFunc) DetectDuration(ctx context.Context, path string) (
 	return f(ctx, path)
 }
 
+type transcriptionModeResolverFunc func(ctx context.Context, userID uuid.UUID, companyID uuid.NullUUID) (models.TranscriptionMode, error)
+
+func (f transcriptionModeResolverFunc) ResolveTranscriptionMode(ctx context.Context, userID uuid.UUID, companyID uuid.NullUUID) (models.TranscriptionMode, error) {
+	return f(ctx, userID, companyID)
+}
+
 func validCreateCallInput(userID uuid.UUID) models.CreateCallInput {
 	return models.CreateCallInput{
 		Title:              "Test call",
@@ -27,6 +33,21 @@ func validCreateCallInput(userID uuid.UUID) models.CreateCallInput {
 		UploadedByUserUUID: userID,
 		VisibilityScope:    models.CallVisibilityScopePersonal,
 	}
+}
+
+func (s *ServiceSuite) TestResolveTranscriptionModeUsesSubscriptionWithoutSpeakerHints() {
+	userID := uuid.New()
+	input := validCreateCallInput(userID)
+	s.service.SetTranscriptionModeResolver(transcriptionModeResolverFunc(func(ctx context.Context, gotUserID uuid.UUID, companyID uuid.NullUUID) (models.TranscriptionMode, error) {
+		s.Require().Equal(userID, gotUserID)
+		s.Require().False(companyID.Valid)
+		return models.TranscriptionModeIdentified, nil
+	}))
+
+	mode, err := s.service.resolveTranscriptionMode(s.ctx, input)
+
+	s.Require().NoError(err)
+	s.Require().Equal(models.TranscriptionModeIdentified, mode)
 }
 
 func (s *ServiceSuite) TestCreateCallSuccessPersonal() {

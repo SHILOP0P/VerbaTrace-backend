@@ -112,3 +112,41 @@ func TestStandardTranscriptDisablesSpeakerLabels(t *testing.T) {
 		t.Fatalf("create transcript: %v", err)
 	}
 }
+
+func TestIdentifiedTranscriptWithoutCandidatesStillAttemptsNameIdentification(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var request transcriptRequest
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatal(err)
+		}
+		if !request.SpeakerLabels {
+			t.Fatal("identified mode must keep speaker diarization enabled")
+		}
+		if request.SpeechUnderstanding == nil {
+			t.Fatal("identified mode must request speaker identification")
+		}
+		identification := request.SpeechUnderstanding.Request.SpeakerIdentification
+		if identification.SpeakerType != "name" || len(identification.Speakers) != 0 {
+			t.Fatalf("unexpected open-ended speaker identification: %+v", identification)
+		}
+		if strings.Contains(string(body), `"speakers"`) {
+			t.Fatalf("empty speakers list must be omitted: %s", body)
+		}
+		_, _ = w.Write([]byte(`{"id":"transcript-id"}`))
+	}))
+	defer server.Close()
+
+	transcriber, err := New("test-key", true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transcriber.baseURL = server.URL
+	transcriber.client = server.Client()
+	if _, err := transcriber.createTranscript(context.Background(), "https://upload.example/audio", nil); err != nil {
+		t.Fatalf("create transcript: %v", err)
+	}
+}

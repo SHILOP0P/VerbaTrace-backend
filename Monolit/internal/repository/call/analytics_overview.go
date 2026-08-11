@@ -116,7 +116,7 @@ func (r *Repository) fillAnalysisAggregates(ctx context.Context, overview *model
 	       c.status,
 	       c.duration_seconds,
 	       c.created_at,
-	       ca.result_json::text
+	       effective_call_analysis_json(ca.analysis_uuid,ca.result_json)::text
 	FROM calls c
 	LEFT JOIN call_analyses ca
 	  ON ca.call_uuid = c.call_uuid

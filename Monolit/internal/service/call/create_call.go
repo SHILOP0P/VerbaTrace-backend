@@ -163,9 +163,6 @@ func (s *Service) detectAudioDuration(ctx context.Context, path string) (int, er
 }
 
 func (s *Service) resolveTranscriptionMode(ctx context.Context, input models.CreateCallInput) (models.TranscriptionMode, error) {
-	if len(input.SpeakerHints) == 0 && len(input.DiarizationRoles) == 0 {
-		return models.TranscriptionModeStandard, nil
-	}
 	if s.transcriptionModeResolver == nil {
 		return models.TranscriptionModeStandard, nil
 	}

@@ -133,6 +133,9 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 	if err != nil {
 		return fmt.Errorf("transcribe audio: %w", err)
 	}
+	if mode != models.TranscriptionModeStandard && len(result.Segments) == 0 {
+		return fmt.Errorf("transcribe audio: diarization required for %s mode but provider returned no speaker segments", mode)
+	}
 	if mode == models.TranscriptionModeStandard {
 		// Start includes only a continuous transcript. Keep this guard even if a
 		// provider returns timestamps unexpectedly, so the API never exposes them.

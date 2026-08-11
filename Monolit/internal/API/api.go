@@ -164,6 +164,21 @@ type AnalysisAPI interface {
 	GetByCallUUID(w http.ResponseWriter, r *http.Request)
 }
 
+type QualityReviewAPI interface {
+	Create(w http.ResponseWriter, r *http.Request)
+	GetAnalysisContext(w http.ResponseWriter, r *http.Request)
+	ChallengeAnalysis(w http.ResponseWriter, r *http.Request)
+	List(w http.ResponseWriter, r *http.Request)
+	Get(w http.ResponseWriter, r *http.Request)
+	Claim(w http.ResponseWriter, r *http.Request)
+	SaveDraft(w http.ResponseWriter, r *http.Request)
+	DiscardDraft(w http.ResponseWriter, r *http.Request)
+	Publish(w http.ResponseWriter, r *http.Request)
+	CreateAppeal(w http.ResponseWriter, r *http.Request)
+	ResolveAppeal(w http.ResponseWriter, r *http.Request)
+	ListEvents(w http.ResponseWriter, r *http.Request)
+}
+
 type AnalysisContextAPI interface {
 	Get(w http.ResponseWriter, r *http.Request)
 	Save(w http.ResponseWriter, r *http.Request)

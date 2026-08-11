@@ -15,7 +15,9 @@ import (
 
 func (r *Repository) GetByCallUUID(ctx context.Context, callID uuid.UUID) (model.CallAnalysis, error) {
 	query := `
-	SELECT ` + analysisReturningColumns + `
+	SELECT analysis_uuid,call_uuid,status,provider,model,
+	       effective_call_analysis_json(analysis_uuid,result_json) AS result_json,
+	       result_text,error_message,created_at,updated_at
 	FROM call_analyses
 	WHERE call_uuid = $1
 	`

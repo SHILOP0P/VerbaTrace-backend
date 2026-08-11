@@ -25,6 +25,7 @@ import (
 	invitationAPI "verbatrace/monolit/internal/API/invitation"
 	monitoringAPI "verbatrace/monolit/internal/API/monitoring"
 	notificationAPI "verbatrace/monolit/internal/API/notification"
+	qualityReviewAPI "verbatrace/monolit/internal/API/quality_review"
 	reportAPI "verbatrace/monolit/internal/API/report"
 	searchAPI "verbatrace/monolit/internal/API/search"
 	"verbatrace/monolit/internal/analyzer"
@@ -67,6 +68,7 @@ import (
 	monitoringService "verbatrace/monolit/internal/service/monitoring"
 	notificationService "verbatrace/monolit/internal/service/notification"
 	processingService "verbatrace/monolit/internal/service/processing"
+	qualityReviewService "verbatrace/monolit/internal/service/qualityreview"
 	reportService "verbatrace/monolit/internal/service/report"
 	searchService "verbatrace/monolit/internal/service/search"
 	transcriptionEditService "verbatrace/monolit/internal/service/transcriptionedit"
@@ -295,6 +297,7 @@ func main() {
 	instructionHandler := instructionAPI.NewHandler(instructionSvc)
 	analysisContextHandler := analysisContextAPI.NewHandler(analysisContextSvc)
 	analysisHandler := analysisAPI.NewHandler(analysisSvc)
+	qualityReviewHandler := qualityReviewAPI.NewHandler(qualityReviewService.NewService(sqlDB))
 	reportHandler := reportAPI.NewHandler(reportSvc)
 	billingHandler := billingAPI.NewHandler(billingSvc)
 	analyticsHandler := analyticsAPI.NewHandler(analyticsSvc)
@@ -302,7 +305,7 @@ func main() {
 	searchHandler := searchAPI.NewHandler(searchSvc)
 	notificationHandler := notificationAPI.NewHandler(notificationSvc)
 
-	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
+	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
 
 	server := &http.Server{
 		Addr:              config.AppConfig().HTTPConfig.Address(),

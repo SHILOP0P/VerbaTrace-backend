@@ -59,11 +59,14 @@ func TestAnalyzeSendsTranscriptionAndInstructions(t *testing.T) {
 		if req.Model != "google/gemini-2.5-flash" {
 			t.Fatalf("model = %q", req.Model)
 		}
-		if req.Temperature == nil || *req.Temperature != 0 {
-			t.Fatalf("temperature = %v", req.Temperature)
+		if req.MaxCompletionTokens != 12288 {
+			t.Fatalf("max completion tokens = %d", req.MaxCompletionTokens)
 		}
-		if req.MaxTokens != 8192 {
-			t.Fatalf("max tokens = %d", req.MaxTokens)
+		if req.Reasoning.Effort != "minimal" || !req.Reasoning.Exclude {
+			t.Fatalf("reasoning = %+v", req.Reasoning)
+		}
+		if !req.Provider.RequireParameters {
+			t.Fatalf("provider routing = %+v", req.Provider)
 		}
 		if req.ResponseFormat.Type != "json_schema" || req.ResponseFormat.JSONSchema.Name != "call_analysis" {
 			t.Fatalf("response format = %#v", req.ResponseFormat)
@@ -172,6 +175,28 @@ func TestAnalyzeSendsTranscriptionAndInstructions(t *testing.T) {
 	}
 }
 
+func TestMaxAnalysisTokensDependsOnTranscriptionWordCount(t *testing.T) {
+	tests := []struct {
+		name      string
+		wordCount int
+		want      int
+	}{
+		{name: "short upper boundary", wordCount: 3000, want: 12288},
+		{name: "medium lower boundary", wordCount: 3001, want: 24576},
+		{name: "medium upper boundary", wordCount: 8000, want: 24576},
+		{name: "long lower boundary", wordCount: 8001, want: 32768},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transcription := strings.Repeat("слово ", test.wordCount)
+			if got := maxAnalysisTokens(transcription); got != test.want {
+				t.Fatalf("maxAnalysisTokens() = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
 func TestAnalyzeAggregateSendsDatasetAndDeepSchema(t *testing.T) {
 	callID := uuid.New()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -182,8 +207,8 @@ func TestAnalyzeAggregateSendsDatasetAndDeepSchema(t *testing.T) {
 		if req.ResponseFormat.Type != "json_schema" || req.ResponseFormat.JSONSchema.Name != "aggregate_analysis" {
 			t.Fatalf("response format = %#v", req.ResponseFormat)
 		}
-		if req.MaxTokens != 8192 {
-			t.Fatalf("max tokens = %d", req.MaxTokens)
+		if req.MaxCompletionTokens != 32768 {
+			t.Fatalf("max completion tokens = %d", req.MaxCompletionTokens)
 		}
 		required, ok := stringSlice(req.ResponseFormat.JSONSchema.Schema["required"])
 		if !ok {
@@ -285,6 +310,39 @@ func TestNormalizeAnalysisContentRejectsIncompleteStructuredJSON(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "incomplete structured JSON") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestAnalyzeReportsProviderTruncationDiagnostics(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"model":"openai/gpt-5-mini",
+			"choices":[{
+				"finish_reason":"length",
+				"native_finish_reason":"max_output_tokens",
+				"message":{"role":"assistant","content":"{\"schema_version\":2,\"criteria_results\":["}
+			}],
+			"usage":{"completion_tokens":12288,"reasoning_tokens":1200}
+		}`))
+	}))
+	defer server.Close()
+
+	analyzer, err := New("sk-or-v1-test", "openai/gpt-5-mini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	analyzer.baseURL = server.URL
+	analyzer.client = server.Client()
+
+	_, err = analyzer.Analyze(context.Background(), models.AnalysisRequest{CallUUID: uuid.New(), Transcription: "тестовая расшифровка"})
+	if err == nil {
+		t.Fatal("expected truncated response error")
+	}
+	for _, want := range []string{"incomplete structured JSON", "finish_reason=length", "native_finish_reason=max_output_tokens", "completion_tokens=12288", "reasoning_tokens=1200"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err, want)
+		}
 	}
 }
 

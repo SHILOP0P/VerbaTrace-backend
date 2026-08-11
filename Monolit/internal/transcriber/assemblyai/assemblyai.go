@@ -46,7 +46,7 @@ type speechUnderstanding struct {
 
 type speakerIdentification struct {
 	SpeakerType string            `json:"speaker_type"`
-	Speakers    []speakerIdentity `json:"speakers"`
+	Speakers    []speakerIdentity `json:"speakers,omitempty"`
 }
 
 type speakerIdentity struct {
@@ -156,7 +156,7 @@ func (t *Transcriber) createTranscript(ctx context.Context, audioURL string, can
 		LanguageDetection: true,
 		SpeakerLabels:     t.speakerLabels,
 	}
-	if t.identifyRoles && len(candidates) > 0 {
+	if t.identifyRoles {
 		payload.SpeechUnderstanding = speakerIdentificationRequest(candidates)
 	}
 	body, err := json.Marshal(payload)
@@ -189,7 +189,7 @@ func (t *Transcriber) createTranscript(ctx context.Context, audioURL string, can
 
 func speakerIdentificationRequest(candidates []models.SpeakerCandidate) *speechUnderstanding {
 	request := &speechUnderstanding{}
-	allRoles := true
+	allRoles := len(candidates) > 0
 	for _, candidate := range candidates {
 		if candidate.Kind != "role" {
 			allRoles = false

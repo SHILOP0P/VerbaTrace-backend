@@ -58,6 +58,34 @@ func TestProcessTranscribeCallHappyPath(t *testing.T) {
 	}
 }
 
+func TestDiarizedTranscriptionWithoutSpeakerSegmentsIsNotPersisted(t *testing.T) {
+	ctx := context.Background()
+	callID := uuid.New()
+	transcriptionID := uuid.New()
+	callRepo := repositoryMocks.NewCallRepository(t)
+	transcriptionRepo := repositoryMocks.NewTranscriptionRepository(t)
+	audioStorage := storageMocks.NewAudioStorage(t)
+	transcriber := transcriberMocks.NewTranscriber(t)
+	service := NewService(callRepo, transcriptionRepo, nil, audioStorage, transcriber, nil)
+
+	transcriber.EXPECT().Provider().Return("test").Once()
+	transcriptionRepo.EXPECT().Create(mock.Anything, mock.MatchedBy(func(value models.Transcription) bool {
+		return value.CallUUID == callID && value.Status == models.TranscriptionStatusProcessing
+	})).Return(models.Transcription{ID: transcriptionID, CallUUID: callID}, nil).Once()
+	audioStorage.EXPECT().Open(mock.Anything, "call.mp4").Return(io.NopCloser(strings.NewReader("video")), nil).Once()
+	transcriber.EXPECT().Transcribe(mock.Anything, mock.Anything).
+		Return(models.TranscriptionResult{Text: "text without speakers"}, nil).Once()
+
+	err := service.processTranscribeCallWithMode(ctx, models.Call{
+		ID: callID, Status: models.CallStatusProcessing, AudioPath: "call.mp4",
+		OriginalFilename: "call.mp4", MimeType: "video/mp4",
+	}, models.TranscriptionModeIdentified)
+
+	if err == nil || !strings.Contains(err.Error(), "provider returned no speaker segments") {
+		t.Fatalf("expected missing diarization error, got %v", err)
+	}
+}
+
 func TestProcessEntryPointsAndStatuses(t *testing.T) {
 	ctx := context.Background()
 	callID := uuid.New()

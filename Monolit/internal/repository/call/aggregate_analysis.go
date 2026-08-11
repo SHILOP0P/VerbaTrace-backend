@@ -124,7 +124,7 @@ func (r *Repository) ListAggregateAnalysisSourceCalls(ctx context.Context, input
 	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count aggregate source calls: %w", err)
 	}
-	query := fmt.Sprintf(`SELECT c.call_uuid, c.created_at, c.title, ca.result_json FROM calls c JOIN call_analyses ca ON ca.call_uuid = c.call_uuid AND ca.status = 'done' WHERE %s ORDER BY c.created_at DESC, c.call_uuid`, where)
+	query := fmt.Sprintf(`SELECT c.call_uuid, c.created_at, c.title, effective_call_analysis_json(ca.analysis_uuid,ca.result_json) FROM calls c JOIN call_analyses ca ON ca.call_uuid = c.call_uuid AND ca.status = 'done' WHERE %s ORDER BY c.created_at DESC, c.call_uuid`, where)
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list aggregate source calls: %w", err)
