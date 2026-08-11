@@ -73,8 +73,6 @@ services:
 
 volumes:
   verbatrace_postgres_data:
-    external: true
     name: verbatrace_postgres_data
   verbatrace_uploads:
-    external: true
     name: verbatrace_uploads
