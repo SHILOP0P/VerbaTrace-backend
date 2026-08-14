@@ -60,6 +60,11 @@ func (s *Service) GetAnalysisContext(ctx context.Context, callID, analysisID, ac
 		limit = 1
 	}
 	result := models.AnalysisReviewContext{HumanReviewLimit: limit, ActiveScoreSource: "ai"}
+	result.Capabilities.CanCommentAnalysis = true
+	result.Comments, err = s.ListAnalysisComments(ctx, callID, analysisID, actor)
+	if err != nil {
+		return models.AnalysisReviewContext{}, err
+	}
 	result.Capabilities.CanEditAnalysis = personal && isSubject || !personal && access.CanReview && !isSubject
 	result.Capabilities.CanDisputeAnalysis = !personal && isSubject && isActiveCompanyMember
 

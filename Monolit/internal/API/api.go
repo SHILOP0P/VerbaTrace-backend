@@ -177,6 +177,8 @@ type QualityReviewAPI interface {
 	CreateAppeal(w http.ResponseWriter, r *http.Request)
 	ResolveAppeal(w http.ResponseWriter, r *http.Request)
 	ListEvents(w http.ResponseWriter, r *http.Request)
+	CreateAnalysisComment(w http.ResponseWriter, r *http.Request)
+	UpdateAnalysisComment(w http.ResponseWriter, r *http.Request)
 }
 
 type AnalysisContextAPI interface {

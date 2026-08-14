@@ -70,18 +70,20 @@ func (stubAnalysisContextAPI) Save(w http.ResponseWriter, r *http.Request) {}
 
 type stubQualityReviewAPI struct{}
 
-func (stubQualityReviewAPI) Create(http.ResponseWriter, *http.Request)             {}
-func (stubQualityReviewAPI) GetAnalysisContext(http.ResponseWriter, *http.Request) {}
-func (stubQualityReviewAPI) ChallengeAnalysis(http.ResponseWriter, *http.Request)  {}
-func (stubQualityReviewAPI) List(http.ResponseWriter, *http.Request)               {}
-func (stubQualityReviewAPI) Get(http.ResponseWriter, *http.Request)                {}
-func (stubQualityReviewAPI) Claim(http.ResponseWriter, *http.Request)              {}
-func (stubQualityReviewAPI) SaveDraft(http.ResponseWriter, *http.Request)          {}
-func (stubQualityReviewAPI) DiscardDraft(http.ResponseWriter, *http.Request)       {}
-func (stubQualityReviewAPI) Publish(http.ResponseWriter, *http.Request)            {}
-func (stubQualityReviewAPI) CreateAppeal(http.ResponseWriter, *http.Request)       {}
-func (stubQualityReviewAPI) ResolveAppeal(http.ResponseWriter, *http.Request)      {}
-func (stubQualityReviewAPI) ListEvents(http.ResponseWriter, *http.Request)         {}
+func (stubQualityReviewAPI) Create(http.ResponseWriter, *http.Request)                {}
+func (stubQualityReviewAPI) GetAnalysisContext(http.ResponseWriter, *http.Request)    {}
+func (stubQualityReviewAPI) ChallengeAnalysis(http.ResponseWriter, *http.Request)     {}
+func (stubQualityReviewAPI) List(http.ResponseWriter, *http.Request)                  {}
+func (stubQualityReviewAPI) Get(http.ResponseWriter, *http.Request)                   {}
+func (stubQualityReviewAPI) Claim(http.ResponseWriter, *http.Request)                 {}
+func (stubQualityReviewAPI) SaveDraft(http.ResponseWriter, *http.Request)             {}
+func (stubQualityReviewAPI) DiscardDraft(http.ResponseWriter, *http.Request)          {}
+func (stubQualityReviewAPI) Publish(http.ResponseWriter, *http.Request)               {}
+func (stubQualityReviewAPI) CreateAppeal(http.ResponseWriter, *http.Request)          {}
+func (stubQualityReviewAPI) ResolveAppeal(http.ResponseWriter, *http.Request)         {}
+func (stubQualityReviewAPI) ListEvents(http.ResponseWriter, *http.Request)            {}
+func (stubQualityReviewAPI) CreateAnalysisComment(http.ResponseWriter, *http.Request) {}
+func (stubQualityReviewAPI) UpdateAnalysisComment(http.ResponseWriter, *http.Request) {}
 
 type stubCallFolderAPI struct{}
 

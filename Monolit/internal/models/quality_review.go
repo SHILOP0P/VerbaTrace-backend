@@ -130,6 +130,7 @@ type QualityReviewCapabilities struct {
 	CanEditAnalysis    bool `json:"can_edit_analysis"`
 	CanDisputeAnalysis bool `json:"can_dispute_analysis"`
 	CanResolveDispute  bool `json:"can_resolve_dispute"`
+	CanCommentAnalysis bool `json:"can_comment_analysis"`
 }
 
 type AnalysisReviewContext struct {
@@ -143,6 +144,20 @@ type AnalysisReviewContext struct {
 	SourceOutdated                    bool                      `json:"source_outdated"`
 	Challenge                         *QualityReviewChallenge   `json:"challenge,omitempty"`
 	EffectiveAnalysis                 *EffectiveAnalysis        `json:"effective_analysis,omitempty"`
+	Comments                          []AnalysisComment         `json:"comments"`
+}
+
+type AnalysisComment struct {
+	ID             uuid.UUID  `json:"comment_uuid"`
+	CallUUID       uuid.UUID  `json:"call_uuid"`
+	AnalysisUUID   uuid.UUID  `json:"analysis_uuid"`
+	AuthorUserUUID uuid.UUID  `json:"author_user_uuid"`
+	AuthorName     string     `json:"author_name"`
+	Body           string     `json:"body"`
+	CanEdit        bool       `json:"can_edit"`
+	CreatedAt      time.Time  `json:"created_at"`
+	EditedAt       *time.Time `json:"edited_at,omitempty"`
+	LockVersion    int64      `json:"lock_version"`
 }
 
 type EffectiveAnalysis struct {

@@ -51,6 +51,9 @@ type resolveRequest struct {
 	Comment                 string                           `json:"comment"`
 	ReplacementRevisionUUID *string                          `json:"replacement_revision_uuid"`
 }
+type commentRequest struct {
+	Body string `json:"body"`
+}
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	actor, ok := middleware.UserIDFromContext(r.Context())
@@ -321,6 +324,64 @@ func (h *Handler) ListEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = response.WriteJSON(w, http.StatusOK, map[string]any{"events": items})
+}
+
+func (h *Handler) CreateAnalysisComment(w http.ResponseWriter, r *http.Request) {
+	actor, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		writeUnauthorized(w)
+		return
+	}
+	callID, err := uuid.Parse(chi.URLParam(r, "uuid"))
+	if err != nil {
+		writeError(w, qualityreview.ErrInvalidInput)
+		return
+	}
+	analysisID, err := uuid.Parse(r.URL.Query().Get("analysis_uuid"))
+	if err != nil {
+		writeError(w, qualityreview.ErrInvalidInput)
+		return
+	}
+	var req commentRequest
+	if decode(r, &req) != nil {
+		writeError(w, qualityreview.ErrInvalidInput)
+		return
+	}
+	item, err := h.service.CreateAnalysisComment(r.Context(), qualityreview.CreateCommentInput{CallUUID: callID, AnalysisUUID: analysisID, ActorUserUUID: actor, Body: req.Body})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	_ = response.WriteJSON(w, http.StatusCreated, item)
+}
+
+func (h *Handler) UpdateAnalysisComment(w http.ResponseWriter, r *http.Request) {
+	actor, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		writeUnauthorized(w)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "comment_uuid"))
+	if err != nil {
+		writeError(w, qualityreview.ErrInvalidInput)
+		return
+	}
+	version, ok := ifMatch(r)
+	if !ok {
+		writeError(w, qualityreview.ErrVersionConflict)
+		return
+	}
+	var req commentRequest
+	if decode(r, &req) != nil {
+		writeError(w, qualityreview.ErrInvalidInput)
+		return
+	}
+	item, err := h.service.UpdateAnalysisComment(r.Context(), qualityreview.UpdateCommentInput{CommentUUID: id, ActorUserUUID: actor, ExpectedVersion: version, Body: req.Body})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	_ = response.WriteJSON(w, http.StatusOK, item)
 }
 
 func ids(r *http.Request) (uuid.UUID, uuid.UUID, bool) {

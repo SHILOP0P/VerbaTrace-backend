@@ -2,6 +2,7 @@ package qualityreview
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"verbatrace/monolit/internal/models"
@@ -9,6 +10,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNormalizeCommentBody(t *testing.T) {
+	value, err := normalizeCommentBody("  точечное замечание  ")
+	require.NoError(t, err)
+	require.Equal(t, "точечное замечание", value)
+	_, err = normalizeCommentBody("   ")
+	require.ErrorIs(t, err, ErrInvalidInput)
+	_, err = normalizeCommentBody(strings.Repeat("я", 4001))
+	require.ErrorIs(t, err, ErrInvalidInput)
+}
 
 func TestChallengeAnalysisRejectsShortReasonBeforeDatabaseAccess(t *testing.T) {
 	service := NewService(nil)

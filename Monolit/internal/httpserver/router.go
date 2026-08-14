@@ -89,6 +89,8 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Get("/calls/{uuid}/analysis", analysisAPI.GetByCallUUID)
 			r.With(authGuard).Post("/calls/{uuid}/quality-reviews", qualityReviewAPI.Create)
 			r.With(authGuard).Get("/calls/{uuid}/quality-review-context", qualityReviewAPI.GetAnalysisContext)
+			r.With(authGuard).Post("/calls/{uuid}/analysis-comments", qualityReviewAPI.CreateAnalysisComment)
+			r.With(authGuard).Patch("/analysis-comments/{comment_uuid}", qualityReviewAPI.UpdateAnalysisComment)
 			r.With(authGuard).Post("/calls/{uuid}/quality-review-challenge", qualityReviewAPI.ChallengeAnalysis)
 			r.With(authGuard).Get("/quality-reviews", qualityReviewAPI.List)
 			r.With(authGuard).Get("/quality-reviews/{review_uuid}", qualityReviewAPI.Get)
