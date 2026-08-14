@@ -185,4 +185,9 @@ const (
 	CodeFailedToListNotifications        = "failed_to_list_notifications"
 	CodeFailedToMarkNotificationRead     = "failed_to_mark_notification_read"
 	CodeFailedToConvertNotification      = "failed_to_convert_notification"
+	CodeInvalidActionInput               = "invalid_action_input"
+	CodeActionNotFound                   = "action_not_found"
+	CodeActionForbidden                  = "action_forbidden"
+	CodeActionConflict                   = "action_conflict"
+	CodeFailedToProcessAction            = "failed_to_process_action"
 )

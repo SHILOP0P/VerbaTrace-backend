@@ -17,6 +17,7 @@ func (r *Repository) TakeNext(ctx context.Context, workerID string, staleAfter t
 	UPDATE processing_jobs
 	SET status = $1,
 	    attempts = attempts + 1,
+	    started_at = now(),
 	    locked_at = now(),
 	    locked_by = $2,
 	    updated_at = now()

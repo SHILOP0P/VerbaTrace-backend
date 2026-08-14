@@ -77,6 +77,18 @@ func TestDepartmentLeaderCanManageOwnDepartmentOnly(t *testing.T) {
 		Name:           "Sales",
 	})
 	require.ErrorIs(t, err, models.ErrForbidden)
+
+	employeeService := NewService(newFolderRepoStub(), &callRepoStub{}, &companyRepoStub{}, &departmentRepoStub{members: map[uuid.UUID]models.DepartmentMember{
+		departmentID: {UserUUID: userID, DepartmentUUID: departmentID, Role: models.DepartmentMemberRoleEmployee, Status: models.MembershipStatusActive},
+	}})
+	_, err = employeeService.Create(ctx, models.CreateCallFolderInput{
+		UserID:         userID,
+		Scope:          models.CallFolderScopeDepartment,
+		CompanyUUID:    uuid.NullUUID{UUID: companyID, Valid: true},
+		DepartmentUUID: uuid.NullUUID{UUID: departmentID, Valid: true},
+		Name:           "Employee folder",
+	})
+	require.ErrorIs(t, err, models.ErrForbidden)
 }
 
 func TestAssignMismatchedCallReturnsScopeMismatch(t *testing.T) {

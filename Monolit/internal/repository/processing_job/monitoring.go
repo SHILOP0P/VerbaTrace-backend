@@ -20,7 +20,7 @@ func (r *Repository) GetMonitoring(ctx context.Context, input model.ProcessingMo
 	       COUNT(*) FILTER (WHERE pj.status = 'done')::int,
 	       COUNT(*) FILTER (WHERE pj.status = 'failed')::int,
 	       COUNT(*) FILTER (WHERE pj.status = 'pending' AND pj.attempts > 0)::int,
-	       AVG(EXTRACT(EPOCH FROM (pj.updated_at - pj.created_at))) FILTER (WHERE pj.status = 'done')::float8
+	       AVG(EXTRACT(EPOCH FROM (pj.updated_at - pj.started_at))) FILTER (WHERE pj.status = 'done' AND pj.started_at IS NOT NULL)::float8
 	FROM processing_jobs pj
 	JOIN calls c ON c.call_uuid = pj.entity_uuid
 	WHERE %s

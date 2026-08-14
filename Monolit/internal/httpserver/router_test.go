@@ -24,6 +24,7 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 		stubAnalysisContextAPI{},
 		apiMocks.NewAnalysisAPI(t),
 		stubQualityReviewAPI{},
+		stubActionAPI{},
 		apiMocks.NewReportAPI(t),
 		apiMocks.NewBillingAPI(t),
 		apiMocks.NewInvitationAPI(t),
@@ -84,6 +85,28 @@ func (stubQualityReviewAPI) ResolveAppeal(http.ResponseWriter, *http.Request)   
 func (stubQualityReviewAPI) ListEvents(http.ResponseWriter, *http.Request)            {}
 func (stubQualityReviewAPI) CreateAnalysisComment(http.ResponseWriter, *http.Request) {}
 func (stubQualityReviewAPI) UpdateAnalysisComment(http.ResponseWriter, *http.Request) {}
+
+type stubActionAPI struct{}
+
+func (stubActionAPI) Create(http.ResponseWriter, *http.Request)          {}
+func (stubActionAPI) SetDisposition(http.ResponseWriter, *http.Request)  {}
+func (stubActionAPI) Get(http.ResponseWriter, *http.Request)             {}
+func (stubActionAPI) GetAdmin(http.ResponseWriter, *http.Request)        {}
+func (stubActionAPI) List(http.ResponseWriter, *http.Request)            {}
+func (stubActionAPI) ListAdmin(http.ResponseWriter, *http.Request)       {}
+func (stubActionAPI) ListAssignees(http.ResponseWriter, *http.Request)   {}
+func (stubActionAPI) Start(http.ResponseWriter, *http.Request)           {}
+func (stubActionAPI) Complete(http.ResponseWriter, *http.Request)        {}
+func (stubActionAPI) Cancel(http.ResponseWriter, *http.Request)          {}
+func (stubActionAPI) Reschedule(http.ResponseWriter, *http.Request)      {}
+func (stubActionAPI) Reassign(http.ResponseWriter, *http.Request)        {}
+func (stubActionAPI) CreateTransfer(http.ResponseWriter, *http.Request)  {}
+func (stubActionAPI) ApproveTransfer(http.ResponseWriter, *http.Request) {}
+func (stubActionAPI) RejectTransfer(http.ResponseWriter, *http.Request)  {}
+func (stubActionAPI) CompleteAdmin(http.ResponseWriter, *http.Request)   {}
+func (stubActionAPI) CancelAdmin(http.ResponseWriter, *http.Request)     {}
+func (stubActionAPI) RescheduleAdmin(http.ResponseWriter, *http.Request) {}
+func (stubActionAPI) ReassignAdmin(http.ResponseWriter, *http.Request)   {}
 
 type stubCallFolderAPI struct{}
 

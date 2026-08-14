@@ -82,3 +82,49 @@ func (s *RepositorySuite) TestGrantAndRevokeFolderAccess() {
 	s.Require().NoError(err)
 	s.Require().Empty(items)
 }
+
+func (s *RepositorySuite) TestDepartmentEmployeeAutomaticallySeesDepartmentFolder() {
+	manager := s.createUser(uuid.NewString() + "@example.com")
+	employee := s.createUser(uuid.NewString() + "@example.com")
+	companyID := uuid.New()
+	departmentID := uuid.New()
+
+	_, err := s.db.ExecContext(s.ctx, `
+		INSERT INTO companies (company_uuid, name, tag, manager_user_uuid, member_limit)
+		VALUES ($1, 'Visibility company', $2, $3, 10)`, companyID, "@company_"+companyID.String()[:8], manager.ID)
+	s.Require().NoError(err)
+	_, err = s.db.ExecContext(s.ctx, `
+		INSERT INTO company_members (company_uuid, user_uuid, role, status)
+		VALUES ($1, $2, 'company_manager', 'active'), ($1, $3, 'employee', 'active')`, companyID, manager.ID, employee.ID)
+	s.Require().NoError(err)
+	_, err = s.db.ExecContext(s.ctx, `
+		INSERT INTO departments (department_uuid, company_uuid, name)
+		VALUES ($1, $2, 'Sales')`, departmentID, companyID)
+	s.Require().NoError(err)
+	_, err = s.db.ExecContext(s.ctx, `
+		INSERT INTO department_members (department_uuid, user_uuid, role, status)
+		VALUES ($1, $2, 'employee', 'active')`, departmentID, employee.ID)
+	s.Require().NoError(err)
+
+	folder, err := s.repository.Create(s.ctx, models.CallFolder{
+		ID: uuid.New(), Scope: models.CallFolderScopeDepartment,
+		CompanyUUID:    uuid.NullUUID{UUID: companyID, Valid: true},
+		DepartmentUUID: uuid.NullUUID{UUID: departmentID, Valid: true},
+		Name:           "Shared sales folder", CreatedByUserUUID: manager.ID,
+	})
+	s.Require().NoError(err)
+
+	visible, err := s.repository.GetVisibleByUUID(s.ctx, folder.ID, employee.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(folder.ID, visible.ID)
+
+	listed, err := s.repository.List(s.ctx, models.ListCallFoldersInput{
+		UserID: employee.ID, Scope: models.CallFolderScopeDepartment,
+		CompanyUUID:    uuid.NullUUID{UUID: companyID, Valid: true},
+		DepartmentUUID: uuid.NullUUID{UUID: departmentID, Valid: true},
+		Limit:          50,
+	})
+	s.Require().NoError(err)
+	s.Require().Len(listed.Items, 1)
+	s.Require().Equal(folder.ID, listed.Items[0].ID)
+}

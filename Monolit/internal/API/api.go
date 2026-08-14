@@ -77,6 +77,28 @@ type NotificationAPI interface {
 	MarkAllRead(w http.ResponseWriter, r *http.Request)
 }
 
+type ActionAPI interface {
+	Create(http.ResponseWriter, *http.Request)
+	SetDisposition(http.ResponseWriter, *http.Request)
+	Get(http.ResponseWriter, *http.Request)
+	GetAdmin(http.ResponseWriter, *http.Request)
+	List(http.ResponseWriter, *http.Request)
+	ListAdmin(http.ResponseWriter, *http.Request)
+	ListAssignees(http.ResponseWriter, *http.Request)
+	Start(http.ResponseWriter, *http.Request)
+	Complete(http.ResponseWriter, *http.Request)
+	Cancel(http.ResponseWriter, *http.Request)
+	Reschedule(http.ResponseWriter, *http.Request)
+	Reassign(http.ResponseWriter, *http.Request)
+	CreateTransfer(http.ResponseWriter, *http.Request)
+	ApproveTransfer(http.ResponseWriter, *http.Request)
+	RejectTransfer(http.ResponseWriter, *http.Request)
+	CompleteAdmin(http.ResponseWriter, *http.Request)
+	CancelAdmin(http.ResponseWriter, *http.Request)
+	RescheduleAdmin(http.ResponseWriter, *http.Request)
+	ReassignAdmin(http.ResponseWriter, *http.Request)
+}
+
 type AuthAPI interface {
 	Register(w http.ResponseWriter, r *http.Request)
 	Login(w http.ResponseWriter, r *http.Request)

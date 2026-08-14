@@ -24,8 +24,8 @@ func TestGetCapabilities(t *testing.T) {
 	}{
 		{name: "user denied", role: models.UserRoleUser, wantErr: models.ErrForbidden},
 		{name: "helper", role: models.UserRoleHelper, permissions: 4},
-		{name: "admin", role: models.UserRoleAdmin, permissions: 14},
-		{name: "superadmin", role: models.UserRoleSuperAdmin, permissions: 15},
+		{name: "admin", role: models.UserRoleAdmin, permissions: 16},
+		{name: "superadmin", role: models.UserRoleSuperAdmin, permissions: 17},
 	}
 
 	for _, tt := range tests {

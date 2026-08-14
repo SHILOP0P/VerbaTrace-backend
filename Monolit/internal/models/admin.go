@@ -25,6 +25,8 @@ const (
 	AdminPermissionMonitoringRead      AdminPermission = "admin.monitoring.read"
 	AdminPermissionDashboardRead       AdminPermission = "admin.dashboard.read"
 	AdminPermissionAuditRead           AdminPermission = "admin.audit.read"
+	AdminPermissionActionsRead         AdminPermission = "admin.actions.read"
+	AdminPermissionActionsManage       AdminPermission = "admin.actions.manage"
 )
 
 var adminPermissionsByRole = map[UserRole][]AdminPermission{
@@ -49,6 +51,8 @@ var adminPermissionsByRole = map[UserRole][]AdminPermission{
 		AdminPermissionMonitoringRead,
 		AdminPermissionDashboardRead,
 		AdminPermissionAuditRead,
+		AdminPermissionActionsRead,
+		AdminPermissionActionsManage,
 	},
 	UserRoleSuperAdmin: {
 		AdminPermissionPanelAccess,
@@ -66,6 +70,8 @@ var adminPermissionsByRole = map[UserRole][]AdminPermission{
 		AdminPermissionMonitoringRead,
 		AdminPermissionDashboardRead,
 		AdminPermissionAuditRead,
+		AdminPermissionActionsRead,
+		AdminPermissionActionsManage,
 	},
 }
 

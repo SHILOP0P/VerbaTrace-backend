@@ -65,14 +65,14 @@ func TestGetMonitoringAggregatesQueueAndLastFailures(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = db.ExecContext(ctx, `
-		INSERT INTO processing_jobs (job_uuid, job_type, entity_uuid, status, attempts, max_attempts, available_at, last_error, created_at, updated_at)
+		INSERT INTO processing_jobs (job_uuid, job_type, entity_uuid, status, attempts, max_attempts, available_at, last_error, created_at, started_at, updated_at)
 		VALUES
-			($1, 'transcribe_call', $6, 'pending', 0, 3, $11, NULL, $11, $11),
-			($2, 'analyze_call', $7, 'pending', 2, 3, $11, 'temporary', $11, $11),
-			($3, 'transcribe_call', $8, 'failed', 3, 3, $11, 'permanent', $11, $12),
-			($4, 'analyze_call', $9, 'done', 1, 3, $11, NULL, $11, $13),
-			($5, 'transcribe_call', $10, 'failed', 3, 3, $11, 'outside filter', $11, $12)
-	`, uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), firstCallID, secondCallID, thirdCallID, fourthCallID, otherCallID, now, now.Add(time.Minute), now.Add(30*time.Second))
+			($1, 'transcribe_call', $6, 'pending', 0, 3, $11, NULL, $11, NULL, $11),
+			($2, 'analyze_call', $7, 'pending', 2, 3, $11, 'temporary', $11, NULL, $11),
+			($3, 'transcribe_call', $8, 'failed', 3, 3, $11, 'permanent', $11, $12, $13),
+			($4, 'analyze_call', $9, 'done', 1, 3, $11, NULL, $11, $12, $14),
+			($5, 'transcribe_call', $10, 'failed', 3, 3, $11, 'outside filter', $11, $12, $13)
+	`, uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), firstCallID, secondCallID, thirdCallID, fourthCallID, otherCallID, now, now.Add(2*time.Hour), now.Add(2*time.Hour+time.Minute), now.Add(2*time.Hour+30*time.Second))
 	require.NoError(t, err)
 
 	monitoring, err := repository.GetMonitoring(ctx, models.ProcessingMonitoringInput{

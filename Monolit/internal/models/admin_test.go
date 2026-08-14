@@ -56,9 +56,11 @@ func TestAdminPermissionMatrix(t *testing.T) {
 				AdminPermissionMonitoringRead,
 				AdminPermissionDashboardRead,
 				AdminPermissionAuditRead,
+				AdminPermissionActionsRead,
+				AdminPermissionActionsManage,
 			},
 			denied:      []AdminPermission{AdminPermissionRolesManageAdmins},
-			permissions: 14,
+			permissions: 16,
 		},
 		{
 			name: "superadmin",
@@ -75,8 +77,10 @@ func TestAdminPermissionMatrix(t *testing.T) {
 				AdminPermissionMonitoringRead,
 				AdminPermissionDashboardRead,
 				AdminPermissionAuditRead,
+				AdminPermissionActionsRead,
+				AdminPermissionActionsManage,
 			},
-			permissions: 15,
+			permissions: 17,
 		},
 	}
 

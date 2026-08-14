@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	actionAPI "verbatrace/monolit/internal/API/action"
 	adminAPI "verbatrace/monolit/internal/API/admin"
 	analysisAPI "verbatrace/monolit/internal/API/analysis"
 	analysisContextAPI "verbatrace/monolit/internal/API/analysis_context"
@@ -52,6 +53,7 @@ import (
 	transcriptionRepo "verbatrace/monolit/internal/repository/transcription"
 	userRepo "verbatrace/monolit/internal/repository/user"
 	userPreferencesRepo "verbatrace/monolit/internal/repository/user_preferences"
+	actionService "verbatrace/monolit/internal/service/action"
 	adminService "verbatrace/monolit/internal/service/admin"
 	analysisService "verbatrace/monolit/internal/service/analysis"
 	analysisContextService "verbatrace/monolit/internal/service/analysis_context"
@@ -298,6 +300,10 @@ func main() {
 	analysisContextHandler := analysisContextAPI.NewHandler(analysisContextSvc)
 	analysisHandler := analysisAPI.NewHandler(analysisSvc)
 	qualityReviewHandler := qualityReviewAPI.NewHandler(qualityReviewService.NewService(sqlDB))
+	actionSvc := actionService.NewService(sqlDB)
+	actionHandler := actionAPI.NewHandler(actionSvc)
+	actionWorkerDone := actionService.NewWorker(actionSvc, time.Hour, 500).Run(ctx)
+	actionOverdueWorkerDone := actionService.NewOverdueWorker(actionSvc, time.Hour, 500).Run(ctx)
 	reportHandler := reportAPI.NewHandler(reportSvc)
 	billingHandler := billingAPI.NewHandler(billingSvc)
 	analyticsHandler := analyticsAPI.NewHandler(analyticsSvc)
@@ -305,7 +311,7 @@ func main() {
 	searchHandler := searchAPI.NewHandler(searchSvc)
 	notificationHandler := notificationAPI.NewHandler(notificationSvc)
 
-	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
+	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, actionHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
 
 	server := &http.Server{
 		Addr:              config.AppConfig().HTTPConfig.Address(),
@@ -351,5 +357,17 @@ func main() {
 		case <-shutdownCtx.Done():
 			appLogger.Warn(context.Background(), "processing worker shutdown timed out", zap.Error(shutdownCtx.Err()))
 		}
+	}
+	select {
+	case <-actionWorkerDone:
+		appLogger.Info(context.Background(), "action worker shutdown completed")
+	case <-shutdownCtx.Done():
+		appLogger.Warn(context.Background(), "action worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+	}
+	select {
+	case <-actionOverdueWorkerDone:
+		appLogger.Info(context.Background(), "action overdue worker shutdown completed")
+	case <-shutdownCtx.Done():
+		appLogger.Warn(context.Background(), "action overdue worker shutdown timed out", zap.Error(shutdownCtx.Err()))
 	}
 }

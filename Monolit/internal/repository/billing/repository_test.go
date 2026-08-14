@@ -105,13 +105,9 @@ func (s *RepositorySuite) TestActivateAndCancelCompanySubscription() {
 
 func (s *RepositorySuite) TestAddUsageMinutesAccumulatesCurrentPeriod() {
 	userID := s.createUser("usage@example.com")
-	subscription, err := s.repository.UpsertSubscription(s.ctx, models.UpsertSubscriptionInput{
-		PlanCode: models.PlanCodePersonalStart,
-		UserUUID: uuid.NullUUID{UUID: userID, Valid: true},
-		Status:   models.SubscriptionStatusActive,
-		StartsAt: time.Now().UTC().Add(-time.Hour),
-	})
+	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
 	s.Require().NoError(err)
+	s.Require().Equal(models.PlanCodePersonalStart, subscription.Plan.Code)
 
 	now := time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)
 	_, err = s.repository.AddUsageMinutes(s.ctx, subscription.ID, now, 3)

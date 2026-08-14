@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI API.ContactAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, qualityReviewAPI API.QualityReviewAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, log logger.Logger) http.Handler {
+func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI API.ContactAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, qualityReviewAPI API.QualityReviewAPI, actionAPI API.ActionAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, log logger.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	authGuard := authMiddleware.Auth(jwtSecret, refreshSessionRepository)
@@ -68,6 +68,12 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCallsRead)).Get("/calls/{call_uuid}", adminAPI.GetCall)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCallsRead)).Get("/calls/{call_uuid}/audio", adminAPI.GetCallAudio)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCallsRead)).Get("/calls/{call_uuid}/media", adminAPI.GetCallAudio)
+				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsRead)).Get("/actions", actionAPI.ListAdmin)
+				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsRead)).Get("/actions/{action_uuid}", actionAPI.GetAdmin)
+				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/complete", actionAPI.CompleteAdmin)
+				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/cancel", actionAPI.CancelAdmin)
+				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/reschedule", actionAPI.RescheduleAdmin)
+				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/reassign", actionAPI.ReassignAdmin)
 			})
 
 			//CALL
@@ -101,6 +107,21 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Post("/quality-reviews/{review_uuid}/appeals", qualityReviewAPI.CreateAppeal)
 			r.With(authGuard).Post("/quality-review-appeals/{appeal_uuid}/resolve", qualityReviewAPI.ResolveAppeal)
 			r.With(authGuard).Get("/quality-reviews/{review_uuid}/events", qualityReviewAPI.ListEvents)
+
+			// ACTIONS
+			r.With(authGuard).Put("/calls/{uuid}/analyses/{analysis_uuid}/action-disposition", actionAPI.SetDisposition)
+			r.With(authGuard).Post("/calls/{uuid}/actions", actionAPI.Create)
+			r.With(authGuard).Get("/actions", actionAPI.List)
+			r.With(authGuard).Get("/actions/{action_uuid}", actionAPI.Get)
+			r.With(authGuard).Post("/actions/{action_uuid}/start", actionAPI.Start)
+			r.With(authGuard).Post("/actions/{action_uuid}/complete", actionAPI.Complete)
+			r.With(authGuard).Post("/actions/{action_uuid}/cancel", actionAPI.Cancel)
+			r.With(authGuard).Post("/actions/{action_uuid}/reschedule", actionAPI.Reschedule)
+			r.With(authGuard).Post("/actions/{action_uuid}/reassign", actionAPI.Reassign)
+			r.With(authGuard).Post("/actions/{action_uuid}/transfer-requests", actionAPI.CreateTransfer)
+			r.With(authGuard).Post("/actions/{action_uuid}/transfer-requests/{request_uuid}/approve", actionAPI.ApproveTransfer)
+			r.With(authGuard).Post("/actions/{action_uuid}/transfer-requests/{request_uuid}/reject", actionAPI.RejectTransfer)
+			r.With(authGuard).Get("/companies/{uuid}/action-assignees", actionAPI.ListAssignees)
 			r.With(authGuard).Post("/calls/{uuid}/reports", reportAPI.Create)
 			r.With(authGuard).Get("/calls/{uuid}/reports", reportAPI.ListByCallUUID)
 			r.With(authGuard).Get("/reports", reportAPI.List)

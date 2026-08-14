@@ -379,7 +379,7 @@ func visibleFolderCondition(userParam string) string {
                 SELECT 1 FROM department_members dm
                 WHERE dm.department_uuid = f.department_uuid
                   AND dm.user_uuid = %s
-                  AND dm.role = 'department_leader'
+                  AND dm.role IN ('department_leader', 'employee')
                   AND dm.status = 'active'
             )
             OR EXISTS (
