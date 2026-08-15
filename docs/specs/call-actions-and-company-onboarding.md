@@ -911,7 +911,6 @@ Feature flags разделяют action UI, reminders и overdue transitions. О
 - light и dark theme вручную проверены на desktop/mobile, включая все состояния;
 - observability dashboards/alerts и runbook готовы;
 - migrations и rollout/rollback отрепетированы на копии production-like данных;
-- Graphify обновлён успешно либо честно зафиксирована невозможность обновления.
 
 Компиляция, отдельный happy-path или визуально похожий mock не являются 100%
 реализацией. Готовность утверждается только по доказательствам каждого пункта этого

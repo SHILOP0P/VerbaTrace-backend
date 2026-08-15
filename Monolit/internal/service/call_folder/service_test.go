@@ -145,6 +145,13 @@ func TestOtherUserCannotManagePersonalFolder(t *testing.T) {
 	require.ErrorIs(t, svc.Delete(ctx, folder.ID, uuid.New()), models.ErrForbidden)
 }
 
+func TestListAllowsAllVisibleFoldersWithoutScopeFilter(t *testing.T) {
+	svc := NewService(newFolderRepoStub(), &callRepoStub{}, &companyRepoStub{}, &departmentRepoStub{})
+	result, err := svc.List(context.Background(), models.ListCallFoldersInput{UserID: uuid.New(), Limit: 100})
+	require.NoError(t, err)
+	require.Equal(t, 100, result.Limit)
+}
+
 func TestManagerCanGrantEmployeeDepartmentAccessButNotLeader(t *testing.T) {
 	ctx := context.Background()
 	managerID := uuid.New()

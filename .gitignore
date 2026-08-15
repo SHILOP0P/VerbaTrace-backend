@@ -55,8 +55,3 @@ data/
 
 # Obsidian local workspace settings
 **/.obsidian/
-
-# Graphify local files
-AGENTS.md
-.codex/
-graphify-out/

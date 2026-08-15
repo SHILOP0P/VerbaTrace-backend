@@ -57,6 +57,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 	if !deptsOK {
 		return Item{}, ErrInvalidInput
 	}
+	var noActionRequired bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM call_action_dispositions WHERE analysis_uuid=$1 AND kind='no_action_required' AND superseded_at IS NULL)`, in.AnalysisUUID).Scan(&noActionRequired); err != nil {
+		return Item{}, err
+	}
+	if noActionRequired {
+		return Item{}, ErrConflict
+	}
 	actionID := uuid.New()
 	now := s.now().UTC()
 	insertResult, err := tx.ExecContext(ctx, `INSERT INTO call_actions(action_uuid,company_uuid,source_department_uuid,target_department_uuid,call_uuid,analysis_uuid,transcription_revision,title,description,assignee_user_uuid,due_at,grace_expires_at,created_by_user_uuid,client_request_key,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15) ON CONFLICT(created_by_user_uuid,client_request_key) DO NOTHING`, actionID, company, in.SourceDepartment, in.TargetDepartment, in.CallUUID, in.AnalysisUUID, revision, in.Title, in.Description, in.AssigneeUserUUID, in.DueAt.UTC(), in.DueAt.UTC().Add(24*time.Hour), in.ActorUserUUID, in.IdempotencyKey, now)

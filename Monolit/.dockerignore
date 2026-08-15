@@ -3,6 +3,5 @@
 bin/
 coverage.out
 deploy/docker-compose.yaml
-graphify-out/
 uploads/
 tmp/

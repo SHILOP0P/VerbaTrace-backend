@@ -418,7 +418,8 @@ func normalizeUpdateInput(input *models.UpdateCallFolderInput) error {
 }
 
 func normalizeListInput(input *models.ListCallFoldersInput) error {
-	if !validScopePlacement(input.Scope, input.CompanyUUID, input.DepartmentUUID) {
+	allVisible := input.Scope == "" && !input.CompanyUUID.Valid && !input.DepartmentUUID.Valid
+	if !allVisible && !validScopePlacement(input.Scope, input.CompanyUUID, input.DepartmentUUID) {
 		return models.ErrInvalidCallFolderInput
 	}
 	input.Q = strings.TrimSpace(input.Q)

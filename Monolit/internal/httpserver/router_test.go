@@ -136,6 +136,7 @@ func (stubContactAPI) RemoveFavoriteCall(http.ResponseWriter, *http.Request) {}
 type stubNotificationAPI struct{}
 
 func (stubNotificationAPI) List(w http.ResponseWriter, r *http.Request)        {}
+func (stubNotificationAPI) Events(w http.ResponseWriter, r *http.Request)      {}
 func (stubNotificationAPI) MarkRead(w http.ResponseWriter, r *http.Request)    {}
 func (stubNotificationAPI) MarkAllRead(w http.ResponseWriter, r *http.Request) {}
 

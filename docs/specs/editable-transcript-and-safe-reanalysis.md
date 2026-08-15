@@ -911,7 +911,6 @@ SLO; эта спецификация не выдумывает их без пр�
 2. Сохранить видимость старого анализа до promotion.
 3. Обновить единое состояние `App.tsx` после success event.
 4. Проверить desktop/mobile и реальные API payloads.
-5. Выполнить `graphify update .`.
 
 ## 17. Тестирование
 
@@ -1029,7 +1028,6 @@ Rollback frontend безопасен. Rollback backend после появлен
 14. В логах и telemetry отсутствуют transcript text, исправленные слова и reason.
 15. Backend/frontend tests и browser QA пройдены.
 16. README и API-примеры обновлены.
-17. Выполнен `graphify update .` после реализации кода.
 18. История, diff и restore работают без перезаписи существующих revisions.
 19. Backup restore проверен на данных с revisions и analysis attempts.
 20. Приняты SLO, capacity target, RPO/RTO; dashboards, alerts и runbooks готовы.

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"verbatrace/monolit/internal/httpserver/middleware"
 	"verbatrace/monolit/internal/models"
@@ -62,11 +63,34 @@ func TestMarkAllReadUsesCurrentUser(t *testing.T) {
 	require.Equal(t, userID, service.markAllUserID)
 }
 
+func TestNotificationEventsStreamsCurrentUserNotifications(t *testing.T) {
+	userID := uuid.New()
+	notificationID := uuid.New()
+	service := &fakeNotificationService{listResult: models.ListNotificationsResult{Notifications: []models.Notification{{
+		ID: notificationID, UserUUID: userID, Type: models.NotificationTypeInvitation,
+		Title: "Новое приглашение", Body: "Вас пригласили", CreatedAt: time.Now().UTC(),
+	}}}}
+	handler := NewHandler(service)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/notifications/events", nil)
+	ctx, cancel := context.WithCancel(middleware.ContextWithUserID(request.Context(), userID))
+	cancel()
+	request = request.WithContext(ctx)
+	recorder := httptest.NewRecorder()
+
+	handler.Events(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+	require.Contains(t, recorder.Body.String(), "event: notification")
+	require.Contains(t, recorder.Body.String(), notificationID.String())
+}
+
 type fakeNotificationService struct {
 	lastList       models.ListNotificationsInput
 	markReadID     uuid.UUID
 	markReadUserID uuid.UUID
 	markAllUserID  uuid.UUID
+	listResult     models.ListNotificationsResult
 }
 
 func (s *fakeNotificationService) Create(ctx context.Context, input models.CreateNotificationInput) (models.Notification, error) {
@@ -75,7 +99,7 @@ func (s *fakeNotificationService) Create(ctx context.Context, input models.Creat
 
 func (s *fakeNotificationService) List(ctx context.Context, input models.ListNotificationsInput) (models.ListNotificationsResult, error) {
 	s.lastList = input
-	return models.ListNotificationsResult{}, nil
+	return s.listResult, nil
 }
 
 func (s *fakeNotificationService) MarkRead(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Notification, error) {

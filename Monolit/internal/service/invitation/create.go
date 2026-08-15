@@ -80,8 +80,10 @@ func (s *Service) CreateDepartmentInvitation(ctx context.Context, input models.C
 	if err != nil {
 		return models.MembershipInvitation{}, err
 	}
-	if !activeCompanyMember {
-		return models.MembershipInvitation{}, models.ErrForbidden
+	if !activeCompanyMember && s.billingLimiter != nil {
+		if err := s.billingLimiter.CanAddCompanyMember(ctx, input.CompanyUUID); err != nil {
+			return models.MembershipInvitation{}, err
+		}
 	}
 
 	activeDepartmentMember, err := s.isActiveDepartmentMember(ctx, input.CompanyUUID, input.DepartmentUUID, targetUserID)

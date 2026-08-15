@@ -1107,7 +1107,6 @@ request и push:
 - [ ] Frontend lint/test/build проходят.
 - [ ] Browser smoke подтверждает headline и разные company job titles.
 - [ ] Remote CI зеленый на фактическом commit SHA.
-- [ ] После изменения выполнен `graphify update .`.
 
 ## 20. Вне scope
 

@@ -168,6 +168,7 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 
 			//NOTIFICATIONS
 			r.With(authGuard).Get("/notifications", notificationAPI.List)
+			r.With(authGuard).Get("/notifications/events", notificationAPI.Events)
 			r.With(authGuard).Post("/notifications/{uuid}/read", notificationAPI.MarkRead)
 			r.With(authGuard).Post("/notifications/read-all", notificationAPI.MarkAllRead)
 

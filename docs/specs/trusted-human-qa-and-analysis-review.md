@@ -1102,7 +1102,6 @@ Backend:
 - OpenAPI/API contract checks, если генератор присутствует;
 - mock generation clean;
 - `git diff --check`;
-- Graphify update.
 
 Frontend:
 
@@ -1141,7 +1140,6 @@ Frontend:
 - browser QA подтверждает сохраненные данные, reload и реальный media evidence;
 - миграции, backend CI и frontend CI проходят;
 - README/API documentation обновлены;
-- Graphify успешно обновлен.
 
 ## 25. Решения, которые нельзя менять молча
 

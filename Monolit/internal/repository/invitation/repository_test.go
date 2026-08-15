@@ -165,9 +165,18 @@ func (s *RepositorySuite) TestAcceptCompanyInvitationCreatesAndReactivatesMember
 
 func (s *RepositorySuite) TestAcceptDepartmentInvitationCreatesDepartmentMemberForCompanyMember() {
 	company, manager := s.createCompanyWithManager()
+	previousDepartment := s.createDepartment(company.ID)
 	department := s.createDepartment(company.ID)
 	invited := s.createUser(uuid.NewString() + "@example.com")
 	s.addCompanyMember(company.ID, invited.ID, models.MembershipStatusActive)
+	_, err := s.departmentRepository.AddDepartmentMember(s.ctx, company.ID, models.DepartmentMember{
+		DepartmentUUID: previousDepartment.ID,
+		UserUUID:       invited.ID,
+		Role:           models.DepartmentMemberRoleEmployee,
+		Status:         models.MembershipStatusActive,
+		CreatedAt:      time.Now().UTC().Truncate(time.Microsecond),
+	})
+	s.Require().NoError(err)
 	role := models.DepartmentMemberRoleEmployee
 	invitation := testInvitation(company.ID, invited.ID, manager.ID)
 	invitation.DepartmentUUID = uuid.NullUUID{UUID: department.ID, Valid: true}
@@ -182,6 +191,11 @@ func (s *RepositorySuite) TestAcceptDepartmentInvitationCreatesDepartmentMemberF
 	member, err := s.departmentRepository.GetDepartmentMember(s.ctx, company.ID, department.ID, invited.ID)
 	s.Require().NoError(err)
 	s.Require().Equal(models.DepartmentMemberRoleEmployee, member.Role)
+
+	var previousStatus models.MembershipStatus
+	err = s.db.QueryRowContext(s.ctx, `SELECT status FROM department_members WHERE department_uuid=$1 AND user_uuid=$2`, previousDepartment.ID, invited.ID).Scan(&previousStatus)
+	s.Require().NoError(err)
+	s.Require().Equal(models.MembershipStatusLeft, previousStatus)
 }
 
 func (s *RepositorySuite) TestAcceptExpiredInvitationMarksExpired() {
@@ -244,7 +258,7 @@ func (s *RepositorySuite) TestGetAndAcceptMissingInvitation() {
 	s.Require().ErrorIs(err, models.ErrInvitationNotFound)
 }
 
-func (s *RepositorySuite) TestAcceptRejectsNonPendingAndDepartmentUserOutsideCompany() {
+func (s *RepositorySuite) TestAcceptRejectsNonPendingAndAddsDepartmentUserToCompany() {
 	company, manager := s.createCompanyWithManager()
 	department := s.createDepartment(company.ID)
 	invited := s.createUser(uuid.NewString() + "@example.com")
@@ -264,6 +278,13 @@ func (s *RepositorySuite) TestAcceptRejectsNonPendingAndDepartmentUserOutsideCom
 	departmentInvitation.DepartmentRole = &role
 	created, err := s.repository.CreateInvitation(s.ctx, departmentInvitation)
 	s.Require().NoError(err)
-	_, err = s.repository.AcceptInvitation(s.ctx, created.ID, time.Now().UTC())
-	s.Require().ErrorIs(err, models.ErrForbidden)
+	accepted, err := s.repository.AcceptInvitation(s.ctx, created.ID, time.Now().UTC())
+	s.Require().NoError(err)
+	s.Require().Equal(models.InvitationStatusAccepted, accepted.Status)
+	companyMember, err := s.companyRepository.GetCompanyMember(s.ctx, company.ID, invited.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(models.CompanyMemberRoleEmployee, companyMember.Role)
+	departmentMember, err := s.departmentRepository.GetDepartmentMember(s.ctx, company.ID, department.ID, invited.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(models.DepartmentMemberRoleEmployee, departmentMember.Role)
 }

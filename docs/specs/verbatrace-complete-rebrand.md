@@ -525,7 +525,6 @@ rg -n -i --hidden `
   --glob '!.git/**' `
   --glob '!node_modules/**' `
   --glob '!dist/**' `
-  --glob '!graphify-out/**' `
   --glob '!.gocache/**' `
   --glob '!.golangci-cache/**' `
   'calllens|call-lens|call_lens'
@@ -541,7 +540,7 @@ migration-модуле и временные `external.name` mappings. Кажд�
 ```powershell
 Get-ChildItem -Recurse -Force |
   Where-Object {
-    $_.FullName -notmatch '\\.git|node_modules|graphify-out|\\.gocache|\\.golangci-cache' -and
+    $_.FullName -notmatch '\\.git|node_modules|\\.gocache|\\.golangci-cache' -and
     $_.Name -match '(?i)calllens|call-lens|call_lens'
   }
 ```
@@ -598,7 +597,6 @@ Get-ChildItem -Recurse -Force |
 9. Browser settings мигрированы без сброса.
 10. Backend и frontend проходят полные проверки, включая Docker/integration и
     видимый browser smoke.
-11. `graphify update .` выполнен после кодовых изменений.
 12. Финальный поиск не находит старый бренд вне явно перечисленного временного
     migration compatibility слоя.
 13. Старые Docker volumes не удалены.
@@ -622,7 +620,6 @@ Get-ChildItem -Recurse -Force |
 - [ ] Pre/post row counts, UUID samples и upload checksums совпадают.
 - [ ] Старый и новый пользовательский сценарий проверены в браузере.
 - [ ] Выполнены backend/frontend CI и Docker restart checks.
-- [ ] Выполнен `graphify update .`.
 - [ ] Проведен content- и filename-аудит старого бренда.
 - [ ] Старые volumes сохранены как rollback assets.
 - [ ] Dumps/env/archives отсутствуют в Git.
@@ -666,7 +663,6 @@ Get-ChildItem -Recurse -Force |
   integration-набора;
 - backend unit/integration, format, lint, vet, binary/image build прошли;
 - frontend production build и browser smoke прошли;
-- graphify обновлен и отвечает по новому бренду.
 
 Подтвержденный post-migration baseline основной БД:
 

@@ -42,7 +42,7 @@ func (r *Repository) AcceptInvitation(ctx context.Context, id uuid.UUID, now tim
 	}
 
 	if invitation.DepartmentUUID.Valid {
-		if err := ensureActiveCompanyMember(ctx, tx, invitation.CompanyUUID, invitation.InvitedUserUUID); err != nil {
+		if err := upsertCompanyMember(ctx, tx, invitation); err != nil {
 			return model.MembershipInvitation{}, err
 		}
 
@@ -124,28 +124,20 @@ func upsertCompanyMember(ctx context.Context, tx *sql.Tx, invitation repoModel.M
 	return nil
 }
 
-func ensureActiveCompanyMember(ctx context.Context, tx *sql.Tx, companyID uuid.UUID, userID uuid.UUID) error {
-	query := `
-	SELECT 1
-	FROM company_members
-	WHERE company_uuid = $1
-	  AND user_uuid = $2
-	  AND status = 'active'
-	`
-
-	var exists int
-	err := tx.QueryRowContext(ctx, query, companyID, userID).Scan(&exists)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return model.ErrForbidden
-		}
-		return fmt.Errorf("check active company member: %w", err)
+func upsertDepartmentMember(ctx context.Context, tx *sql.Tx, invitation repoModel.MembershipInvitation) error {
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE department_members dm
+		SET status = 'left'
+		FROM departments d
+		WHERE d.department_uuid = dm.department_uuid
+		  AND d.company_uuid = $1
+		  AND dm.user_uuid = $2
+		  AND dm.department_uuid <> $3
+		  AND dm.status = 'active'
+	`, invitation.CompanyUUID, invitation.InvitedUserUUID, invitation.DepartmentUUID.UUID); err != nil {
+		return fmt.Errorf("leave previous department memberships: %w", err)
 	}
 
-	return nil
-}
-
-func upsertDepartmentMember(ctx context.Context, tx *sql.Tx, invitation repoModel.MembershipInvitation) error {
 	query := `
 	INSERT INTO department_members (
 		department_uuid,

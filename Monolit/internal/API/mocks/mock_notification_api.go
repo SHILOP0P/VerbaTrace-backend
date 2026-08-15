@@ -21,6 +21,11 @@ func (_m *NotificationAPI) EXPECT() *NotificationAPI_Expecter {
 	return &NotificationAPI_Expecter{mock: &_m.Mock}
 }
 
+// Events provides a mock function with given fields: w, r
+func (_m *NotificationAPI) Events(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
 // List provides a mock function with given fields: w, r
 func (_m *NotificationAPI) List(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)

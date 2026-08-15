@@ -73,6 +73,7 @@ type SearchAPI interface {
 
 type NotificationAPI interface {
 	List(w http.ResponseWriter, r *http.Request)
+	Events(w http.ResponseWriter, r *http.Request)
 	MarkRead(w http.ResponseWriter, r *http.Request)
 	MarkAllRead(w http.ResponseWriter, r *http.Request)
 }

@@ -68,7 +68,7 @@ func (s *Service) access(ctx context.Context, item Item, actor uuid.UUID, admin 
 	visible := actor == item.AssigneeUserUUID || actor == item.CreatedByUserUUID || manager || leaderSource || leaderTarget || adminAllowed
 	terminal := item.Status == "completed" || item.Status == "cancelled"
 	manage := manager || leaderSource || leaderTarget || adminAllowed
-	return Capabilities{CanStart: !terminal && (actor == item.AssigneeUserUUID || manage), CanComplete: !terminal && (actor == item.AssigneeUserUUID || manage), CanCancel: !terminal && (actor == item.AssigneeUserUUID || actor == item.CreatedByUserUUID || manage), CanReschedule: !terminal && manage, CanReassign: !terminal && manage, CanRequestTransfer: !terminal && actor == item.AssigneeUserUUID, CanResolveTransfer: !terminal && manage}, visible, nil
+	return Capabilities{CanStart: !terminal && (actor == item.AssigneeUserUUID || manage), CanComplete: !terminal && (actor == item.AssigneeUserUUID || manage), CanCancel: !terminal && manage, CanReschedule: !terminal && manage, CanReassign: !terminal && manage, CanRequestTransfer: !terminal && actor == item.AssigneeUserUUID, CanResolveTransfer: !terminal && manage}, visible, nil
 }
 
 func (s *Service) evidence(ctx context.Context, id uuid.UUID) ([]Evidence, error) {

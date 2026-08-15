@@ -61,7 +61,6 @@ func TestDepartmentLeaderCanInviteOnlyEmployeeToOwnDepartment(t *testing.T) {
 	userID := uuid.New()
 	f.users[userID] = models.CurrentUser{ID: userID}
 	f.companyMembers[companyKey(companyID, leaderID)] = models.CompanyMember{CompanyUUID: companyID, UserUUID: leaderID, Role: models.CompanyMemberRoleEmployee, Status: models.MembershipStatusActive}
-	f.companyMembers[companyKey(companyID, userID)] = models.CompanyMember{CompanyUUID: companyID, UserUUID: userID, Role: models.CompanyMemberRoleEmployee, Status: models.MembershipStatusActive}
 	f.departmentMembers[departmentKey(companyID, departmentID, leaderID)] = models.DepartmentMember{DepartmentUUID: departmentID, UserUUID: leaderID, Role: models.DepartmentMemberRoleLeader, Status: models.MembershipStatusActive}
 
 	_, err := f.service.CreateDepartmentInvitation(ctx, models.CreateDepartmentInvitationInput{
