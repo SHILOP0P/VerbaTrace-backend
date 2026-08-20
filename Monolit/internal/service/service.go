@@ -75,6 +75,7 @@ type NotificationService interface {
 	Create(ctx context.Context, input models.CreateNotificationInput) (models.Notification, error)
 	List(ctx context.Context, input models.ListNotificationsInput) (models.ListNotificationsResult, error)
 	MarkRead(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Notification, error)
+	MarkUnread(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Notification, error)
 	MarkAllRead(ctx context.Context, userID uuid.UUID) error
 }
 

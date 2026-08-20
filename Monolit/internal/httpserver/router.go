@@ -70,10 +70,12 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCallsRead)).Get("/calls/{call_uuid}/media", adminAPI.GetCallAudio)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsRead)).Get("/actions", actionAPI.ListAdmin)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsRead)).Get("/actions/{action_uuid}", actionAPI.GetAdmin)
+				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Get("/companies/{uuid}/action-assignees", actionAPI.ListAssigneesAdmin)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/complete", actionAPI.CompleteAdmin)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/cancel", actionAPI.CancelAdmin)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/reschedule", actionAPI.RescheduleAdmin)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/reassign", actionAPI.ReassignAdmin)
+				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/reopen", actionAPI.ReopenAdmin)
 			})
 
 			//CALL
@@ -118,6 +120,7 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Post("/actions/{action_uuid}/cancel", actionAPI.Cancel)
 			r.With(authGuard).Post("/actions/{action_uuid}/reschedule", actionAPI.Reschedule)
 			r.With(authGuard).Post("/actions/{action_uuid}/reassign", actionAPI.Reassign)
+			r.With(authGuard).Post("/actions/{action_uuid}/reopen", actionAPI.Reopen)
 			r.With(authGuard).Post("/actions/{action_uuid}/transfer-requests", actionAPI.CreateTransfer)
 			r.With(authGuard).Post("/actions/{action_uuid}/transfer-requests/{request_uuid}/approve", actionAPI.ApproveTransfer)
 			r.With(authGuard).Post("/actions/{action_uuid}/transfer-requests/{request_uuid}/reject", actionAPI.RejectTransfer)
@@ -170,6 +173,7 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Get("/notifications", notificationAPI.List)
 			r.With(authGuard).Get("/notifications/events", notificationAPI.Events)
 			r.With(authGuard).Post("/notifications/{uuid}/read", notificationAPI.MarkRead)
+			r.With(authGuard).Post("/notifications/{uuid}/unread", notificationAPI.MarkUnread)
 			r.With(authGuard).Post("/notifications/read-all", notificationAPI.MarkAllRead)
 
 			//BILLING

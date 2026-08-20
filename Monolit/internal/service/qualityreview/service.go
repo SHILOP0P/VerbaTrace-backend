@@ -112,6 +112,15 @@ type sourceCriterion struct {
 	Position int
 }
 
+func isReviewVisibleWithoutReviewPermission(status models.QualityReviewStatus) bool {
+	switch status {
+	case models.QualityReviewUnassigned, models.QualityReviewAssigned, models.QualityReviewPublished, models.QualityReviewResolved, models.QualityReviewCanceled:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Service) Create(ctx context.Context, in CreateInput) (models.QualityReview, error) {
 	if in.CallUUID == uuid.Nil || in.AnalysisUUID == uuid.Nil || in.ActorUserUUID == uuid.Nil {
 		return models.QualityReview{}, ErrInvalidInput
@@ -312,6 +321,9 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]models.QualityRevie
 	where := []string{`(
 		EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=q.company_uuid AND cm.user_uuid=$1 AND cm.status='active' AND cm.role='company_manager')
 		OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=q.department_uuid AND dm.user_uuid=$1 AND dm.status='active' AND dm.role='department_leader')
+		OR (q.status IN ('unassigned','assigned','published','resolved','canceled')
+			AND EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=q.company_uuid AND cm.user_uuid=$1 AND cm.status='active')
+			AND (q.reviewed_subject_user_uuid=$1 OR EXISTS(SELECT 1 FROM calls c WHERE c.call_uuid=q.call_uuid AND c.uploaded_by_user_uuid=$1)))
 		OR (q.company_uuid IS NULL AND EXISTS(SELECT 1 FROM calls c WHERE c.call_uuid=q.call_uuid AND c.visibility_scope='personal' AND c.uploaded_by_user_uuid=$1)))`}
 	if in.CompanyUUID.Valid {
 		args = append(args, in.CompanyUUID.UUID)
@@ -363,16 +375,19 @@ func (s *Service) Get(ctx context.Context, id, actor uuid.UUID) (models.QualityR
 	if err != nil {
 		return models.QualityReview{}, ErrNotFound
 	}
+	if !access.CanReview && !isReviewVisibleWithoutReviewPermission(q.Status) {
+		return models.QualityReview{}, ErrNotFound
+	}
 	q.Challenge, _ = loadChallenge(ctx, s.db, q.ID)
 	if !access.CanRead {
-		allowed := q.SubjectUserUUID.Valid && q.SubjectUserUUID.UUID == actor && q.ActiveRevisionUUID.Valid
+		allowed := q.SubjectUserUUID.Valid && q.SubjectUserUUID.UUID == actor
 		if q.Challenge != nil && q.Challenge.AuthorUserUUID == actor {
 			allowed = true
 		}
 		if !allowed {
 			var uploader uuid.NullUUID
 			_ = s.db.QueryRowContext(ctx, `SELECT uploaded_by_user_uuid FROM calls WHERE call_uuid=$1`, q.CallUUID).Scan(&uploader)
-			allowed = uploader.Valid && uploader.UUID == actor && q.ActiveRevisionUUID.Valid
+			allowed = uploader.Valid && uploader.UUID == actor
 		}
 		if !allowed {
 			return models.QualityReview{}, ErrNotFound

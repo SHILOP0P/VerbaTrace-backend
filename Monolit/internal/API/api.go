@@ -75,6 +75,7 @@ type NotificationAPI interface {
 	List(w http.ResponseWriter, r *http.Request)
 	Events(w http.ResponseWriter, r *http.Request)
 	MarkRead(w http.ResponseWriter, r *http.Request)
+	MarkUnread(w http.ResponseWriter, r *http.Request)
 	MarkAllRead(w http.ResponseWriter, r *http.Request)
 }
 
@@ -86,11 +87,13 @@ type ActionAPI interface {
 	List(http.ResponseWriter, *http.Request)
 	ListAdmin(http.ResponseWriter, *http.Request)
 	ListAssignees(http.ResponseWriter, *http.Request)
+	ListAssigneesAdmin(http.ResponseWriter, *http.Request)
 	Start(http.ResponseWriter, *http.Request)
 	Complete(http.ResponseWriter, *http.Request)
 	Cancel(http.ResponseWriter, *http.Request)
 	Reschedule(http.ResponseWriter, *http.Request)
 	Reassign(http.ResponseWriter, *http.Request)
+	Reopen(http.ResponseWriter, *http.Request)
 	CreateTransfer(http.ResponseWriter, *http.Request)
 	ApproveTransfer(http.ResponseWriter, *http.Request)
 	RejectTransfer(http.ResponseWriter, *http.Request)
@@ -98,6 +101,7 @@ type ActionAPI interface {
 	CancelAdmin(http.ResponseWriter, *http.Request)
 	RescheduleAdmin(http.ResponseWriter, *http.Request)
 	ReassignAdmin(http.ResponseWriter, *http.Request)
+	ReopenAdmin(http.ResponseWriter, *http.Request)
 }
 
 type AuthAPI interface {

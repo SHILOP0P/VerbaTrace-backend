@@ -26,7 +26,7 @@ func (s *Service) GetCompanySubscription(ctx context.Context, input models.GetCo
 		return models.Subscription{}, models.ErrInvalidBillingInput
 	}
 
-	if err := s.requireCompanyManager(ctx, input.CompanyUUID, input.RequestUser); err != nil {
+	if err := s.requireActiveCompanyMember(ctx, input.CompanyUUID, input.RequestUser); err != nil {
 		return models.Subscription{}, err
 	}
 

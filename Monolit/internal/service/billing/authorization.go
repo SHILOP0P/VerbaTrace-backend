@@ -24,3 +24,11 @@ func (s *Service) requireCompanyManager(ctx context.Context, companyID uuid.UUID
 
 	return nil
 }
+
+func (s *Service) requireActiveCompanyMember(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) error {
+	if s.companyRepository == nil {
+		return models.ErrForbidden
+	}
+	_, err := s.companyRepository.GetCompanyMember(ctx, companyID, userID)
+	return err
+}

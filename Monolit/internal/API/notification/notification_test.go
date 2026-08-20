@@ -89,6 +89,7 @@ type fakeNotificationService struct {
 	lastList       models.ListNotificationsInput
 	markReadID     uuid.UUID
 	markReadUserID uuid.UUID
+	markUnreadID   uuid.UUID
 	markAllUserID  uuid.UUID
 	listResult     models.ListNotificationsResult
 }
@@ -105,6 +106,11 @@ func (s *fakeNotificationService) List(ctx context.Context, input models.ListNot
 func (s *fakeNotificationService) MarkRead(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Notification, error) {
 	s.markReadID = id
 	s.markReadUserID = userID
+	return models.Notification{ID: id, UserUUID: userID}, nil
+}
+
+func (s *fakeNotificationService) MarkUnread(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Notification, error) {
+	s.markUnreadID = id
 	return models.Notification{ID: id, UserUUID: userID}, nil
 }
 

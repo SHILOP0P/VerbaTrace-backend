@@ -71,6 +71,25 @@ func (h *Handler) MarkRead(w http.ResponseWriter, r *http.Request) {
 	_ = response.WriteJSON(w, http.StatusOK, converter.NotificationModelToAPI(notification))
 }
 
+func (h *Handler) MarkUnread(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+	notificationID, err := uuid.Parse(chi.URLParam(r, "uuid"))
+	if err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidNotificationInput, "invalid notification input")
+		return
+	}
+	notification, err := h.service.MarkUnread(r.Context(), notificationID, userID)
+	if err != nil {
+		writeNotificationError(w, err, response.CodeFailedToMarkNotificationRead)
+		return
+	}
+	_ = response.WriteJSON(w, http.StatusOK, converter.NotificationModelToAPI(notification))
+}
+
 func (h *Handler) MarkAllRead(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {

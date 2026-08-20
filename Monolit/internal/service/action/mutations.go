@@ -17,6 +17,9 @@ func (s *Service) Complete(ctx context.Context, in UpdateInput) (Item, error) {
 }
 
 func (s *Service) statusMutation(ctx context.Context, in UpdateInput, status, event string) (Item, error) {
+	if in.Admin && len([]rune(strings.TrimSpace(in.Reason))) < 10 {
+		return Item{}, ErrInvalidInput
+	}
 	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
 	if err != nil {
 		return Item{}, err
@@ -103,7 +106,11 @@ func (s *Service) Cancel(ctx context.Context, in UpdateInput) (Item, error) {
 
 func (s *Service) Reschedule(ctx context.Context, in RescheduleInput) (Item, error) {
 	in.Reason = strings.TrimSpace(in.Reason)
-	if len([]rune(in.Reason)) < 3 || !in.DueAt.After(s.now()) {
+	minimumReasonLength := 3
+	if in.Admin {
+		minimumReasonLength = 10
+	}
+	if len([]rune(in.Reason)) < minimumReasonLength || !in.DueAt.After(s.now()) {
 		return Item{}, ErrInvalidInput
 	}
 	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
@@ -153,12 +160,15 @@ func (s *Service) Reassign(ctx context.Context, in ReassignInput) (Item, error) 
 	if !item.Capabilities.CanReassign {
 		return Item{}, ErrForbidden
 	}
+	if item.CompanyUUID == nil || item.TargetDepartmentUUID == nil {
+		return Item{}, ErrForbidden
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Item{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if ok, checkErr := validAssignment(ctx, tx, item.CompanyUUID, in.TargetDepartmentUUID, in.AssigneeUserUUID); checkErr != nil {
+	if ok, checkErr := validAssignment(ctx, tx, *item.CompanyUUID, in.TargetDepartmentUUID, in.AssigneeUserUUID); checkErr != nil {
 		return Item{}, checkErr
 	} else if !ok {
 		return Item{}, ErrInvalidInput
@@ -190,6 +200,48 @@ func (s *Service) Reassign(ctx context.Context, in ReassignInput) (Item, error) 
 	return s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
 }
 
+func (s *Service) Reopen(ctx context.Context, in UpdateInput) (Item, error) {
+	in.Reason = strings.TrimSpace(in.Reason)
+	if len([]rune(in.Reason)) < 10 || len([]rune(in.Reason)) > 2000 {
+		return Item{}, ErrInvalidInput
+	}
+	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
+	if err != nil {
+		return Item{}, err
+	}
+	if !item.Capabilities.CanReopen {
+		return Item{}, ErrConflict
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Item{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := s.now().UTC()
+	res, err := tx.ExecContext(ctx, `UPDATE call_actions SET status=CASE WHEN due_at <= $1 THEN 'overdue' ELSE 'open' END,completed_at=NULL,completed_by_user_uuid=NULL,cancelled_at=NULL,cancelled_by_user_uuid=NULL,cancel_reason=NULL,updated_at=$1,lock_version=lock_version+1,schedule_version=schedule_version+1 WHERE action_uuid=$2 AND lock_version=$3 AND status IN ('completed','cancelled')`, now, in.ActionUUID, in.ExpectedVersion)
+	if err != nil {
+		return Item{}, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return Item{}, ErrConflict
+	}
+	newStatus := "open"
+	if !item.DueAt.After(now) {
+		newStatus = "overdue"
+	}
+	if err = insertEvent(ctx, tx, in.ActionUUID, "reopened", in.ActorUserUUID, in.Reason, map[string]any{"status": item.Status}, map[string]any{"status": newStatus}); err != nil {
+		return Item{}, err
+	}
+	if err = createNotification(ctx, tx, in.ActionUUID, item.AssigneeUserUUID, "action_reopened", "Действие восстановлено", item.Title, item.LockVersion+1); err != nil {
+		return Item{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return Item{}, err
+	}
+	return s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
+}
+
 func (s *Service) CreateTransfer(ctx context.Context, in TransferInput) (TransferRequest, error) {
 	in.Reason = strings.TrimSpace(in.Reason)
 	if len([]rune(in.Reason)) < 10 || len([]rune(in.Reason)) > 2000 {
@@ -202,6 +254,9 @@ func (s *Service) CreateTransfer(ctx context.Context, in TransferInput) (Transfe
 	if !item.Capabilities.CanRequestTransfer {
 		return TransferRequest{}, ErrForbidden
 	}
+	if item.CompanyUUID == nil || item.TargetDepartmentUUID == nil {
+		return TransferRequest{}, ErrForbidden
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return TransferRequest{}, err
@@ -211,7 +266,7 @@ func (s *Service) CreateTransfer(ctx context.Context, in TransferInput) (Transfe
 		if !in.ProposedDepartment.Valid {
 			return TransferRequest{}, ErrInvalidInput
 		}
-		ok, checkErr := validAssignment(ctx, tx, item.CompanyUUID, in.ProposedDepartment.UUID, in.ProposedAssignee.UUID)
+		ok, checkErr := validAssignment(ctx, tx, *item.CompanyUUID, in.ProposedDepartment.UUID, in.ProposedAssignee.UUID)
 		if checkErr != nil {
 			return TransferRequest{}, checkErr
 		}
@@ -230,7 +285,7 @@ func (s *Service) CreateTransfer(ctx context.Context, in TransferInput) (Transfe
 	if err = insertEvent(ctx, tx, in.ActionUUID, "transfer_requested", in.ActorUserUUID, in.Reason, nil, map[string]any{"request_uuid": id}); err != nil {
 		return TransferRequest{}, err
 	}
-	recipients, err := leadersAndManagers(ctx, tx, item.CompanyUUID, item.TargetDepartmentUUID)
+	recipients, err := leadersAndManagers(ctx, tx, *item.CompanyUUID, *item.TargetDepartmentUUID)
 	if err != nil {
 		return TransferRequest{}, err
 	}
@@ -315,7 +370,10 @@ func (s *Service) ResolveTransfer(ctx context.Context, in ResolveTransferInput) 
 		if !assignee.Valid || !dept.Valid {
 			return Item{}, ErrInvalidInput
 		}
-		ok, checkErr := validAssignment(ctx, tx, item.CompanyUUID, dept.UUID, assignee.UUID)
+		if item.CompanyUUID == nil {
+			return Item{}, ErrForbidden
+		}
+		ok, checkErr := validAssignment(ctx, tx, *item.CompanyUUID, dept.UUID, assignee.UUID)
 		if checkErr != nil {
 			return Item{}, checkErr
 		}

@@ -55,6 +55,10 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 	router.ServeHTTP(adminRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/admin/capabilities", nil))
 	require.Equal(t, http.StatusUnauthorized, adminRecorder.Code)
 
+	reopenRecorder := httptest.NewRecorder()
+	router.ServeHTTP(reopenRecorder, httptest.NewRequest(http.MethodPost, "/api/v1/admin/actions/00000000-0000-0000-0000-000000000001/reopen", nil))
+	require.Equal(t, http.StatusUnauthorized, reopenRecorder.Code)
+
 	notFoundRecorder := httptest.NewRecorder()
 	router.ServeHTTP(notFoundRecorder, httptest.NewRequest(http.MethodGet, "/missing", nil))
 	require.Equal(t, http.StatusNotFound, notFoundRecorder.Code)
@@ -88,25 +92,28 @@ func (stubQualityReviewAPI) UpdateAnalysisComment(http.ResponseWriter, *http.Req
 
 type stubActionAPI struct{}
 
-func (stubActionAPI) Create(http.ResponseWriter, *http.Request)          {}
-func (stubActionAPI) SetDisposition(http.ResponseWriter, *http.Request)  {}
-func (stubActionAPI) Get(http.ResponseWriter, *http.Request)             {}
-func (stubActionAPI) GetAdmin(http.ResponseWriter, *http.Request)        {}
-func (stubActionAPI) List(http.ResponseWriter, *http.Request)            {}
-func (stubActionAPI) ListAdmin(http.ResponseWriter, *http.Request)       {}
-func (stubActionAPI) ListAssignees(http.ResponseWriter, *http.Request)   {}
-func (stubActionAPI) Start(http.ResponseWriter, *http.Request)           {}
-func (stubActionAPI) Complete(http.ResponseWriter, *http.Request)        {}
-func (stubActionAPI) Cancel(http.ResponseWriter, *http.Request)          {}
-func (stubActionAPI) Reschedule(http.ResponseWriter, *http.Request)      {}
-func (stubActionAPI) Reassign(http.ResponseWriter, *http.Request)        {}
-func (stubActionAPI) CreateTransfer(http.ResponseWriter, *http.Request)  {}
-func (stubActionAPI) ApproveTransfer(http.ResponseWriter, *http.Request) {}
-func (stubActionAPI) RejectTransfer(http.ResponseWriter, *http.Request)  {}
-func (stubActionAPI) CompleteAdmin(http.ResponseWriter, *http.Request)   {}
-func (stubActionAPI) CancelAdmin(http.ResponseWriter, *http.Request)     {}
-func (stubActionAPI) RescheduleAdmin(http.ResponseWriter, *http.Request) {}
-func (stubActionAPI) ReassignAdmin(http.ResponseWriter, *http.Request)   {}
+func (stubActionAPI) Create(http.ResponseWriter, *http.Request)             {}
+func (stubActionAPI) SetDisposition(http.ResponseWriter, *http.Request)     {}
+func (stubActionAPI) Get(http.ResponseWriter, *http.Request)                {}
+func (stubActionAPI) GetAdmin(http.ResponseWriter, *http.Request)           {}
+func (stubActionAPI) List(http.ResponseWriter, *http.Request)               {}
+func (stubActionAPI) ListAdmin(http.ResponseWriter, *http.Request)          {}
+func (stubActionAPI) ListAssignees(http.ResponseWriter, *http.Request)      {}
+func (stubActionAPI) ListAssigneesAdmin(http.ResponseWriter, *http.Request) {}
+func (stubActionAPI) Start(http.ResponseWriter, *http.Request)              {}
+func (stubActionAPI) Complete(http.ResponseWriter, *http.Request)           {}
+func (stubActionAPI) Cancel(http.ResponseWriter, *http.Request)             {}
+func (stubActionAPI) Reschedule(http.ResponseWriter, *http.Request)         {}
+func (stubActionAPI) Reassign(http.ResponseWriter, *http.Request)           {}
+func (stubActionAPI) Reopen(http.ResponseWriter, *http.Request)             {}
+func (stubActionAPI) CreateTransfer(http.ResponseWriter, *http.Request)     {}
+func (stubActionAPI) ApproveTransfer(http.ResponseWriter, *http.Request)    {}
+func (stubActionAPI) RejectTransfer(http.ResponseWriter, *http.Request)     {}
+func (stubActionAPI) CompleteAdmin(http.ResponseWriter, *http.Request)      {}
+func (stubActionAPI) CancelAdmin(http.ResponseWriter, *http.Request)        {}
+func (stubActionAPI) RescheduleAdmin(http.ResponseWriter, *http.Request)    {}
+func (stubActionAPI) ReassignAdmin(http.ResponseWriter, *http.Request)      {}
+func (stubActionAPI) ReopenAdmin(http.ResponseWriter, *http.Request)        {}
 
 type stubCallFolderAPI struct{}
 
@@ -138,6 +145,7 @@ type stubNotificationAPI struct{}
 func (stubNotificationAPI) List(w http.ResponseWriter, r *http.Request)        {}
 func (stubNotificationAPI) Events(w http.ResponseWriter, r *http.Request)      {}
 func (stubNotificationAPI) MarkRead(w http.ResponseWriter, r *http.Request)    {}
+func (stubNotificationAPI) MarkUnread(w http.ResponseWriter, r *http.Request)  {}
 func (stubNotificationAPI) MarkAllRead(w http.ResponseWriter, r *http.Request) {}
 
 type stubAdminAPI struct{}

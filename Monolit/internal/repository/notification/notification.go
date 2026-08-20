@@ -122,6 +122,18 @@ func (r *Repository) MarkRead(ctx context.Context, id uuid.UUID, userID uuid.UUI
 	return notification, nil
 }
 
+func (r *Repository) MarkUnread(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Notification, error) {
+	query := `UPDATE notifications SET read_at = NULL WHERE notification_uuid = $1 AND user_uuid = $2 RETURNING ` + notificationColumns
+	notification, err := scanNotification(r.db.QueryRowContext(ctx, query, id, userID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.Notification{}, models.ErrNotificationNotFound
+		}
+		return models.Notification{}, fmt.Errorf("mark notification unread: %w", err)
+	}
+	return notification, nil
+}
+
 func (r *Repository) MarkAllRead(ctx context.Context, userID uuid.UUID, readAt time.Time) error {
 	_, err := r.db.ExecContext(ctx, `
 	UPDATE notifications

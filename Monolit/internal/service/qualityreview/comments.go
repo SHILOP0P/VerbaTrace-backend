@@ -15,6 +15,7 @@ import (
 type CreateCommentInput struct {
 	CallUUID, AnalysisUUID, ActorUserUUID uuid.UUID
 	Body                                  string
+	CriterionKey                          string
 }
 
 type UpdateCommentInput struct {
@@ -52,7 +53,14 @@ func (s *Service) commentAccess(ctx context.Context, callID, analysisID, actor u
 	if access.CanReview {
 		return true, nil
 	}
-	if !isAuthor || !company.Valid {
+	if !company.Valid {
+		return false, nil
+	}
+	var isSubject bool
+	if err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM call_quality_reviews WHERE analysis_uuid=$1 AND reviewed_subject_user_uuid=$2 AND status<>'canceled')`, analysisID, actor).Scan(&isSubject); err != nil {
+		return false, err
+	}
+	if !isAuthor && !isSubject {
 		return false, nil
 	}
 	var active bool
@@ -68,7 +76,7 @@ func (s *Service) ListAnalysisComments(ctx context.Context, callID, analysisID, 
 	if !allowed {
 		return nil, ErrNotFound
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT c.comment_uuid,c.call_uuid,c.analysis_uuid,c.author_user_uuid,COALESCE(NULLIF(btrim(concat_ws(' ',p.full_name,p.full_surname)),''),p.username,'Пользователь'),c.body,c.created_at,c.edited_at,c.lock_version FROM call_analysis_comments c LEFT JOIN user_profiles p ON p.user_uuid=c.author_user_uuid WHERE c.call_uuid=$1 AND c.analysis_uuid=$2 ORDER BY c.created_at,c.comment_uuid`, callID, analysisID)
+	rows, err := s.db.QueryContext(ctx, `SELECT c.comment_uuid,c.call_uuid,c.analysis_uuid,c.author_user_uuid,COALESCE(NULLIF(btrim(concat_ws(' ',p.full_name,p.full_surname)),''),p.username,'Пользователь'),c.body,c.criterion_key,c.created_at,c.edited_at,c.lock_version FROM call_analysis_comments c LEFT JOIN user_profiles p ON p.user_uuid=c.author_user_uuid WHERE c.call_uuid=$1 AND c.analysis_uuid=$2 ORDER BY c.created_at,c.comment_uuid`, callID, analysisID)
 	if err != nil {
 		return nil, err
 	}
@@ -77,8 +85,12 @@ func (s *Service) ListAnalysisComments(ctx context.Context, callID, analysisID, 
 	for rows.Next() {
 		var item models.AnalysisComment
 		var edited sql.NullTime
-		if err = rows.Scan(&item.ID, &item.CallUUID, &item.AnalysisUUID, &item.AuthorUserUUID, &item.AuthorName, &item.Body, &item.CreatedAt, &edited, &item.LockVersion); err != nil {
+		var criterion sql.NullString
+		if err = rows.Scan(&item.ID, &item.CallUUID, &item.AnalysisUUID, &item.AuthorUserUUID, &item.AuthorName, &item.Body, &criterion, &item.CreatedAt, &edited, &item.LockVersion); err != nil {
 			return nil, err
+		}
+		if criterion.Valid {
+			item.CriterionKey = &criterion.String
 		}
 		item.CanEdit = item.AuthorUserUUID == actor
 		if edited.Valid {
@@ -104,8 +116,12 @@ func (s *Service) CreateAnalysisComment(ctx context.Context, in CreateCommentInp
 	if !allowed {
 		return models.AnalysisComment{}, ErrForbidden
 	}
+	criterionKey := strings.TrimSpace(in.CriterionKey)
+	if len([]rune(criterionKey)) > 200 {
+		return models.AnalysisComment{}, ErrInvalidInput
+	}
 	id, now := uuid.New(), time.Now().UTC()
-	_, err = s.db.ExecContext(ctx, `INSERT INTO call_analysis_comments(comment_uuid,call_uuid,analysis_uuid,author_user_uuid,body,created_at) VALUES($1,$2,$3,$4,$5,$6)`, id, in.CallUUID, in.AnalysisUUID, in.ActorUserUUID, body, now)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO call_analysis_comments(comment_uuid,call_uuid,analysis_uuid,author_user_uuid,body,criterion_key,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)`, id, in.CallUUID, in.AnalysisUUID, in.ActorUserUUID, body, nullString(criterionKey), now)
 	if err != nil {
 		return models.AnalysisComment{}, err
 	}

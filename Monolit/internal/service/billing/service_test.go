@@ -404,6 +404,28 @@ func TestGetCompanySubscriptionUsageIncludesCounters(t *testing.T) {
 	require.Equal(t, 4, *usage.ActiveInstructionsUsed)
 }
 
+func TestGetCompanySubscriptionAllowsActiveEmployeeToReadPlan(t *testing.T) {
+	companyID := uuid.New()
+	employeeID := uuid.New()
+	expected := models.Subscription{ID: uuid.New(), Plan: models.Plan{Code: models.PlanCodeBusinessStart}}
+	service := NewService(&fakeRepository{businessSubscription: expected})
+	service.SetCompanyRepository(&fakeCompanyRepository{member: models.CompanyMember{
+		CompanyUUID: companyID,
+		UserUUID:    employeeID,
+		Role:        models.CompanyMemberRoleEmployee,
+		Status:      models.MembershipStatusActive,
+	}})
+
+	actual, err := service.GetCompanySubscription(context.Background(), models.GetCompanySubscriptionInput{
+		CompanyUUID: companyID,
+		RequestUser: employeeID,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, expected.ID, actual.ID)
+	require.Equal(t, models.PlanCodeBusinessStart, actual.Plan.Code)
+}
+
 type fakeRepository struct {
 	personalSubscription         models.Subscription
 	businessSubscription         models.Subscription

@@ -53,15 +53,20 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, actionservice.ErrInvalidInput)
 		return
 	}
-	source, err := uuid.Parse(req.SourceDepartmentUUID)
-	if err != nil {
-		writeErr(w, actionservice.ErrInvalidInput)
-		return
+	var source, target uuid.UUID
+	if strings.TrimSpace(req.SourceDepartmentUUID) != "" {
+		source, err = uuid.Parse(req.SourceDepartmentUUID)
+		if err != nil {
+			writeErr(w, actionservice.ErrInvalidInput)
+			return
+		}
 	}
-	target, err := uuid.Parse(req.TargetDepartmentUUID)
-	if err != nil {
-		writeErr(w, actionservice.ErrInvalidInput)
-		return
+	if strings.TrimSpace(req.TargetDepartmentUUID) != "" {
+		target, err = uuid.Parse(req.TargetDepartmentUUID)
+		if err != nil {
+			writeErr(w, actionservice.ErrInvalidInput)
+			return
+		}
 	}
 	var assignee uuid.UUID
 	if strings.TrimSpace(req.AssigneeUserUUID) != "" {
@@ -133,6 +138,8 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, admin bool) {
 	}
 	q := r.URL.Query()
 	in := actionservice.ListInput{ActorUserUUID: actor, Status: q.Get("status"), Query: strings.TrimSpace(q.Get("q")), Mine: q.Get("mine") == "true", Limit: intQuery(q.Get("limit"), 25), Offset: intQuery(q.Get("offset"), 0), Admin: admin}
+	in.CompanyTag = strings.TrimSpace(q.Get("company_tag"))
+	in.Department = strings.TrimSpace(q.Get("department"))
 	in.CompanyUUID = parseNullUUID(q.Get("company_uuid"))
 	in.CallUUID = parseNullUUID(q.Get("call_uuid"))
 	in.DepartmentUUID = parseNullUUID(q.Get("department_uuid"))
@@ -146,13 +153,21 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, admin bool) {
 }
 
 func (h *Handler) ListAssignees(w http.ResponseWriter, r *http.Request) {
+	h.listAssignees(w, r, false)
+}
+
+func (h *Handler) ListAssigneesAdmin(w http.ResponseWriter, r *http.Request) {
+	h.listAssignees(w, r, true)
+}
+
+func (h *Handler) listAssignees(w http.ResponseWriter, r *http.Request, admin bool) {
 	actor, ok := user(r)
 	company, err := uuid.Parse(chi.URLParam(r, "uuid"))
 	if !ok || err != nil {
 		writeErr(w, actionservice.ErrInvalidInput)
 		return
 	}
-	items, err := h.service.ListAssignees(r.Context(), actor, company, r.URL.Query().Get("q"), parseNullUUID(r.URL.Query().Get("department_uuid")))
+	items, err := h.service.ListAssignees(r.Context(), actor, company, r.URL.Query().Get("q"), parseNullUUID(r.URL.Query().Get("department_uuid")), admin)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -173,6 +188,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request)   { h.mutate(
 func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request)     { h.mutate(w, r, "cancel") }
 func (h *Handler) Reschedule(w http.ResponseWriter, r *http.Request) { h.mutate(w, r, "reschedule") }
 func (h *Handler) Reassign(w http.ResponseWriter, r *http.Request)   { h.mutate(w, r, "reassign") }
+func (h *Handler) Reopen(w http.ResponseWriter, r *http.Request)     { h.mutate(w, r, "reopen") }
 func (h *Handler) CompleteAdmin(w http.ResponseWriter, r *http.Request) {
 	h.mutateWithAdmin(w, r, "complete", true)
 }
@@ -184,6 +200,9 @@ func (h *Handler) RescheduleAdmin(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) ReassignAdmin(w http.ResponseWriter, r *http.Request) {
 	h.mutateWithAdmin(w, r, "reassign", true)
+}
+func (h *Handler) ReopenAdmin(w http.ResponseWriter, r *http.Request) {
+	h.mutateWithAdmin(w, r, "reopen", true)
 }
 func (h *Handler) mutate(w http.ResponseWriter, r *http.Request, kind string) {
 	h.mutateWithAdmin(w, r, kind, false)
@@ -220,6 +239,8 @@ func (h *Handler) mutateWithAdmin(w http.ResponseWriter, r *http.Request, kind s
 		if err == nil {
 			item, err = h.service.Reassign(r.Context(), actionservice.ReassignInput{UpdateInput: base, AssigneeUserUUID: assignee, TargetDepartmentUUID: department})
 		}
+	case "reopen":
+		item, err = h.service.Reopen(r.Context(), base)
 	}
 	if err != nil {
 		writeErr(w, err)

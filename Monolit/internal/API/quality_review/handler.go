@@ -52,7 +52,8 @@ type resolveRequest struct {
 	ReplacementRevisionUUID *string                          `json:"replacement_revision_uuid"`
 }
 type commentRequest struct {
-	Body string `json:"body"`
+	Body         string `json:"body"`
+	CriterionKey string `json:"criterion_key"`
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -347,7 +348,7 @@ func (h *Handler) CreateAnalysisComment(w http.ResponseWriter, r *http.Request) 
 		writeError(w, qualityreview.ErrInvalidInput)
 		return
 	}
-	item, err := h.service.CreateAnalysisComment(r.Context(), qualityreview.CreateCommentInput{CallUUID: callID, AnalysisUUID: analysisID, ActorUserUUID: actor, Body: req.Body})
+	item, err := h.service.CreateAnalysisComment(r.Context(), qualityreview.CreateCommentInput{CallUUID: callID, AnalysisUUID: analysisID, ActorUserUUID: actor, Body: req.Body, CriterionKey: req.CriterionKey})
 	if err != nil {
 		writeError(w, err)
 		return

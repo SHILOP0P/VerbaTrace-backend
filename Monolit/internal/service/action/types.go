@@ -49,9 +49,15 @@ type Evidence struct {
 
 type Item struct {
 	ID                    uuid.UUID    `json:"id"`
-	CompanyUUID           uuid.UUID    `json:"company_uuid"`
-	SourceDepartmentUUID  uuid.UUID    `json:"source_department_uuid"`
-	TargetDepartmentUUID  uuid.UUID    `json:"target_department_uuid"`
+	CompanyUUID           *uuid.UUID   `json:"company_uuid,omitempty"`
+	CompanyName           string       `json:"company_name"`
+	CompanyTag            string       `json:"company_tag"`
+	ScopeType             string       `json:"scope_type"`
+	ScopeTag              string       `json:"scope_tag"`
+	SourceDepartmentUUID  *uuid.UUID   `json:"source_department_uuid,omitempty"`
+	SourceDepartmentName  string       `json:"source_department_name"`
+	TargetDepartmentUUID  *uuid.UUID   `json:"target_department_uuid,omitempty"`
+	TargetDepartmentName  string       `json:"target_department_name"`
 	CallUUID              uuid.UUID    `json:"call_uuid"`
 	AnalysisUUID          uuid.UUID    `json:"analysis_uuid"`
 	TranscriptionRevision int          `json:"transcription_revision"`
@@ -82,6 +88,7 @@ type Capabilities struct {
 	CanReassign        bool `json:"can_reassign"`
 	CanRequestTransfer bool `json:"can_request_transfer"`
 	CanResolveTransfer bool `json:"can_resolve_transfer"`
+	CanReopen          bool `json:"can_reopen"`
 }
 
 type ListInput struct {
@@ -92,6 +99,8 @@ type ListInput struct {
 	AssigneeUUID   uuid.NullUUID
 	Status         string
 	Query          string
+	CompanyTag     string
+	Department     string
 	Mine           bool
 	Limit          int
 	Offset         int

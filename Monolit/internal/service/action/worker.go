@@ -150,9 +150,10 @@ func (w *OverdueWorker) RunOnce(ctx context.Context) {
 			return
 		}
 		type candidate struct {
-			id, company, department, assignee uuid.UUID
-			title                             string
-			version                           int64
+			id, assignee        uuid.UUID
+			company, department uuid.NullUUID
+			title               string
+			version             int64
 		}
 		items := []candidate{}
 		for rows.Next() {
@@ -177,10 +178,12 @@ func (w *OverdueWorker) RunOnce(ctx context.Context) {
 			}
 			_ = insertEvent(ctx, tx, c.id, "overdue", uuid.Nil, "", map[string]any{"status": "open"}, map[string]any{"status": "overdue"})
 			_ = createNotification(ctx, tx, c.id, c.assignee, "action_overdue", "Действие просрочено", c.title, c.version+1)
-			leaders, _ := leadersAndManagers(ctx, tx, c.company, c.department)
-			for _, recipient := range leaders {
-				if recipient != c.assignee {
-					_ = createNotification(ctx, tx, c.id, recipient, "action_overdue", "Действие просрочено", c.title, c.version+1)
+			if c.company.Valid && c.department.Valid {
+				leaders, _ := leadersAndManagers(ctx, tx, c.company.UUID, c.department.UUID)
+				for _, recipient := range leaders {
+					if recipient != c.assignee {
+						_ = createNotification(ctx, tx, c.id, recipient, "action_overdue", "Действие просрочено", c.title, c.version+1)
+					}
 				}
 			}
 		}
@@ -191,7 +194,7 @@ func (w *OverdueWorker) RunOnce(ctx context.Context) {
 }
 
 func (w *Worker) runInvalidAssignments(ctx context.Context) {
-	rows, err := w.service.db.QueryContext(ctx, `SELECT a.action_uuid,a.company_uuid,a.target_department_uuid,a.assignee_user_uuid,a.title,a.lock_version FROM call_actions a WHERE a.status IN ('open','in_progress','overdue') AND a.assignment_state='valid' AND NOT EXISTS(SELECT 1 FROM company_members cm JOIN department_members dm ON dm.user_uuid=cm.user_uuid AND dm.department_uuid=a.target_department_uuid WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=a.assignee_user_uuid AND cm.status='active' AND dm.status='active') LIMIT $1`, w.batch)
+	rows, err := w.service.db.QueryContext(ctx, `SELECT a.action_uuid,a.company_uuid,a.target_department_uuid,a.assignee_user_uuid,a.title,a.lock_version FROM call_actions a WHERE a.company_uuid IS NOT NULL AND a.status IN ('open','in_progress','overdue') AND a.assignment_state='valid' AND NOT EXISTS(SELECT 1 FROM company_members cm JOIN department_members dm ON dm.user_uuid=cm.user_uuid AND dm.department_uuid=a.target_department_uuid WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=a.assignee_user_uuid AND cm.status='active' AND dm.status='active') LIMIT $1`, w.batch)
 	if err != nil {
 		return
 	}

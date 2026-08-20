@@ -19,7 +19,7 @@ func NewService(db *sql.DB) *Service { return &Service{db: db, now: time.Now} }
 
 func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 	in.Title, in.Description = strings.TrimSpace(in.Title), strings.TrimSpace(in.Description)
-	if in.ActorUserUUID == uuid.Nil || in.CallUUID == uuid.Nil || in.AnalysisUUID == uuid.Nil || in.SourceDepartment == uuid.Nil || in.TargetDepartment == uuid.Nil || in.Title == "" || len([]rune(in.Title)) > 200 || len([]rune(in.Description)) > 10000 || !in.DueAt.After(s.now()) || len(in.Evidence) > 20 || len(in.IdempotencyKey) < 8 || len(in.IdempotencyKey) > 200 {
+	if in.ActorUserUUID == uuid.Nil || in.CallUUID == uuid.Nil || in.AnalysisUUID == uuid.Nil || in.Title == "" || len([]rune(in.Title)) > 200 || len([]rune(in.Description)) > 10000 || !in.DueAt.After(s.now()) || len(in.Evidence) > 20 || len(in.IdempotencyKey) < 8 || len(in.IdempotencyKey) > 200 {
 		return Item{}, ErrInvalidInput
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -27,35 +27,43 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 		return Item{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	var company uuid.UUID
+	var company uuid.NullUUID
 	var uploadedBy uuid.UUID
 	var revision int
-	err = tx.QueryRowContext(ctx, `SELECT c.company_uuid,c.uploaded_by_user_uuid,COALESCE(rs.active_revision,1) FROM calls c JOIN call_analyses a ON a.call_uuid=c.call_uuid LEFT JOIN call_transcriptions t ON t.call_uuid=c.call_uuid LEFT JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid WHERE c.call_uuid=$1 AND a.analysis_uuid=$2 AND a.status='done' AND c.company_uuid IS NOT NULL AND c.uploaded_by_user_uuid IS NOT NULL`, in.CallUUID, in.AnalysisUUID).Scan(&company, &uploadedBy, &revision)
+	err = tx.QueryRowContext(ctx, `SELECT c.company_uuid,c.uploaded_by_user_uuid,COALESCE(rs.active_revision,1) FROM calls c JOIN call_analyses a ON a.call_uuid=c.call_uuid LEFT JOIN call_transcriptions t ON t.call_uuid=c.call_uuid LEFT JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid WHERE c.call_uuid=$1 AND a.analysis_uuid=$2 AND a.status='done' AND c.uploaded_by_user_uuid IS NOT NULL`, in.CallUUID, in.AnalysisUUID).Scan(&company, &uploadedBy, &revision)
 	if err == sql.ErrNoRows {
 		return Item{}, ErrNotFound
 	}
 	if err != nil {
 		return Item{}, err
 	}
-	if in.AssigneeUserUUID == uuid.Nil {
+	if !company.Valid {
+		if in.ActorUserUUID != uploadedBy {
+			return Item{}, ErrForbidden
+		}
+		in.AssigneeUserUUID = uploadedBy
+		in.SourceDepartment, in.TargetDepartment = uuid.Nil, uuid.Nil
+	} else if in.AssigneeUserUUID == uuid.Nil {
 		in.AssigneeUserUUID = uploadedBy
 	}
-	if ok, err := canCreate(ctx, tx, in.ActorUserUUID, company, in.SourceDepartment, in.CallUUID); err != nil {
-		return Item{}, err
-	} else if !ok {
-		return Item{}, ErrForbidden
-	}
-	if ok, err := validAssignment(ctx, tx, company, in.TargetDepartment, in.AssigneeUserUUID); err != nil {
-		return Item{}, err
-	} else if !ok {
-		return Item{}, ErrInvalidInput
-	}
-	var deptsOK bool
-	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM departments s JOIN departments t ON t.department_uuid=$2 WHERE s.department_uuid=$1 AND s.company_uuid=$3 AND t.company_uuid=$3 AND s.deleted_at IS NULL AND t.deleted_at IS NULL)`, in.SourceDepartment, in.TargetDepartment, company).Scan(&deptsOK); err != nil {
-		return Item{}, err
-	}
-	if !deptsOK {
-		return Item{}, ErrInvalidInput
+	if company.Valid {
+		if ok, err := canCreate(ctx, tx, in.ActorUserUUID, company.UUID, in.SourceDepartment, in.CallUUID); err != nil {
+			return Item{}, err
+		} else if !ok {
+			return Item{}, ErrForbidden
+		}
+		if ok, err := validAssignment(ctx, tx, company.UUID, in.TargetDepartment, in.AssigneeUserUUID); err != nil {
+			return Item{}, err
+		} else if !ok {
+			return Item{}, ErrInvalidInput
+		}
+		var deptsOK bool
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM departments s JOIN departments t ON t.department_uuid=$2 WHERE s.department_uuid=$1 AND s.company_uuid=$3 AND t.company_uuid=$3 AND s.deleted_at IS NULL AND t.deleted_at IS NULL)`, in.SourceDepartment, in.TargetDepartment, company).Scan(&deptsOK); err != nil {
+			return Item{}, err
+		}
+		if !deptsOK {
+			return Item{}, ErrInvalidInput
+		}
 	}
 	var noActionRequired bool
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM call_action_dispositions WHERE analysis_uuid=$1 AND kind='no_action_required' AND superseded_at IS NULL)`, in.AnalysisUUID).Scan(&noActionRequired); err != nil {
@@ -66,7 +74,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 	}
 	actionID := uuid.New()
 	now := s.now().UTC()
-	insertResult, err := tx.ExecContext(ctx, `INSERT INTO call_actions(action_uuid,company_uuid,source_department_uuid,target_department_uuid,call_uuid,analysis_uuid,transcription_revision,title,description,assignee_user_uuid,due_at,grace_expires_at,created_by_user_uuid,client_request_key,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15) ON CONFLICT(created_by_user_uuid,client_request_key) DO NOTHING`, actionID, company, in.SourceDepartment, in.TargetDepartment, in.CallUUID, in.AnalysisUUID, revision, in.Title, in.Description, in.AssigneeUserUUID, in.DueAt.UTC(), in.DueAt.UTC().Add(24*time.Hour), in.ActorUserUUID, in.IdempotencyKey, now)
+	insertResult, err := tx.ExecContext(ctx, `INSERT INTO call_actions(action_uuid,company_uuid,source_department_uuid,target_department_uuid,call_uuid,analysis_uuid,transcription_revision,title,description,assignee_user_uuid,due_at,grace_expires_at,created_by_user_uuid,client_request_key,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15) ON CONFLICT(created_by_user_uuid,client_request_key) DO NOTHING`, actionID, nullableArg(company), nullableActionUUID(in.SourceDepartment), nullableActionUUID(in.TargetDepartment), in.CallUUID, in.AnalysisUUID, revision, in.Title, in.Description, in.AssigneeUserUUID, in.DueAt.UTC(), in.DueAt.UTC().Add(24*time.Hour), in.ActorUserUUID, in.IdempotencyKey, now)
 	if err != nil {
 		return Item{}, err
 	}
@@ -86,7 +94,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 		return Item{}, err
 	}
 	_, _ = tx.ExecContext(ctx, `UPDATE call_action_dispositions SET superseded_at=$2 WHERE analysis_uuid=$1 AND superseded_at IS NULL`, in.AnalysisUUID, now)
-	_, err = tx.ExecContext(ctx, `INSERT INTO call_action_dispositions(disposition_uuid,company_uuid,call_uuid,analysis_uuid,transcription_revision,kind,created_by_user_uuid,created_at) VALUES($1,$2,$3,$4,$5,'action_created',$6,$7)`, uuid.New(), company, in.CallUUID, in.AnalysisUUID, revision, in.ActorUserUUID, now)
+	_, err = tx.ExecContext(ctx, `INSERT INTO call_action_dispositions(disposition_uuid,company_uuid,call_uuid,analysis_uuid,transcription_revision,kind,created_by_user_uuid,created_at) VALUES($1,$2,$3,$4,$5,'action_created',$6,$7)`, uuid.New(), nullableArg(company), in.CallUUID, in.AnalysisUUID, revision, in.ActorUserUUID, now)
 	if err != nil {
 		return Item{}, err
 	}
@@ -235,6 +243,12 @@ func nullableUUID(id uuid.NullUUID) *uuid.UUID {
 	}
 	v := id.UUID
 	return &v
+}
+func nullableActionUUID(id uuid.UUID) any {
+	if id == uuid.Nil {
+		return nil
+	}
+	return id
 }
 func ptrString(v sql.NullString) *string {
 	if !v.Valid {

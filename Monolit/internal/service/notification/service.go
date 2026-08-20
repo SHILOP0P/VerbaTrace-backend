@@ -57,6 +57,13 @@ func (s *Service) MarkRead(ctx context.Context, id uuid.UUID, userID uuid.UUID) 
 	return s.repository.MarkRead(ctx, id, userID, s.now())
 }
 
+func (s *Service) MarkUnread(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Notification, error) {
+	if id == uuid.Nil || userID == uuid.Nil {
+		return models.Notification{}, models.ErrInvalidNotificationInput
+	}
+	return s.repository.MarkUnread(ctx, id, userID)
+}
+
 func (s *Service) MarkAllRead(ctx context.Context, userID uuid.UUID) error {
 	if userID == uuid.Nil {
 		return models.ErrInvalidNotificationInput

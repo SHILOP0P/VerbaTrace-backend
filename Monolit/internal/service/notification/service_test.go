@@ -37,6 +37,7 @@ type fakeNotificationRepository struct {
 	lastList       models.ListNotificationsInput
 	markReadID     uuid.UUID
 	markReadUserID uuid.UUID
+	markUnreadID   uuid.UUID
 	markAllUserID  uuid.UUID
 }
 
@@ -53,6 +54,11 @@ func (r *fakeNotificationRepository) MarkRead(ctx context.Context, id uuid.UUID,
 	r.markReadID = id
 	r.markReadUserID = userID
 	return models.Notification{ID: id, UserUUID: userID, ReadAt: &readAt}, nil
+}
+
+func (r *fakeNotificationRepository) MarkUnread(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Notification, error) {
+	r.markUnreadID = id
+	return models.Notification{ID: id, UserUUID: userID}, nil
 }
 
 func (r *fakeNotificationRepository) MarkAllRead(ctx context.Context, userID uuid.UUID, readAt time.Time) error {

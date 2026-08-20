@@ -154,6 +154,7 @@ type AnalysisComment struct {
 	AuthorUserUUID uuid.UUID  `json:"author_user_uuid"`
 	AuthorName     string     `json:"author_name"`
 	Body           string     `json:"body"`
+	CriterionKey   *string    `json:"criterion_key,omitempty"`
 	CanEdit        bool       `json:"can_edit"`
 	CreatedAt      time.Time  `json:"created_at"`
 	EditedAt       *time.Time `json:"edited_at,omitempty"`

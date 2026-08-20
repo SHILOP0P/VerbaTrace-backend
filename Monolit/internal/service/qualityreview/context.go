@@ -82,6 +82,10 @@ func (s *Service) GetAnalysisContext(ctx context.Context, callID, analysisID, ac
 	if err != nil {
 		return models.AnalysisReviewContext{}, err
 	}
+	if !access.CanReview && !isReviewVisibleWithoutReviewPermission(review.Status) {
+		result.EffectiveAnalysis, _ = buildEffectiveAnalysis(analysis, nil)
+		return result, nil
+	}
 	if review.SubjectUserUUID.Valid {
 		isSubject = review.SubjectUserUUID.UUID == actor
 	}

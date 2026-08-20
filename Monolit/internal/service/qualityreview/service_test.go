@@ -21,6 +21,21 @@ func TestNormalizeCommentBody(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidInput)
 }
 
+func TestReviewVisibilityWithoutReviewPermission(t *testing.T) {
+	for _, status := range []models.QualityReviewStatus{
+		models.QualityReviewUnassigned,
+		models.QualityReviewAssigned,
+		models.QualityReviewPublished,
+		models.QualityReviewResolved,
+		models.QualityReviewCanceled,
+	} {
+		require.True(t, isReviewVisibleWithoutReviewPermission(status), status)
+	}
+	for _, status := range []models.QualityReviewStatus{models.QualityReviewInReview, models.QualityReviewAppealed} {
+		require.False(t, isReviewVisibleWithoutReviewPermission(status), status)
+	}
+}
+
 func TestChallengeAnalysisRejectsShortReasonBeforeDatabaseAccess(t *testing.T) {
 	service := NewService(nil)
 	_, err := service.ChallengeAnalysis(context.Background(), ChallengeInput{CallUUID: uuid.New(), AnalysisUUID: uuid.New(), ActorUserUUID: uuid.New(), Reason: "коротко"})
