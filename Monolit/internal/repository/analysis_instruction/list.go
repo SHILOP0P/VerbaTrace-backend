@@ -29,6 +29,7 @@ func (r *Repository) List(ctx context.Context, input model.ListAnalysisInstructi
 	      OR
 	      ($1 = 'department' AND company_uuid = $3 AND department_uuid = $4)
 	  )
+	  AND deleted_at IS NULL
 	`
 	if !input.IncludeInactive {
 		query += "\n  AND is_active = true"
@@ -37,7 +38,7 @@ func (r *Repository) List(ctx context.Context, input model.ListAnalysisInstructi
 		args = append(args, "%"+strings.TrimSpace(input.Query)+"%")
 		query += fmt.Sprintf("\n  AND (title ILIKE $%d OR original_filename ILIKE $%d)", len(args), len(args))
 	}
-	query += "\nORDER BY sort_order ASC, created_at ASC"
+	query += "\nORDER BY created_at DESC, instruction_uuid DESC"
 	if input.Limit > 0 {
 		args = append(args, input.Limit)
 		query += fmt.Sprintf("\nLIMIT $%d", len(args))

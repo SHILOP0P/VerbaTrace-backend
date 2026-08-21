@@ -42,6 +42,7 @@ func (r *Repository) GetByUUIDIncludingInactive(ctx context.Context, id uuid.UUI
 	SELECT ` + analysisInstructionReturningColumns + `
 	FROM analysis_instructions
 	WHERE instruction_uuid = $1
+	  AND deleted_at IS NULL
 	`
 
 	row := r.db.QueryRowContext(ctx, query, id)
