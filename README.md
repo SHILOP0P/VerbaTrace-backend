@@ -1319,6 +1319,10 @@ workflow, `CI Gate` и pre-commit build.
 - `WORKER_RETRY_DELAY`
 - `WORKER_STALE_AFTER`
 - `WORKER_MAX_ATTEMPTS`
+- `CALL_RETENTION_INTERVAL` (по умолчанию `24h`)
+- `CALL_RETENTION_BATCH` (по умолчанию `100`)
+- `INSTRUCTION_RETENTION_INTERVAL` (по умолчанию `25h`, после worker звонков)
+- `INSTRUCTION_RETENTION_BATCH` (по умолчанию `50`)
 - `TRANSCRIBER_PROVIDER`
 - `TRANSCRIBER_API_KEY`
 - `TRANSCRIBER_MODEL`

@@ -89,6 +89,11 @@ func (_c *AnalysisAPI_GetByCallUUID_Call) RunAndReturn(run func(http.ResponseWri
 	return _c
 }
 
+func (_m *AnalysisAPI) ListAppliedInstructions(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+func (_m *AnalysisAPI) GetAppliedInstruction(w http.ResponseWriter, r *http.Request) { _m.Called(w, r) }
+
 // NewAnalysisAPI creates a new instance of AnalysisAPI. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewAnalysisAPI(t interface {

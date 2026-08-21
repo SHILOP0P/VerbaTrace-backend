@@ -225,6 +225,8 @@ type AnalysisInstructionRepository interface {
 	Update(ctx context.Context, input models.UpdateAnalysisInstructionRepositoryInput) (models.AnalysisInstruction, error)
 	Reorder(ctx context.Context, items []models.ReorderAnalysisInstructionItem) error
 	Deactivate(ctx context.Context, id uuid.UUID) error
+	ListVersions(ctx context.Context, id uuid.UUID) ([]models.AnalysisInstructionVersion, error)
+	GetVersion(ctx context.Context, id uuid.UUID, versionID uuid.UUID) (models.AnalysisInstructionVersion, error)
 }
 
 type BillingRepository interface {

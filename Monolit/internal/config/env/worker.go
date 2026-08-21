@@ -7,12 +7,16 @@ import (
 )
 
 type workerEnvConfig struct {
-	Enabled      bool          `env:"WORKER_ENABLED" envDefault:"true"`
-	PollInterval time.Duration `env:"WORKER_POLL_INTERVAL" envDefault:"2s"`
-	Limit        int           `env:"WORKER_LIMIT" envDefault:"1"`
-	RetryDelay   time.Duration `env:"WORKER_RETRY_DELAY" envDefault:"1m"`
-	StaleAfter   time.Duration `env:"WORKER_STALE_AFTER" envDefault:"30m"`
-	MaxAttempts  int           `env:"WORKER_MAX_ATTEMPTS" envDefault:"5"`
+	Enabled                      bool          `env:"WORKER_ENABLED" envDefault:"true"`
+	PollInterval                 time.Duration `env:"WORKER_POLL_INTERVAL" envDefault:"2s"`
+	Limit                        int           `env:"WORKER_LIMIT" envDefault:"1"`
+	RetryDelay                   time.Duration `env:"WORKER_RETRY_DELAY" envDefault:"1m"`
+	StaleAfter                   time.Duration `env:"WORKER_STALE_AFTER" envDefault:"30m"`
+	MaxAttempts                  int           `env:"WORKER_MAX_ATTEMPTS" envDefault:"5"`
+	CallRetentionInterval        time.Duration `env:"CALL_RETENTION_INTERVAL" envDefault:"24h"`
+	CallRetentionBatch           int           `env:"CALL_RETENTION_BATCH" envDefault:"100"`
+	InstructionRetentionInterval time.Duration `env:"INSTRUCTION_RETENTION_INTERVAL" envDefault:"25h"`
+	InstructionRetentionBatch    int           `env:"INSTRUCTION_RETENTION_BATCH" envDefault:"50"`
 }
 
 type workerConfig struct {
@@ -50,3 +54,10 @@ func (cfg *workerConfig) StaleAfter() time.Duration {
 func (cfg *workerConfig) MaxAttempts() int {
 	return cfg.raw.MaxAttempts
 }
+
+func (cfg *workerConfig) CallRetentionInterval() time.Duration { return cfg.raw.CallRetentionInterval }
+func (cfg *workerConfig) CallRetentionBatch() int              { return cfg.raw.CallRetentionBatch }
+func (cfg *workerConfig) InstructionRetentionInterval() time.Duration {
+	return cfg.raw.InstructionRetentionInterval
+}
+func (cfg *workerConfig) InstructionRetentionBatch() int { return cfg.raw.InstructionRetentionBatch }

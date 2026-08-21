@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/instructioncontent"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
@@ -43,7 +44,6 @@ func (s *Service) AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("create analysis: %w", err)
 	}
-
 	if err = s.enqueueAnalyzeJob(ctx, call.ID); err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("enqueue analysis job: %w", err)
 	}
@@ -181,6 +181,11 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 	analysis, err := s.createPendingAnalysis(ctx, call.ID)
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("create analysis: %w", err)
+	}
+	if snapshots, ok := s.analysisRepository.(instructionSnapshotRepository); ok {
+		if err = snapshots.SaveInstructionSnapshots(ctx, analysis.ID, instructions); err != nil {
+			return models.CallAnalysis{}, fmt.Errorf("save instruction snapshots: %w", err)
+		}
 	}
 
 	analysis, err = s.analysisRepository.MarkProcessing(ctx, analysis.ID)
@@ -321,11 +326,16 @@ func (s *Service) analyzerProviderName() string {
 }
 
 func (s *Service) loadInstructions(ctx context.Context, call models.Call, userID uuid.UUID) ([]models.AnalysisInstructionContent, error) {
+	var instructions []models.AnalysisInstruction
+	var err error
 	if call.SkipCustomInstructions {
-		return []models.AnalysisInstructionContent{}, nil
+		if s.folderInstructionReader == nil {
+			return []models.AnalysisInstructionContent{}, nil
+		}
+		instructions, err = s.folderInstructionReader.ListInstructionsForCall(ctx, call.ID)
+	} else {
+		instructions, err = s.selectInstructions(ctx, call, userID)
 	}
-
-	instructions, err := s.selectInstructions(ctx, call, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -416,11 +426,21 @@ func (s *Service) readInstructionContent(ctx context.Context, instruction models
 		return models.AnalysisInstructionContent{}, err
 	}
 
+	filename := instruction.OriginalFilename
+	if strings.TrimSpace(filename) == "" {
+		filename = instruction.FilePath
+	}
+	extracted, err := instructioncontent.Extract(filename, data)
+	if err != nil {
+		return models.AnalysisInstructionContent{}, err
+	}
+
 	return models.AnalysisInstructionContent{
-		ID:      instruction.ID,
-		Scope:   instruction.Scope,
-		Title:   instruction.Title,
-		Content: string(data),
+		ID:            instruction.ID,
+		Scope:         instruction.Scope,
+		Title:         instruction.Title,
+		Content:       extracted,
+		ContentSHA256: instruction.ContentSHA256,
 	}, nil
 }
 

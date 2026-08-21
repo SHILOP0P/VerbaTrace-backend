@@ -184,11 +184,15 @@ type AnalysisInstructionAPI interface {
 	GetFile(w http.ResponseWriter, r *http.Request)
 	Reorder(w http.ResponseWriter, r *http.Request)
 	Delete(w http.ResponseWriter, r *http.Request)
+	ListVersions(w http.ResponseWriter, r *http.Request)
+	GetVersionFile(w http.ResponseWriter, r *http.Request)
 }
 
 type AnalysisAPI interface {
 	AnalyzeCall(w http.ResponseWriter, r *http.Request)
 	GetByCallUUID(w http.ResponseWriter, r *http.Request)
+	ListAppliedInstructions(w http.ResponseWriter, r *http.Request)
+	GetAppliedInstruction(w http.ResponseWriter, r *http.Request)
 }
 
 type QualityReviewAPI interface {

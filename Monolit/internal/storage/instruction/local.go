@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"verbatrace/monolit/internal/models"
 )
 
@@ -19,7 +21,7 @@ func (l *LocalStorage) Save(ctx context.Context, input models.SaveInstructionInp
 	}
 
 	ext := strings.ToLower(filepath.Ext(input.OriginalFilename))
-	if ext != ".md" {
+	if !supportedInstructionExtension(ext) {
 		return models.SavedInstructionFile{}, models.ErrUnsupportedInstructionType
 	}
 
@@ -38,7 +40,7 @@ func (l *LocalStorage) Save(ctx context.Context, input models.SaveInstructionInp
 	default:
 	}
 
-	relativePath := filepath.Join(relativeDir, input.InstructionUUID.String()+ext)
+	relativePath := filepath.Join(relativeDir, input.InstructionUUID.String()+"-"+uuid.NewString()+ext)
 	fullPath := filepath.Join(l.baseDir, relativePath)
 
 	dst, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
@@ -63,6 +65,15 @@ func (l *LocalStorage) Save(ctx context.Context, input models.SaveInstructionInp
 		SizeBytes:     sizeBytes,
 		ContentSHA256: hex.EncodeToString(hash.Sum(nil)),
 	}, nil
+}
+
+func supportedInstructionExtension(ext string) bool {
+	switch ext {
+	case ".md", ".pdf", ".docx", ".xlsx":
+		return true
+	default:
+		return false
+	}
 }
 
 func (l *LocalStorage) Open(ctx context.Context, path string) (io.ReadCloser, error) {

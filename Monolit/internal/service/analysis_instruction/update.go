@@ -54,7 +54,7 @@ func (s *Service) ReplaceFile(ctx context.Context, input models.ReplaceAnalysisI
 	if strings.TrimSpace(input.OriginalFilename) == "" {
 		return models.AnalysisInstruction{}, models.ErrInvalidAnalysisInstructionInput
 	}
-	if strings.ToLower(filepath.Ext(input.OriginalFilename)) != ".md" {
+	if !isSupportedInstructionExtension(input.OriginalFilename) {
 		return models.AnalysisInstruction{}, models.ErrUnsupportedInstructionType
 	}
 	if !isSupportedInstructionMime(input.MimeType) {
@@ -196,5 +196,19 @@ func instructionBelongsToScope(instruction models.AnalysisInstruction, scope mod
 
 func isSupportedInstructionMime(mimeType string) bool {
 	value := strings.ToLower(strings.TrimSpace(strings.Split(mimeType, ";")[0]))
-	return value == "text/markdown" || value == "text/plain"
+	switch value {
+	case "", "text/markdown", "text/plain", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/octet-stream":
+		return true
+	default:
+		return false
+	}
+}
+
+func isSupportedInstructionExtension(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".md", ".pdf", ".docx", ".xlsx":
+		return true
+	default:
+		return false
+	}
 }

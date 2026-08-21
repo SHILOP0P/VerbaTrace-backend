@@ -3,8 +3,8 @@
 package mocks
 
 import (
-	models "verbatrace/monolit/internal/models"
 	context "context"
+	models "verbatrace/monolit/internal/models"
 
 	mock "github.com/stretchr/testify/mock"
 
@@ -137,6 +137,26 @@ func (_c *AnalysisService_GetByCallUUID_Call) Return(_a0 models.CallAnalysis, _a
 func (_c *AnalysisService_GetByCallUUID_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.CallAnalysis, error)) *AnalysisService_GetByCallUUID_Call {
 	_c.Call.Return(run)
 	return _c
+}
+
+func (_m *AnalysisService) ListAppliedInstructions(ctx context.Context, analysisID uuid.UUID, userID uuid.UUID) ([]models.AppliedInstruction, error) {
+	ret := _m.Called(ctx, analysisID, userID)
+	if len(ret) == 0 {
+		panic("no return value specified for ListAppliedInstructions")
+	}
+	var items []models.AppliedInstruction
+	if value := ret.Get(0); value != nil {
+		items = value.([]models.AppliedInstruction)
+	}
+	return items, ret.Error(1)
+}
+
+func (_m *AnalysisService) GetAppliedInstruction(ctx context.Context, analysisID uuid.UUID, versionID uuid.UUID, userID uuid.UUID) (models.AppliedInstruction, error) {
+	ret := _m.Called(ctx, analysisID, versionID, userID)
+	if len(ret) == 0 {
+		panic("no return value specified for GetAppliedInstruction")
+	}
+	return ret.Get(0).(models.AppliedInstruction), ret.Error(1)
 }
 
 // NewAnalysisService creates a new instance of AnalysisService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

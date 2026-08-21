@@ -40,6 +40,10 @@ type WorkerConfig interface {
 	RetryDelay() time.Duration
 	StaleAfter() time.Duration
 	MaxAttempts() int
+	CallRetentionInterval() time.Duration
+	CallRetentionBatch() int
+	InstructionRetentionInterval() time.Duration
+	InstructionRetentionBatch() int
 }
 
 type TranscriberConfig interface {

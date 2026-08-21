@@ -328,6 +328,38 @@ func TestProcessAnalyzeCallSkipsCustomInstructions(t *testing.T) {
 	}
 }
 
+func TestProcessAnalyzeCallKeepsFolderInstructionsWhenCustomInstructionsAreSkipped(t *testing.T) {
+	ctx := context.Background()
+	userID := uuid.New()
+	callID := uuid.New()
+	transcriptionText := "The candidate answered the Go question."
+	folderInstruction := models.AnalysisInstruction{
+		ID: uuid.New(), Scope: models.AnalysisInstructionScopePersonal, Title: "Go interview analysis",
+		OriginalFilename: "go-interview.md", FilePath: "go-interview.md", IsActive: true,
+	}
+	callRepo := &analysisCallRepository{call: models.Call{
+		ID: callID, Status: models.CallStatusTranscribed,
+		UploadedByUserUUID: uuid.NullUUID{UUID: userID, Valid: true},
+		VisibilityScope:    models.CallVisibilityScopePersonal, SkipCustomInstructions: true,
+	}}
+	transcriptionRepo := &analysisTranscriptionRepository{transcription: models.Transcription{
+		ID: uuid.New(), CallUUID: callID, Status: models.TranscriptionStatusTranscribed, Text: &transcriptionText,
+	}}
+	analysisRepo := &analysisRepository{analysisID: uuid.New(), callID: callID}
+	analyzerProvider := &recordingAnalyzer{result: models.AnalysisResult{ResultJSON: json.RawMessage(`{"summary":"Done."}`)}}
+	service := NewService(callRepo, transcriptionRepo, &analysisInstructionRepository{}, analysisRepo, &analysisInstructionStorage{
+		files: map[string]string{"go-interview.md": "Evaluate the technical correctness of the candidate's answers."},
+	}, analyzerProvider, nil)
+	service.SetFolderInstructionReader(&analysisFolderInstructionReader{instructions: []models.AnalysisInstruction{folderInstruction}})
+
+	if err := service.ProcessAnalyzeCall(ctx, callID); err != nil {
+		t.Fatalf("process analyze call: %v", err)
+	}
+	if len(analyzerProvider.request.Instructions) != 1 || analyzerProvider.request.Instructions[0].ID != folderInstruction.ID {
+		t.Fatalf("folder instructions = %#v, want %s", analyzerProvider.request.Instructions, folderInstruction.ID)
+	}
+}
+
 func TestProcessAnalyzeCallKeepsAnalysisProcessingOnProviderError(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()
@@ -581,6 +613,12 @@ type analysisInstructionRepository struct {
 	instructions map[models.AnalysisInstructionScope][]models.AnalysisInstruction
 }
 
+type analysisFolderInstructionReader struct{ instructions []models.AnalysisInstruction }
+
+func (r *analysisFolderInstructionReader) ListInstructionsForCall(context.Context, uuid.UUID) ([]models.AnalysisInstruction, error) {
+	return r.instructions, nil
+}
+
 func (r *analysisInstructionRepository) Create(ctx context.Context, instruction models.AnalysisInstruction) (models.AnalysisInstruction, error) {
 	panic("not implemented")
 }
@@ -590,6 +628,14 @@ func (r *analysisInstructionRepository) GetByUUID(ctx context.Context, id uuid.U
 }
 
 func (r *analysisInstructionRepository) GetByUUIDIncludingInactive(ctx context.Context, id uuid.UUID) (models.AnalysisInstruction, error) {
+	panic("not implemented")
+}
+
+func (r *analysisInstructionRepository) ListVersions(ctx context.Context, id uuid.UUID) ([]models.AnalysisInstructionVersion, error) {
+	panic("not implemented")
+}
+
+func (r *analysisInstructionRepository) GetVersion(ctx context.Context, instructionID, versionID uuid.UUID) (models.AnalysisInstructionVersion, error) {
 	panic("not implemented")
 }
 

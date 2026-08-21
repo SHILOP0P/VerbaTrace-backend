@@ -27,6 +27,13 @@ type attemptRepository interface {
 	CurrentTranscriptionRevision(context.Context, uuid.UUID) (int, error)
 }
 
+type instructionSnapshotRepository interface {
+	SaveInstructionSnapshots(context.Context, uuid.UUID, []models.AnalysisInstructionContent) error
+	ListInstructionSnapshots(context.Context, uuid.UUID) ([]models.AppliedInstruction, error)
+	GetInstructionSnapshot(context.Context, uuid.UUID, uuid.UUID) (models.AppliedInstruction, error)
+	InstructionSnapshotCallUUID(context.Context, uuid.UUID) (uuid.UUID, error)
+}
+
 type Service struct {
 	callRepository           repo.CallRepository
 	transcriptionRepository  repo.TranscriptionRepository

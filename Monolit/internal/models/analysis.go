@@ -35,10 +35,11 @@ type AnalyzeCallInput struct {
 }
 
 type AnalysisInstructionContent struct {
-	ID      uuid.UUID
-	Scope   AnalysisInstructionScope
-	Title   string
-	Content string
+	ID            uuid.UUID
+	Scope         AnalysisInstructionScope
+	Title         string
+	Content       string
+	ContentSHA256 string
 }
 
 type AnalysisRequest struct {

@@ -14,6 +14,9 @@ func (r *Repository) Deactivate(ctx context.Context, id uuid.UUID) error {
 	query := `
 	UPDATE analysis_instructions
 	SET is_active = false,
+	    deleted_at = now(),
+	    purge_state = 'eligible',
+	    purge_after = now() + interval '7 days',
 	    updated_at = now()
 	WHERE instruction_uuid = $1
 	  AND is_active = true

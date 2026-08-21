@@ -39,6 +39,35 @@ func TestRepositoryLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, input.ID, created.ID)
 
+	instructionID := uuid.New()
+	_, err = db.ExecContext(ctx, `INSERT INTO analysis_instructions(instruction_uuid,scope,user_uuid,title,original_filename,file_path,mime_type,size_bytes,content_sha256,sort_order,is_active,created_by_user_uuid,created_at,updated_at) VALUES($1,'personal',$2,'Контроль следующего шага','next-step.md','personal/test/next-step.md','text/markdown',18,'snapshot-hash',0,true,$2,now(),now())`, instructionID, call.UploadedByUserUUID.UUID)
+	require.NoError(t, err)
+	require.NoError(t, repository.SaveInstructionSnapshots(ctx, created.ID, []models.AnalysisInstructionContent{{ID: instructionID, Scope: models.AnalysisInstructionScopePersonal, Title: "Контроль следующего шага", Content: "Проверить следующий шаг", ContentSHA256: "snapshot-hash"}}))
+	snapshots, err := repository.ListInstructionSnapshots(ctx, created.ID)
+	require.NoError(t, err)
+	require.Len(t, snapshots, 1)
+	require.Equal(t, "Контроль следующего шага", snapshots[0].Title)
+	detail, err := repository.GetInstructionSnapshot(ctx, created.ID, snapshots[0].VersionUUID)
+	require.NoError(t, err)
+	require.Equal(t, "Проверить следующий шаг", detail.Content)
+
+	var retentionDays int
+	var retentionBase, retentionExpires time.Time
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT retention_days_at_creation,retention_base_at,retention_expires_at FROM calls WHERE call_uuid=$1`, call.ID).Scan(&retentionDays, &retentionBase, &retentionExpires))
+	require.Equal(t, 30, retentionDays)
+	require.Equal(t, retentionBase.AddDate(0, 0, retentionDays), retentionExpires)
+	rows, err := db.QueryContext(ctx, `SELECT code,history_retention_days FROM plans WHERE code LIKE 'business_%' ORDER BY code`)
+	require.NoError(t, err)
+	defer func() { _ = rows.Close() }()
+	businessRetention := map[string]int{}
+	for rows.Next() {
+		var code string
+		var days int
+		require.NoError(t, rows.Scan(&code, &days))
+		businessRetention[code] = days
+	}
+	require.Equal(t, map[string]int{"business_plus": 365, "business_pro": 550, "business_start": 180}, businessRetention)
+
 	got, err := repository.GetByCallUUID(ctx, call.ID)
 	require.NoError(t, err)
 	require.Equal(t, created.ID, got.ID)

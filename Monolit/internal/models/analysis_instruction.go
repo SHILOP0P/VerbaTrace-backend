@@ -123,3 +123,19 @@ type SavedInstructionFile struct {
 	SizeBytes     int64
 	ContentSHA256 string
 }
+
+type AnalysisInstructionVersion struct {
+	ID                uuid.UUID `json:"id"`
+	InstructionID     uuid.UUID `json:"instruction_id"`
+	Version           int       `json:"version"`
+	Title             string    `json:"title"`
+	Scope             string    `json:"scope"`
+	OriginalFilename  string    `json:"original_filename"`
+	MimeType          string    `json:"mime_type"`
+	SizeBytes         int64     `json:"size_bytes"`
+	Status            string    `json:"status"`
+	CreatedByUserUUID uuid.UUID `json:"created_by_user_uuid"`
+	CreatedAt         time.Time `json:"created_at"`
+	PublishedAt       time.Time `json:"published_at"`
+	FilePath          string    `json:"-"`
+}

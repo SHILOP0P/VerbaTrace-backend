@@ -158,11 +158,15 @@ type AnalysisInstructionService interface {
 	GetFile(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.File, error)
 	Reorder(ctx context.Context, input models.ReorderAnalysisInstructionsInput) error
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	ListVersions(ctx context.Context, id uuid.UUID, userID uuid.UUID) ([]models.AnalysisInstructionVersion, error)
+	GetVersionFile(ctx context.Context, id uuid.UUID, versionID uuid.UUID, userID uuid.UUID) (models.File, error)
 }
 
 type AnalysisService interface {
 	AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput) (models.CallAnalysis, error)
 	GetByCallUUID(ctx context.Context, callUUID uuid.UUID, userID uuid.UUID) (models.CallAnalysis, error)
+	ListAppliedInstructions(ctx context.Context, analysisID uuid.UUID, userID uuid.UUID) ([]models.AppliedInstruction, error)
+	GetAppliedInstruction(ctx context.Context, analysisID uuid.UUID, versionID uuid.UUID, userID uuid.UUID) (models.AppliedInstruction, error)
 }
 
 type ReportService interface {

@@ -92,7 +92,7 @@ func validateCreateInput(input models.CreateAnalysisInstructionInput) error {
 		return models.ErrInvalidAnalysisInstructionInput
 	}
 
-	if strings.ToLower(filepath.Ext(input.OriginalFilename)) != ".md" {
+	if !isSupportedInstructionExtension(input.OriginalFilename) || !isSupportedInstructionMime(input.MimeType) {
 		return models.ErrUnsupportedInstructionType
 	}
 

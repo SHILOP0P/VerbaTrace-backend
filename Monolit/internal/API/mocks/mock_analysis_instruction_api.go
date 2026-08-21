@@ -13,6 +13,13 @@ type AnalysisInstructionAPI struct {
 	mock.Mock
 }
 
+func (_m *AnalysisInstructionAPI) ListVersions(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+func (_m *AnalysisInstructionAPI) GetVersionFile(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
 type AnalysisInstructionAPI_Expecter struct {
 	mock *mock.Mock
 }
