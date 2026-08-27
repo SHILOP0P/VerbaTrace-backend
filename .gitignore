@@ -16,6 +16,13 @@ Thumbs.db
 # Go build/test artifacts
 bin/
 dist/
+.cache/
+.gocache*/
+.golangci-cache*/
+.golangci-retention/
+.verify-gocache*/
+.verify-gomodcache*/
+.verify-gotmp*/
 *.exe
 *.dll
 *.so

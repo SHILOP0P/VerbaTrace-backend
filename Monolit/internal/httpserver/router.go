@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI API.ContactAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, qualityReviewAPI API.QualityReviewAPI, actionAPI API.ActionAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, log logger.Logger) http.Handler {
+func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI API.ContactAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, qualityReviewAPI API.QualityReviewAPI, actionAPI API.ActionAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, integrationAPI API.IntegrationAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, log logger.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	authGuard := authMiddleware.Auth(jwtSecret, refreshSessionRepository)
@@ -24,6 +24,12 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 	}
 
 	r.Use(middleware.RequestID)
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Request-ID", middleware.GetReqID(r.Context()))
+			next.ServeHTTP(w, r)
+		})
+	})
 	r.Use(authMiddleware.RequestLogger(log))
 	r.Use(authMiddleware.Recoverer(log))
 	r.Use(middleware.URLFormat)
@@ -32,6 +38,37 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 	r.Get("/health/live", healthHandler.Live)
 	r.Get("/health/ready", healthHandler.Ready)
 	r.Get("/health/startup", healthHandler.Startup)
+	if integrationAPI, ok := billingAPI.(interface {
+		ValidateSandboxKey(http.ResponseWriter, *http.Request)
+		ValidateProductionKey(http.ResponseWriter, *http.Request)
+	}); ok {
+		r.With(middleware.Timeout(10*time.Second)).Get("/api/sandbox/v1/auth/validate", integrationAPI.ValidateSandboxKey)
+		r.With(middleware.Timeout(10*time.Second)).Get("/api/production/v1/auth/validate", integrationAPI.ValidateProductionKey)
+	}
+	if integrationAPI != nil {
+		r.With(middleware.Timeout(30*time.Second)).Post("/api/sandbox/v1/ingest/calls", integrationAPI.IngestSandbox)
+		r.With(middleware.Timeout(45*time.Minute)).Post("/api/sandbox/v1/ingest/calls/upload", integrationAPI.UploadSandbox)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/sandbox/v1/ingest/items/{ingest_item_uuid}", integrationAPI.GetSandboxIngest)
+		r.With(middleware.Timeout(30*time.Second)).Post("/api/production/v1/ingest/calls", integrationAPI.IngestProduction)
+		r.With(middleware.Timeout(45*time.Minute)).Post("/api/production/v1/ingest/calls/upload", integrationAPI.UploadProduction)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/production/v1/ingest/items/{ingest_item_uuid}", integrationAPI.GetProductionIngest)
+		r.With(middleware.Timeout(30*time.Second)).Post("/api/sandbox/v2/ingest/calls", integrationAPI.IngestSandbox)
+		r.With(middleware.Timeout(45*time.Minute)).Post("/api/sandbox/v2/ingest/calls/upload", integrationAPI.UploadSandbox)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/sandbox/v2/ingest/items/{ingest_item_uuid}", integrationAPI.GetSandboxIngest)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/sandbox/v2/destinations", integrationAPI.ListSandboxDestinations)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/sandbox/v2/folders", integrationAPI.ListSandboxFolders)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/sandbox/v2/calls/{call_uuid}", integrationAPI.GetSandboxCall)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/sandbox/v2/calls/{call_uuid}/transcription", integrationAPI.GetSandboxTranscription)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/sandbox/v2/calls/{call_uuid}/analysis", integrationAPI.GetSandboxAnalysis)
+		r.With(middleware.Timeout(30*time.Second)).Post("/api/production/v2/ingest/calls", integrationAPI.IngestProduction)
+		r.With(middleware.Timeout(45*time.Minute)).Post("/api/production/v2/ingest/calls/upload", integrationAPI.UploadProduction)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/production/v2/ingest/items/{ingest_item_uuid}", integrationAPI.GetProductionIngest)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/production/v2/destinations", integrationAPI.ListProductionDestinations)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/production/v2/folders", integrationAPI.ListProductionFolders)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/production/v2/calls/{call_uuid}", integrationAPI.GetProductionCall)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/production/v2/calls/{call_uuid}/transcription", integrationAPI.GetProductionTranscription)
+		r.With(middleware.Timeout(30*time.Second)).Get("/api/production/v2/calls/{call_uuid}/analysis", integrationAPI.GetProductionAnalysis)
+	}
 	r.Route("/api/v1", func(r chi.Router) {
 		r.With(authGuard).Get("/calls/{uuid}/events", callAPI.Events)
 		r.With(authGuard).Get("/analytics/deep-analyses/{uuid}/events", analyticsAPI.DeepAnalysisEvents)
@@ -65,6 +102,24 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Post("/companies/{company_uuid}/subscription/cancel", adminAPI.CancelCompanySubscription)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Post("/users/{user_uuid}/usage/reset", adminAPI.ResetPersonalUsage)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Post("/companies/{company_uuid}/usage/reset", adminAPI.ResetCompanyUsage)
+				if bulkResetAPI, ok := adminAPI.(interface {
+					BulkResetUsage(http.ResponseWriter, *http.Request)
+				}); ok {
+					r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Post("/usage/reset/bulk", bulkResetAPI.BulkResetUsage)
+				}
+				if resetBatchAPI, ok := adminAPI.(interface {
+					CreateUsageResetBatch(http.ResponseWriter, *http.Request)
+					ApproveUsageResetBatch(http.ResponseWriter, *http.Request)
+					ExecuteUsageResetBatch(http.ResponseWriter, *http.Request)
+					GetUsageResetBatch(http.ResponseWriter, *http.Request)
+					PreviewUsageResetBatch(http.ResponseWriter, *http.Request)
+				}); ok {
+					r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Post("/usage/reset/batches", resetBatchAPI.CreateUsageResetBatch)
+					r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Post("/usage/reset/batches/preview", resetBatchAPI.PreviewUsageResetBatch)
+					r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Get("/usage/reset/batches/{batch_uuid}", resetBatchAPI.GetUsageResetBatch)
+					r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Post("/usage/reset/batches/{batch_uuid}/approve", resetBatchAPI.ApproveUsageResetBatch)
+					r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Post("/usage/reset/batches/{batch_uuid}/execute", resetBatchAPI.ExecuteUsageResetBatch)
+				}
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCallsRead)).Get("/calls/{call_uuid}", adminAPI.GetCall)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCallsRead)).Get("/calls/{call_uuid}/audio", adminAPI.GetCallAudio)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCallsRead)).Get("/calls/{call_uuid}/media", adminAPI.GetCallAudio)
@@ -169,6 +224,24 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Get("/favorite-calls", contactAPI.ListFavoriteCalls)
 			r.With(authGuard).Put("/favorite-calls/{call_uuid}", contactAPI.AddFavoriteCall)
 			r.With(authGuard).Delete("/favorite-calls/{call_uuid}", contactAPI.RemoveFavoriteCall)
+			if integrationAPI != nil {
+				r.With(authGuard).Post("/developer/applications/{application_uuid}/connections", integrationAPI.CreateConnection)
+				r.With(authGuard).Get("/developer/applications/{application_uuid}/connections", integrationAPI.ListConnections)
+				r.With(authGuard).Get("/integrations/{connection_uuid}", integrationAPI.GetConnection)
+				r.With(authGuard).Patch("/integrations/{connection_uuid}", integrationAPI.UpdateConnection)
+				r.With(authGuard).Post("/integrations/{connection_uuid}/enable", integrationAPI.EnableConnection)
+				r.With(authGuard).Post("/integrations/{connection_uuid}/disable", integrationAPI.DisableConnection)
+				r.With(authGuard).Delete("/integrations/{connection_uuid}", integrationAPI.RevokeConnection)
+				r.With(authGuard).Post("/integrations/{connection_uuid}/webhooks", integrationAPI.CreateWebhook)
+				r.With(authGuard).Get("/integrations/{connection_uuid}/webhooks", integrationAPI.ListWebhooks)
+				r.With(authGuard).Delete("/integration-webhooks/{webhook_uuid}", integrationAPI.RevokeWebhook)
+				r.With(authGuard).Get("/integrations/{connection_uuid}/webhook-deliveries", integrationAPI.ListWebhookDeliveries)
+				r.With(authGuard).Post("/integrations/{connection_uuid}/webhook/test", integrationAPI.TestWebhook)
+				r.With(authGuard).Get("/integrations/{connection_uuid}/ingest-items", integrationAPI.ListIngestItems)
+				r.With(authGuard).Post("/ingest-items/{ingest_item_uuid}/retry", integrationAPI.RetryIngestItem)
+				r.With(authGuard).Post("/ingest-items/{ingest_item_uuid}/cancel", integrationAPI.CancelIngestItem)
+				r.With(authGuard).Get("/integrations/{connection_uuid}/audit-events", integrationAPI.ListAuditEvents)
+			}
 			r.With(authGuard).Get("/search", searchAPI.Search)
 
 			//NOTIFICATIONS
@@ -184,6 +257,54 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Get("/subscription/usage", billingAPI.GetPersonalSubscriptionUsage)
 			r.With(authGuard).Get("/companies/{uuid}/subscription", billingAPI.GetCompanySubscription)
 			r.With(authGuard).Get("/companies/{uuid}/subscription/usage", billingAPI.GetCompanySubscriptionUsage)
+			if dashboardAPI, ok := billingAPI.(interface {
+				GetPersonalCreditDashboard(http.ResponseWriter, *http.Request)
+				GetCompanyCreditDashboard(http.ResponseWriter, *http.Request)
+				UpdateCompanyCreditVisibility(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/credits/dashboard", dashboardAPI.GetPersonalCreditDashboard)
+				r.With(authGuard).Get("/companies/{uuid}/credits/dashboard", dashboardAPI.GetCompanyCreditDashboard)
+				r.With(authGuard).Patch("/companies/{uuid}/credits/visibility", dashboardAPI.UpdateCompanyCreditVisibility)
+			}
+			if developerAPI, ok := billingAPI.(interface {
+				CreateDeveloperApplication(http.ResponseWriter, *http.Request)
+				ListDeveloperApplications(http.ResponseWriter, *http.Request)
+				CreateDeveloperAPIKey(http.ResponseWriter, *http.Request)
+				RevokeDeveloperAPIKey(http.ResponseWriter, *http.Request)
+				RotateDeveloperAPIKey(http.ResponseWriter, *http.Request)
+				MockPurchaseCredits(http.ResponseWriter, *http.Request)
+				CreateIntegrationServiceAccount(http.ResponseWriter, *http.Request)
+				ListIntegrationServiceAccounts(http.ResponseWriter, *http.Request)
+				CreateServiceAccountAPIKey(http.ResponseWriter, *http.Request)
+				GetDeveloperApplication(http.ResponseWriter, *http.Request)
+				DisableDeveloperApplication(http.ResponseWriter, *http.Request)
+				EnableDeveloperApplication(http.ResponseWriter, *http.Request)
+				RevokeDeveloperApplication(http.ResponseWriter, *http.Request)
+				AdjustSandboxWallet(http.ResponseWriter, *http.Request)
+				GetSandboxWallet(http.ResponseWriter, *http.Request)
+				ListServiceAccountAPIKeys(http.ResponseWriter, *http.Request)
+				UpdateDeveloperApplication(http.ResponseWriter, *http.Request)
+				RevokeIntegrationServiceAccount(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/developer/applications", developerAPI.ListDeveloperApplications)
+				r.With(authGuard).Post("/developer/applications", developerAPI.CreateDeveloperApplication)
+				r.With(authGuard).Post("/developer/applications/{application_uuid}/keys", developerAPI.CreateDeveloperAPIKey)
+				r.With(authGuard).Delete("/developer/keys/{key_uuid}", developerAPI.RevokeDeveloperAPIKey)
+				r.With(authGuard).Post("/developer/keys/{key_uuid}/rotate", developerAPI.RotateDeveloperAPIKey)
+				r.With(authGuard).Post("/credits/purchases/mock", developerAPI.MockPurchaseCredits)
+				r.With(authGuard).Post("/integrations/{connection_uuid}/service-accounts", developerAPI.CreateIntegrationServiceAccount)
+				r.With(authGuard).Get("/integrations/{connection_uuid}/service-accounts", developerAPI.ListIntegrationServiceAccounts)
+				r.With(authGuard).Post("/service-accounts/{service_account_uuid}/keys", developerAPI.CreateServiceAccountAPIKey)
+				r.With(authGuard).Get("/service-accounts/{service_account_uuid}/keys", developerAPI.ListServiceAccountAPIKeys)
+				r.With(authGuard).Delete("/service-accounts/{service_account_uuid}", developerAPI.RevokeIntegrationServiceAccount)
+				r.With(authGuard).Get("/developer/applications/{application_uuid}", developerAPI.GetDeveloperApplication)
+				r.With(authGuard).Patch("/developer/applications/{application_uuid}", developerAPI.UpdateDeveloperApplication)
+				r.With(authGuard).Post("/developer/applications/{application_uuid}/disable", developerAPI.DisableDeveloperApplication)
+				r.With(authGuard).Post("/developer/applications/{application_uuid}/enable", developerAPI.EnableDeveloperApplication)
+				r.With(authGuard).Post("/developer/applications/{application_uuid}/revoke", developerAPI.RevokeDeveloperApplication)
+				r.With(authGuard).Post("/developer/applications/{application_uuid}/sandbox-wallet", developerAPI.AdjustSandboxWallet)
+				r.With(authGuard).Get("/developer/applications/{application_uuid}/sandbox-wallet", developerAPI.GetSandboxWallet)
+			}
 
 			//INVITATIONS
 			r.With(authGuard).Get("/invitations", invitationAPI.ListUserInvitations)

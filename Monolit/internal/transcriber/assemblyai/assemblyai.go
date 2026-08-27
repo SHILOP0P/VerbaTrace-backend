@@ -156,7 +156,10 @@ func (t *Transcriber) createTranscript(ctx context.Context, audioURL string, can
 		LanguageDetection: true,
 		SpeakerLabels:     t.speakerLabels,
 	}
-	if t.identifyRoles {
+	// Identification needs a closed list of people or roles. With no candidates
+	// we still request speaker labels, but omit the impossible identification
+	// step so the provider returns ordinary diarized utterances.
+	if t.identifyRoles && len(candidates) > 0 {
 		payload.SpeechUnderstanding = speakerIdentificationRequest(candidates)
 	}
 	body, err := json.Marshal(payload)
@@ -286,12 +289,40 @@ func normalizeTranscript(result transcriptResponse) (models.TranscriptionResult,
 			Speaker: strings.TrimSpace(utterance.Speaker), StartSeconds: &start, EndSeconds: &end, Text: segmentText,
 		})
 	}
+	// AssemblyAI can occasionally return word-level speaker labels without the
+	// utterances collection. Preserve diarization by rebuilding contiguous
+	// speaker turns instead of making an otherwise valid job retry forever.
+	if len(segments) == 0 {
+		segments = segmentsFromWords(words)
+	}
 	language := strings.TrimSpace(result.LanguageCode)
 	transcript := models.TranscriptionResult{Text: text, Segments: segments, Words: words}
 	if language != "" {
 		transcript.Language = &language
 	}
 	return transcript, nil
+}
+
+func segmentsFromWords(words []models.TranscriptionWord) []models.TranscriptionSegment {
+	segments := make([]models.TranscriptionSegment, 0)
+	for _, item := range words {
+		speaker := strings.TrimSpace(item.Speaker)
+		if speaker == "" {
+			continue
+		}
+		if len(segments) > 0 && segments[len(segments)-1].Speaker == speaker {
+			last := &segments[len(segments)-1]
+			last.Text = strings.TrimSpace(last.Text + " " + item.Text)
+			end := item.EndSeconds
+			last.EndSeconds = &end
+			continue
+		}
+		start, end := item.StartSeconds, item.EndSeconds
+		segments = append(segments, models.TranscriptionSegment{
+			Speaker: speaker, StartSeconds: &start, EndSeconds: &end, Text: item.Text,
+		})
+	}
+	return segments
 }
 
 func normalizeWords(input []word) []models.TranscriptionWord {

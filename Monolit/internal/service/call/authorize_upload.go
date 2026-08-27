@@ -8,6 +8,9 @@ import (
 )
 
 func (s *Service) authorizeUpload(ctx context.Context, input models.CreateCallInput) error {
+	if input.IntegrationPrincipalUUID.Valid {
+		return nil
+	}
 	switch input.VisibilityScope {
 	case models.CallVisibilityScopePersonal:
 		return nil

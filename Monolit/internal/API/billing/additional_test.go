@@ -87,6 +87,7 @@ func TestWriteBillingErrorMappings(t *testing.T) {
 		{models.ErrPlanNotFound, http.StatusBadRequest},
 		{models.ErrCompanyNotFound, http.StatusNotFound},
 		{models.ErrForbidden, http.StatusForbidden},
+		{models.ErrAPIKeyScopeDenied, http.StatusForbidden},
 		{models.ErrSubscriptionNotFound, http.StatusNotFound},
 		{errors.New("db"), http.StatusInternalServerError},
 	} {

@@ -33,6 +33,7 @@ func (r *Repository) UpdateCallStatus(ctx context.Context, id uuid.UUID, status 
 	          department_uuid,
 	          visibility_scope,
 	          skip_custom_instructions,
+	          false AS is_test,
 	          created_at
 	`
 

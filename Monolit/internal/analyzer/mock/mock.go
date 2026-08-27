@@ -19,6 +19,10 @@ func (a *Analyzer) Provider() string {
 	return "mock"
 }
 
+func (a *Analyzer) MaximumCompletionTokens(models.AnalysisRequest) int64 {
+	return 512
+}
+
 func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) (models.AnalysisResult, error) {
 	select {
 	case <-ctx.Done():
@@ -72,6 +76,7 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 		ResultJSON: resultJSON,
 		ResultText: &resultText,
 		Model:      model,
+		Usage:      &models.ProviderUsage{PromptTokens: int64((len(request.Transcription) + 2) / 3), CompletionTokens: 512, TotalTokens: int64((len(request.Transcription)+2)/3) + 512, CostNanoUSD: 1_000_000},
 	}, nil
 }
 

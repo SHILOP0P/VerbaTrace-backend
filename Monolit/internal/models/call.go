@@ -22,6 +22,7 @@ type Call struct {
 	DepartmentUUID         uuid.NullUUID
 	VisibilityScope        CallVisibilityScope
 	SkipCustomInstructions bool
+	IsTest                 bool
 	FolderUUID             uuid.NullUUID
 	SpeakerHints           []SpeakerHint
 	DiarizationRoles       []DiarizationRole
@@ -59,6 +60,9 @@ type CreateCallInput struct {
 	FolderUUID             uuid.NullUUID
 	SpeakerHints           []SpeakerHint
 	DiarizationRoles       []DiarizationRole
+	// IntegrationPrincipalUUID is set only by the internal durable ingest
+	// worker after it revalidates connection placement. HTTP callers cannot set it.
+	IntegrationPrincipalUUID uuid.NullUUID
 }
 
 type SpeakerHint struct {

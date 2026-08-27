@@ -31,10 +31,19 @@ type CompanyRepository interface {
 	GetCompanyMember(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.CompanyMember, error)
 }
 
+type CreditRepository interface {
+	EnsureCurrentCreditUsage(ctx context.Context, subscription models.Subscription, now time.Time) (models.CreditUsage, error)
+}
+
 type Service struct {
 	repository        Repository
 	companyRepository CompanyRepository
+	creditRepository  CreditRepository
 	now               func() time.Time
+}
+
+func (s *Service) SetCreditRepository(repository CreditRepository) {
+	s.creditRepository = repository
 }
 
 func NewService(repository Repository) *Service {

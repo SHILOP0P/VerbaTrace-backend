@@ -557,8 +557,10 @@ func (f *fakeRepository) CountActiveInstructions(context.Context, models.ListAna
 }
 
 type fakeCompanyRepository struct {
-	member models.CompanyMember
-	err    error
+	member            models.CompanyMember
+	err               error
+	creditVisible     bool
+	visibilityUpdated bool
 }
 
 func (f *fakeCompanyRepository) GetCompanyMember(context.Context, uuid.UUID, uuid.UUID) (models.CompanyMember, error) {
@@ -566,4 +568,51 @@ func (f *fakeCompanyRepository) GetCompanyMember(context.Context, uuid.UUID, uui
 		return models.CompanyMember{}, f.err
 	}
 	return f.member, nil
+}
+
+func (f *fakeCompanyRepository) GetCompanyCreditUsageVisibility(context.Context, uuid.UUID) (bool, error) {
+	return f.creditVisible, f.err
+}
+
+func (f *fakeCompanyRepository) UpdateCompanyCreditUsageVisibility(_ context.Context, _ uuid.UUID, visible bool) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.creditVisible = visible
+	f.visibilityUpdated = true
+	return nil
+}
+
+func TestCompanyManagerCanUpdateCreditVisibility(t *testing.T) {
+	companyID := uuid.New()
+	managerID := uuid.New()
+	companyRepository := &fakeCompanyRepository{member: models.CompanyMember{Role: models.CompanyMemberRoleManager}}
+	service := NewService(&fakeRepository{})
+	service.SetCompanyRepository(companyRepository)
+
+	result, err := service.UpdateCompanyCreditVisibility(context.Background(), models.UpdateCompanyCreditVisibilityInput{
+		CompanyUUID: companyID,
+		RequestUser: managerID,
+		Visible:     true,
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.VisibleToMembers)
+	require.True(t, result.CanManageVisibility)
+	require.True(t, companyRepository.visibilityUpdated)
+}
+
+func TestCompanyEmployeeCannotUpdateCreditVisibility(t *testing.T) {
+	companyRepository := &fakeCompanyRepository{member: models.CompanyMember{Role: models.CompanyMemberRoleEmployee}}
+	service := NewService(&fakeRepository{})
+	service.SetCompanyRepository(companyRepository)
+
+	_, err := service.UpdateCompanyCreditVisibility(context.Background(), models.UpdateCompanyCreditVisibilityInput{
+		CompanyUUID: uuid.New(),
+		RequestUser: uuid.New(),
+		Visible:     false,
+	})
+
+	require.ErrorIs(t, err, models.ErrForbidden)
+	require.False(t, companyRepository.visibilityUpdated)
 }

@@ -197,7 +197,7 @@ func instructionBelongsToScope(instruction models.AnalysisInstruction, scope mod
 func isSupportedInstructionMime(mimeType string) bool {
 	value := strings.ToLower(strings.TrimSpace(strings.Split(mimeType, ";")[0]))
 	switch value {
-	case "", "text/markdown", "text/plain", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/octet-stream":
+	case "", "text/markdown", "text/plain", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/zip", "application/x-zip-compressed", "application/octet-stream":
 		return true
 	default:
 		return false

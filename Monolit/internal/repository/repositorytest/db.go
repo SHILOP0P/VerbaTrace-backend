@@ -66,6 +66,11 @@ func TruncateTables(t *testing.T, db *sql.DB) {
 
 	query := `
 	TRUNCATE TABLE
+	    credit_ledger_transactions,
+	    credit_ledger_accounts,
+	    billing_accounts,
+	    developer_applications,
+	    allowance_reset_batches,
 	    admin_audit_logs,
 	    notifications,
 	    usage_counters,
@@ -84,6 +89,32 @@ func TruncateTables(t *testing.T, db *sql.DB) {
 	`
 
 	_, err := db.ExecContext(context.Background(), query)
+	require.NoError(t, err)
+
+	// TRUNCATE ... CASCADE reaches pricing_catalog_versions through its optional
+	// audit FK to users. Restore the immutable production seed used by billing
+	// integration tests; application data remains empty.
+	_, err = db.ExecContext(context.Background(), `
+		INSERT INTO pricing_catalog_versions(
+			pricing_catalog_version_uuid,version,status,credit_micro_usd,
+			multiplier_numerator,multiplier_denominator,effective_from,activation_reason
+		) VALUES(
+			'33333333-3333-7333-8333-333333333331',1,'active',10,7,2,
+			'2026-08-22T00:00:00Z','integration test seed'
+		) ON CONFLICT (pricing_catalog_version_uuid) DO NOTHING
+	`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(context.Background(), `
+		INSERT INTO pricing_rates(
+			pricing_rate_uuid,pricing_catalog_version_uuid,operation_type,provider,model,mode,unit,provider_cost_nano_usd_per_unit
+		) VALUES
+		('33333333-3333-7333-8333-333333333341','33333333-3333-7333-8333-333333333331','transcription','assemblyai','universal-2','standard','audio_hour',150000000),
+		('33333333-3333-7333-8333-333333333342','33333333-3333-7333-8333-333333333331','transcription','assemblyai','universal-2','diarized','audio_hour',170000000),
+		('33333333-3333-7333-8333-333333333343','33333333-3333-7333-8333-333333333331','transcription','assemblyai','universal-2','identified','audio_hour',190000000),
+		('33333333-3333-7333-8333-333333333344','33333333-3333-7333-8333-333333333331','analysis','openrouter','openai/gpt-5-mini','','provider_actual_cost',0),
+		('33333333-3333-7333-8333-333333333345','33333333-3333-7333-8333-333333333331','deep_analysis','openrouter','openai/gpt-5-mini','','provider_actual_cost',0)
+		ON CONFLICT (pricing_rate_uuid) DO NOTHING
+	`)
 	require.NoError(t, err)
 }
 

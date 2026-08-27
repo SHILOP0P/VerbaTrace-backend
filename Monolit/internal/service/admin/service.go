@@ -123,6 +123,51 @@ func (s *Service) ResetUsage(ctx context.Context, input models.ResetAdminUsageIn
 	return s.auditRepository.ResetAdminUsage(ctx, input)
 }
 
+type allowanceResetBatchRepository interface {
+	CreateAllowanceResetBatch(context.Context, uuid.UUID, string, []uuid.UUID, string, string) (models.AllowanceResetBatch, error)
+	ApproveAllowanceResetBatch(context.Context, uuid.UUID, uuid.UUID) (models.AllowanceResetBatch, error)
+	ExecuteAllowanceResetBatch(context.Context, uuid.UUID, uuid.UUID) (models.AllowanceResetBatch, error)
+	GetAllowanceResetBatch(context.Context, uuid.UUID, uuid.UUID) (models.AllowanceResetBatch, error)
+	PreviewAllowanceResetBatch(context.Context, uuid.UUID, string, []uuid.UUID) (int, error)
+}
+
+func (s *Service) PreviewAllowanceResetBatch(ctx context.Context, actor uuid.UUID, ownerType string, owners []uuid.UUID) (int, error) {
+	repo, ok := s.auditRepository.(allowanceResetBatchRepository)
+	if !ok {
+		return 0, errAuditRepositoryNotConfigured
+	}
+	return repo.PreviewAllowanceResetBatch(ctx, actor, ownerType, owners)
+}
+
+func (s *Service) CreateAllowanceResetBatch(ctx context.Context, actor uuid.UUID, ownerType string, owners []uuid.UUID, reason, key string) (models.AllowanceResetBatch, error) {
+	repo, ok := s.auditRepository.(allowanceResetBatchRepository)
+	if !ok {
+		return models.AllowanceResetBatch{}, errAuditRepositoryNotConfigured
+	}
+	return repo.CreateAllowanceResetBatch(ctx, actor, ownerType, owners, reason, key)
+}
+func (s *Service) ApproveAllowanceResetBatch(ctx context.Context, id, actor uuid.UUID) (models.AllowanceResetBatch, error) {
+	repo, ok := s.auditRepository.(allowanceResetBatchRepository)
+	if !ok {
+		return models.AllowanceResetBatch{}, errAuditRepositoryNotConfigured
+	}
+	return repo.ApproveAllowanceResetBatch(ctx, id, actor)
+}
+func (s *Service) ExecuteAllowanceResetBatch(ctx context.Context, id, actor uuid.UUID) (models.AllowanceResetBatch, error) {
+	repo, ok := s.auditRepository.(allowanceResetBatchRepository)
+	if !ok {
+		return models.AllowanceResetBatch{}, errAuditRepositoryNotConfigured
+	}
+	return repo.ExecuteAllowanceResetBatch(ctx, id, actor)
+}
+func (s *Service) GetAllowanceResetBatch(ctx context.Context, id, actor uuid.UUID) (models.AllowanceResetBatch, error) {
+	repo, ok := s.auditRepository.(allowanceResetBatchRepository)
+	if !ok {
+		return models.AllowanceResetBatch{}, errAuditRepositoryNotConfigured
+	}
+	return repo.GetAllowanceResetBatch(ctx, id, actor)
+}
+
 func (s *Service) ListUserSessions(ctx context.Context, actorUserID uuid.UUID, targetUserID uuid.UUID) ([]models.AdminUserSession, error) {
 	if s.auditRepository == nil || actorUserID == uuid.Nil || targetUserID == uuid.Nil {
 		return nil, models.ErrInvalidAdminInput

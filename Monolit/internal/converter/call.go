@@ -51,6 +51,7 @@ func CallModelToAPI(call models.Call) (dto.CallResponse, error) {
 		DepartmentUUID:        nullUUIDToStringPtr(call.DepartmentUUID),
 		VisibilityScope:       string(call.VisibilityScope),
 		UseCustomInstructions: !call.SkipCustomInstructions,
+		IsTest:                call.IsTest,
 		SpeakerHints:          speakerHintsToAPI(call.SpeakerHints),
 		DiarizationRoles:      diarizationRolesToAPI(call.DiarizationRoles),
 		CreatedAt:             call.CreatedAt.Format(time.RFC3339),

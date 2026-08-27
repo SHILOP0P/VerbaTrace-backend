@@ -58,7 +58,7 @@ func TestProcessTranscribeCallHappyPath(t *testing.T) {
 	}
 }
 
-func TestDiarizedTranscriptionWithoutSpeakerSegmentsIsNotPersisted(t *testing.T) {
+func TestDiarizedTranscriptionWithoutSpeakerSegmentsIsPersistedAsUnknown(t *testing.T) {
 	ctx := context.Background()
 	callID := uuid.New()
 	transcriptionID := uuid.New()
@@ -68,21 +68,26 @@ func TestDiarizedTranscriptionWithoutSpeakerSegmentsIsNotPersisted(t *testing.T)
 	transcriber := transcriberMocks.NewTranscriber(t)
 	service := NewService(callRepo, transcriptionRepo, nil, audioStorage, transcriber, nil)
 
-	transcriber.EXPECT().Provider().Return("test").Once()
+	transcriber.EXPECT().Provider().Return("test").Times(3)
 	transcriptionRepo.EXPECT().Create(mock.Anything, mock.MatchedBy(func(value models.Transcription) bool {
 		return value.CallUUID == callID && value.Status == models.TranscriptionStatusProcessing
 	})).Return(models.Transcription{ID: transcriptionID, CallUUID: callID}, nil).Once()
 	audioStorage.EXPECT().Open(mock.Anything, "call.mp4").Return(io.NopCloser(strings.NewReader("video")), nil).Once()
 	transcriber.EXPECT().Transcribe(mock.Anything, mock.Anything).
 		Return(models.TranscriptionResult{Text: "text without speakers"}, nil).Once()
+	transcriptionRepo.EXPECT().MarkTranscribed(mock.Anything, transcriptionID, "text without speakers", mock.MatchedBy(func(segments []models.TranscriptionSegment) bool {
+		return len(segments) == 1 && segments[0].Speaker == "unknown" && segments[0].Text == "text without speakers"
+	}), mock.Anything, mock.Anything).Return(models.Transcription{ID: transcriptionID}, nil).Once()
+	callRepo.EXPECT().UpdateCallStatus(mock.Anything, callID, models.CallStatusTranscribed).
+		Return(models.Call{ID: callID, Status: models.CallStatusTranscribed}, nil).Once()
 
 	err := service.processTranscribeCallWithMode(ctx, models.Call{
 		ID: callID, Status: models.CallStatusProcessing, AudioPath: "call.mp4",
 		OriginalFilename: "call.mp4", MimeType: "video/mp4",
 	}, models.TranscriptionModeIdentified)
 
-	if err == nil || !strings.Contains(err.Error(), "provider returned no speaker segments") {
-		t.Fatalf("expected missing diarization error, got %v", err)
+	if err != nil {
+		t.Fatalf("unexpected missing diarization error: %v", err)
 	}
 }
 

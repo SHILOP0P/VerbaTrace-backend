@@ -118,6 +118,23 @@ func TestValidationAndLimits(t *testing.T) {
 	}
 }
 
+func TestSupportedOfficeMIMETypes(t *testing.T) {
+	for _, mimeType := range []string{
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/zip",
+		"application/x-zip-compressed",
+		"application/octet-stream",
+	} {
+		if !isSupportedInstructionMime(mimeType) {
+			t.Fatalf("expected MIME type %q to be supported", mimeType)
+		}
+	}
+	if isSupportedInstructionMime("application/x-msdownload") {
+		t.Fatal("executable MIME type must not be supported")
+	}
+}
+
 func TestAuthorizationPaths(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()

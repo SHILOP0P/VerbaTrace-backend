@@ -82,6 +82,7 @@ func (r *Repository) CreateCall(ctx context.Context, call model.Call) (model.Cal
 	          department_uuid,
 	          visibility_scope,
 	          skip_custom_instructions,
+	          false AS is_test,
 	          created_at
 	`
 
@@ -170,6 +171,7 @@ func (r *Repository) CreateCallWithProcessingJob(ctx context.Context, call model
 	          department_uuid,
 	          visibility_scope,
 	          skip_custom_instructions,
+	          false AS is_test,
 	          created_at
 	`
 

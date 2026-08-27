@@ -193,6 +193,10 @@ func TestMaxAnalysisTokensDependsOnTranscriptionWordCount(t *testing.T) {
 			if got := maxAnalysisTokens(transcription); got != test.want {
 				t.Fatalf("maxAnalysisTokens() = %d, want %d", got, test.want)
 			}
+			analyzer := &Analyzer{}
+			if got := analyzer.MaximumCompletionTokens(models.AnalysisRequest{Transcription: transcription}); got != int64(test.want) {
+				t.Fatalf("MaximumCompletionTokens() = %d, want %d", got, test.want)
+			}
 		})
 	}
 }
@@ -395,6 +399,63 @@ func TestAnalyzeReturnsOpenRouterError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "status 402") || !strings.Contains(err.Error(), "insufficient credits") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUSDNumberToNanoUSD(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value json.Number
+		want  int64
+	}{
+		{name: "empty", value: "", want: 0},
+		{name: "whole dollar", value: "1", want: 1_000_000_000},
+		{name: "gpt example", value: "0.0065", want: 6_500_000},
+		{name: "sub nano rounds up", value: "0.0000000001", want: 1},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := usdNumberToNanoUSD(test.value)
+			if err != nil {
+				t.Fatalf("usdNumberToNanoUSD() error = %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("usdNumberToNanoUSD() = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
+func TestProviderUsageCapturesCostAndTokenBreakdown(t *testing.T) {
+	t.Parallel()
+
+	var response chatResponse
+	if err := json.Unmarshal([]byte(`{
+		"id":"gen-1",
+		"usage":{
+			"prompt_tokens":10000,
+			"completion_tokens":2000,
+			"total_tokens":12000,
+			"cost":0.0065,
+			"prompt_tokens_details":{"cached_tokens":500},
+			"completion_tokens_details":{"reasoning_tokens":200},
+			"cost_details":{"upstream_inference_cost":0.006}
+		}
+	}`), &response); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	usage, err := providerUsage(response)
+	if err != nil {
+		t.Fatalf("providerUsage() error = %v", err)
+	}
+	if usage == nil || usage.ProviderRequestID != "gen-1" || usage.PromptTokens != 10000 ||
+		usage.CachedTokens != 500 || usage.CompletionTokens != 2000 || usage.ReasoningTokens != 200 ||
+		usage.CostNanoUSD != 6_500_000 || usage.UpstreamInferenceNanoUSD == nil || *usage.UpstreamInferenceNanoUSD != 6_000_000 {
+		t.Fatalf("providerUsage() = %+v", usage)
 	}
 }
 

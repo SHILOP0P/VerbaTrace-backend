@@ -40,6 +40,8 @@ services:
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-change-me}
       REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-720h}
       AUTH_SESSION_TRUST_AGE: ${AUTH_SESSION_TRUST_AGE:-24h}
+      # Development-only default. Production must inject a secret-managed key.
+      INTEGRATION_MASTER_KEY_BASE64: ${INTEGRATION_MASTER_KEY_BASE64:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
     ports:
       - "${HTTP_PORT:-8080}:${HTTP_PORT:-8080}"
     volumes:
