@@ -271,8 +271,16 @@ func writeBillingError(w http.ResponseWriter, err error, fallbackCode string, fa
 		response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "forbidden")
 		return
 	}
+	if errors.Is(err, models.ErrAPIKeyScopeDenied) {
+		response.WriteError(w, http.StatusForbidden, response.CodeAPIKeyScopeDenied, "requested scopes exceed application capabilities")
+		return
+	}
 	if errors.Is(err, models.ErrSubscriptionNotFound) {
 		response.WriteError(w, http.StatusNotFound, response.CodeSubscriptionNotFound, "subscription not found")
+		return
+	}
+	if errors.Is(err, models.ErrIntegrationConflict) {
+		response.WriteError(w, http.StatusConflict, "integration_conflict", "resource was changed by another request")
 		return
 	}
 

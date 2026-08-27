@@ -27,6 +27,7 @@ type CallResponse struct {
 	DepartmentUUID        *string                   `json:"department_uuid"`
 	VisibilityScope       string                    `json:"visibility_scope"`
 	UseCustomInstructions bool                      `json:"use_custom_instructions"`
+	IsTest                bool                      `json:"is_test"`
 	SpeakerHints          []SpeakerHintResponse     `json:"speaker_hints,omitempty"`
 	DiarizationRoles      []DiarizationRoleResponse `json:"diarization_roles,omitempty"`
 	CreatedAt             string                    `json:"created_at"`

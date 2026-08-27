@@ -21,7 +21,7 @@ func (s *Service) CreateCall(ctx context.Context, input models.CreateCallInput) 
 		s.log.Warn(ctx, "create call failed", zap.String("reason", "upload_forbidden"), zap.String("user_id", input.UploadedByUserUUID.String()), zap.String("visibility_scope", string(input.VisibilityScope)), zap.Error(err))
 		return models.Call{}, err
 	}
-	if input.FolderUUID.Valid {
+	if input.FolderUUID.Valid && !input.IntegrationPrincipalUUID.Valid {
 		if s.callFolderRepository == nil {
 			return models.Call{}, models.ErrCallFolderNotFound
 		}
@@ -70,12 +70,6 @@ func (s *Service) CreateCall(ctx context.Context, input models.CreateCallInput) 
 	call.DurationSeconds = durationSeconds
 	call.FolderUUID = input.FolderUUID
 
-	if err := s.checkUploadMinutes(ctx, input, durationSeconds); err != nil {
-		_ = s.audioStorage.Delete(context.Background(), savedFile.Path)
-		s.log.Warn(ctx, "create call failed", zap.String("reason", "billing_limit"), zap.String("user_id", input.UploadedByUserUUID.String()), zap.String("call_id", callUUID.String()), zap.Error(err))
-		return models.Call{}, err
-	}
-
 	transcriptionMode, err := s.resolveTranscriptionMode(ctx, input)
 	if err != nil {
 		_ = s.audioStorage.Delete(context.Background(), savedFile.Path)
@@ -87,15 +81,6 @@ func (s *Service) CreateCall(ctx context.Context, input models.CreateCallInput) 
 		_ = s.audioStorage.Delete(context.Background(), savedFile.Path)
 		s.log.Error(ctx, "failed to create call record", zap.String("user_id", input.UploadedByUserUUID.String()), zap.String("call_id", callUUID.String()), zap.Error(err))
 		return models.Call{}, err
-	}
-
-	if err := s.addUsageMinutes(ctx, input, durationSeconds); err != nil {
-		// The call and its durable processing job have already committed. Returning
-		// an error here made the client see a false 5xx and retry a successfully
-		// accepted large upload. Admission was checked before the record was
-		// created, so retain that invariant and surface a reconciliation signal
-		// instead of lying about the upload outcome.
-		s.log.Error(ctx, "call usage accounting requires reconciliation", zap.String("user_id", input.UploadedByUserUUID.String()), zap.String("call_id", createdCall.ID.String()), zap.Int("duration_seconds", durationSeconds), zap.Error(err))
 	}
 
 	s.log.Info(
@@ -123,30 +108,6 @@ func folderMatchesPlacement(folder models.CallFolder, input models.CreateCallInp
 	default:
 		return false
 	}
-}
-
-func (s *Service) checkUploadMinutes(ctx context.Context, input models.CreateCallInput, durationSeconds int) error {
-	if s.billingLimiter == nil {
-		return nil
-	}
-
-	if input.CompanyUUID.Valid {
-		return s.billingLimiter.CanUploadBusinessCall(ctx, input.CompanyUUID.UUID, durationSeconds)
-	}
-
-	return s.billingLimiter.CanUploadPersonalCall(ctx, input.UploadedByUserUUID, durationSeconds)
-}
-
-func (s *Service) addUsageMinutes(ctx context.Context, input models.CreateCallInput, durationSeconds int) error {
-	if s.billingLimiter == nil {
-		return nil
-	}
-
-	if input.CompanyUUID.Valid {
-		return s.billingLimiter.AddBusinessUsageMinutes(ctx, input.CompanyUUID.UUID, durationSeconds)
-	}
-
-	return s.billingLimiter.AddPersonalUsageMinutes(ctx, input.UploadedByUserUUID, durationSeconds)
 }
 
 func (s *Service) detectAudioDuration(ctx context.Context, path string) (int, error) {

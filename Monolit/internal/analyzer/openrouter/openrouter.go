@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"strings"
 
@@ -67,6 +68,7 @@ type jsonSchema struct {
 }
 
 type chatResponse struct {
+	ID      string `json:"id"`
 	Model   string `json:"model"`
 	Choices []struct {
 		Message            message `json:"message"`
@@ -74,8 +76,21 @@ type chatResponse struct {
 		NativeFinishReason string  `json:"native_finish_reason"`
 	} `json:"choices"`
 	Usage struct {
-		CompletionTokens int `json:"completion_tokens"`
-		ReasoningTokens  int `json:"reasoning_tokens"`
+		PromptTokens     int64       `json:"prompt_tokens"`
+		CompletionTokens int64       `json:"completion_tokens"`
+		TotalTokens      int64       `json:"total_tokens"`
+		Cost             json.Number `json:"cost"`
+		PromptDetails    struct {
+			CachedTokens int64 `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
+		CompletionDetails struct {
+			ReasoningTokens int64 `json:"reasoning_tokens"`
+		} `json:"completion_tokens_details"`
+		CostDetails struct {
+			UpstreamInferenceCost json.Number `json:"upstream_inference_cost"`
+		} `json:"cost_details"`
+		// Kept for compatibility with older OpenRouter response fixtures.
+		ReasoningTokens int64 `json:"reasoning_tokens"`
 	} `json:"usage"`
 }
 
@@ -107,6 +122,10 @@ func New(apiKey string, model string) (*Analyzer, error) {
 
 func (a *Analyzer) Provider() string {
 	return providerName
+}
+
+func (a *Analyzer) MaximumCompletionTokens(request models.AnalysisRequest) int64 {
+	return int64(maxAnalysisTokens(request.Transcription))
 }
 
 func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) (models.AnalysisResult, error) {
@@ -182,10 +201,16 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 		model = a.model
 	}
 
+	usage, err := providerUsage(result)
+	if err != nil {
+		return models.AnalysisResult{}, fmt.Errorf("decode openrouter usage: %w", err)
+	}
+
 	return models.AnalysisResult{
 		ResultJSON: resultJSON,
 		ResultText: &resultText,
 		Model:      &model,
+		Usage:      usage,
 	}, nil
 }
 
@@ -246,7 +271,63 @@ func (a *Analyzer) AnalyzeAggregate(ctx context.Context, request models.Aggregat
 	if model == "" {
 		model = a.model
 	}
-	return models.AnalysisResult{ResultJSON: resultJSON, ResultText: &resultText, Model: &model}, nil
+	usage, err := providerUsage(result)
+	if err != nil {
+		return models.AnalysisResult{}, fmt.Errorf("decode openrouter usage: %w", err)
+	}
+	return models.AnalysisResult{ResultJSON: resultJSON, ResultText: &resultText, Model: &model, Usage: usage}, nil
+}
+
+func providerUsage(result chatResponse) (*models.ProviderUsage, error) {
+	if result.Usage.Cost == "" && result.Usage.PromptTokens == 0 && result.Usage.CompletionTokens == 0 {
+		return nil, nil
+	}
+	cost, err := usdNumberToNanoUSD(result.Usage.Cost)
+	if err != nil {
+		return nil, fmt.Errorf("cost: %w", err)
+	}
+	var upstream *int64
+	if result.Usage.CostDetails.UpstreamInferenceCost != "" {
+		value, parseErr := usdNumberToNanoUSD(result.Usage.CostDetails.UpstreamInferenceCost)
+		if parseErr != nil {
+			return nil, fmt.Errorf("upstream inference cost: %w", parseErr)
+		}
+		upstream = &value
+	}
+	reasoning := result.Usage.CompletionDetails.ReasoningTokens
+	if reasoning == 0 {
+		reasoning = result.Usage.ReasoningTokens
+	}
+	return &models.ProviderUsage{
+		ProviderRequestID:        result.ID,
+		PromptTokens:             result.Usage.PromptTokens,
+		CachedTokens:             result.Usage.PromptDetails.CachedTokens,
+		CompletionTokens:         result.Usage.CompletionTokens,
+		ReasoningTokens:          reasoning,
+		TotalTokens:              result.Usage.TotalTokens,
+		CostNanoUSD:              cost,
+		UpstreamInferenceNanoUSD: upstream,
+	}, nil
+}
+
+func usdNumberToNanoUSD(value json.Number) (int64, error) {
+	if value == "" {
+		return 0, nil
+	}
+	rat, ok := new(big.Rat).SetString(value.String())
+	if !ok || rat.Sign() < 0 {
+		return 0, fmt.Errorf("invalid USD amount %q", value)
+	}
+	rat.Mul(rat, big.NewRat(1_000_000_000, 1))
+	quotient, remainder := new(big.Int), new(big.Int)
+	quotient.QuoRem(rat.Num(), rat.Denom(), remainder)
+	if remainder.Sign() != 0 {
+		quotient.Add(quotient, big.NewInt(1))
+	}
+	if !quotient.IsInt64() {
+		return 0, fmt.Errorf("USD amount %q overflows nanoUSD", value)
+	}
+	return quotient.Int64(), nil
 }
 
 func maxAnalysisTokens(transcription string) int {

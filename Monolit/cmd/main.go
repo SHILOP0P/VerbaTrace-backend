@@ -23,6 +23,7 @@ import (
 	contactAPI "verbatrace/monolit/internal/API/contact"
 	departmentAPI "verbatrace/monolit/internal/API/department"
 	healthAPI "verbatrace/monolit/internal/API/health"
+	integrationAPI "verbatrace/monolit/internal/API/integration"
 	invitationAPI "verbatrace/monolit/internal/API/invitation"
 	monitoringAPI "verbatrace/monolit/internal/API/monitoring"
 	notificationAPI "verbatrace/monolit/internal/API/notification"
@@ -30,8 +31,10 @@ import (
 	reportAPI "verbatrace/monolit/internal/API/report"
 	searchAPI "verbatrace/monolit/internal/API/search"
 	"verbatrace/monolit/internal/analyzer"
+	analyzerMock "verbatrace/monolit/internal/analyzer/mock"
 	"verbatrace/monolit/internal/config"
 	"verbatrace/monolit/internal/httpserver"
+	"verbatrace/monolit/internal/integrationcrypto"
 	"verbatrace/monolit/internal/logger"
 	"verbatrace/monolit/internal/migrator"
 	adminRepo "verbatrace/monolit/internal/repository/admin"
@@ -44,6 +47,7 @@ import (
 	companyRepo "verbatrace/monolit/internal/repository/company"
 	contactRepo "verbatrace/monolit/internal/repository/contact"
 	departmentRepo "verbatrace/monolit/internal/repository/department"
+	integrationRepo "verbatrace/monolit/internal/repository/integration"
 	invitationRepo "verbatrace/monolit/internal/repository/invitation"
 	notificationRepo "verbatrace/monolit/internal/repository/notification"
 	processingJobRepo "verbatrace/monolit/internal/repository/processing_job"
@@ -66,6 +70,7 @@ import (
 	companyService "verbatrace/monolit/internal/service/company"
 	contactService "verbatrace/monolit/internal/service/contact"
 	departmentService "verbatrace/monolit/internal/service/department"
+	integrationService "verbatrace/monolit/internal/service/integration"
 	invitationService "verbatrace/monolit/internal/service/invitation"
 	monitoringService "verbatrace/monolit/internal/service/monitoring"
 	notificationService "verbatrace/monolit/internal/service/notification"
@@ -80,6 +85,7 @@ import (
 	"verbatrace/monolit/internal/storage/instruction"
 	reportStorage "verbatrace/monolit/internal/storage/report"
 	"verbatrace/monolit/internal/transcriber"
+	transcriberMock "verbatrace/monolit/internal/transcriber/mock"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -207,11 +213,13 @@ func main() {
 	}
 
 	analysisSvc := analysisService.NewService(callRepository, transcriptionRepository, analysisInstructionRepository, analysisRepository, instructionStorage, analyzerProvider, appLogger)
+	analysisSvc.SetSandboxAnalyzer(analyzerMock.New("sandbox-deterministic-v1"))
 	analysisSvc.SetProcessingJobRepository(processingJobRepository)
 	analysisSvc.SetProcessingJobMaxAttempts(config.AppConfig().Worker.MaxAttempts())
 	analysisSvc.SetPersonalizationReader(analysisContextRepository)
 	analysisSvc.SetFolderInstructionReader(callFolderRepository)
 	processingSvc := processingService.NewService(callRepository, transcriptionRepository, processingJobRepository, audioStorage, transcriberProvider, appLogger)
+	processingSvc.SetSandboxTranscriber(transcriberMock.New())
 	processingSvc.SetProcessingJobMaxAttempts(config.AppConfig().Worker.MaxAttempts())
 	processingSvc.SetAnalysisProcessor(analysisSvc)
 
@@ -263,6 +271,10 @@ func main() {
 	invitationSvc := invitationService.NewService(invitationRepository, userRepository, companyRepository, departmentRepository, appLogger)
 	instructionSvc := analysisInstructionService.NewService(analysisInstructionRepository, companyRepository, departmentRepository, instructionStorage, appLogger)
 	billingSvc := billingService.NewService(billingRepository)
+	billingSvc.SetCreditRepository(billingRepository)
+	creditReconciliationDone := billingService.NewReconciliationWorker(billingRepository, appLogger).Run(ctx)
+	processingSvc.SetCreditMeter(billingSvc)
+	analysisSvc.SetCreditMeter(billingSvc)
 	reportSvc := reportService.NewService(callRepository, analysisRepository, transcriptionRepository, reportRepository, reportsStorage)
 	analyticsSvc := analyticsService.NewService(callRepository)
 	analyticsSvc.SetCallFolderRepository(callFolderRepository)
@@ -314,8 +326,28 @@ func main() {
 	monitoringHandler := monitoringAPI.NewHandler(monitoringSvc)
 	searchHandler := searchAPI.NewHandler(searchSvc)
 	notificationHandler := notificationAPI.NewHandler(notificationSvc)
+	var integrationCipher *integrationcrypto.Cipher
+	if rawKey := os.Getenv("INTEGRATION_MASTER_KEY_BASE64"); rawKey != "" {
+		integrationCipher, err = integrationcrypto.NewFromBase64(rawKey, 1)
+		if err != nil {
+			appLogger.Error(ctx, "invalid integration encryption key", zap.Error(err))
+			return
+		}
+	} else {
+		appLogger.Warn(ctx, "integration ingest disabled until INTEGRATION_MASTER_KEY_BASE64 is configured")
+	}
+	integrationRepository := integrationRepo.NewRepository(sqlDB, integrationCipher)
+	integrationStagingDir := filepath.Join("uploads", "integration-staging")
+	integrationSvc := integrationService.NewService(integrationRepository, billingSvc, integrationCipher, integrationStagingDir)
+	integrationHandler := integrationAPI.NewHandler(integrationSvc)
+	var integrationWorkerDone <-chan struct{}
+	var webhookWorkerDone <-chan struct{}
+	if config.AppConfig().Worker.Enabled() && integrationCipher != nil {
+		integrationWorkerDone = integrationService.NewWorker(integrationRepository, callSvc, integrationCipher, appLogger, integrationStagingDir).Run(ctx)
+		webhookWorkerDone = integrationService.NewWebhookWorker(integrationRepository, appLogger).Run(ctx)
+	}
 
-	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, actionHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
+	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, actionHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, integrationHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
 
 	server := &http.Server{
 		Addr:              config.AppConfig().HTTPConfig.Address(),
@@ -361,6 +393,28 @@ func main() {
 		case <-shutdownCtx.Done():
 			appLogger.Warn(context.Background(), "processing worker shutdown timed out", zap.Error(shutdownCtx.Err()))
 		}
+	}
+	if integrationWorkerDone != nil {
+		select {
+		case <-integrationWorkerDone:
+			appLogger.Info(context.Background(), "integration ingest worker shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), "integration ingest worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	if webhookWorkerDone != nil {
+		select {
+		case <-webhookWorkerDone:
+			appLogger.Info(context.Background(), "integration webhook worker shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), "integration webhook worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	select {
+	case <-creditReconciliationDone:
+		appLogger.Info(context.Background(), "credit reconciliation worker shutdown completed")
+	case <-shutdownCtx.Done():
+		appLogger.Warn(context.Background(), "credit reconciliation worker shutdown timed out", zap.Error(shutdownCtx.Err()))
 	}
 	select {
 	case <-actionWorkerDone:

@@ -3,6 +3,7 @@
 package billing
 
 import (
+	"sync"
 	"time"
 
 	"verbatrace/monolit/internal/models"
@@ -16,7 +17,11 @@ func (s *RepositorySuite) TestListPlansIncludesDefaultPlans() {
 	s.Require().NoError(err)
 	s.Require().Len(plans, 6)
 	s.Require().Equal(models.PlanCodePersonalStart, plans[0].Code)
-	s.Require().Equal(120, plans[0].MonthlyMinutesLimit)
+	s.Require().Equal(180, plans[0].MonthlyMinutesLimit)
+	s.Require().Equal(int64(250_000), plans[0].MonthlyCreditAllowance)
+	s.Require().Equal(int64(0), plans[0].MonthlyPriceMinor)
+	s.Require().Equal("RUB", plans[0].Currency)
+	s.Require().Equal(3, plans[0].MarketingHoursHint)
 	s.Require().Equal(2, plans[0].ActiveInstructionLimit)
 	s.Require().Equal(models.PlanCodeBusinessPro, plans[5].Code)
 	s.Require().NotNil(plans[5].CompanyLimit)
@@ -24,6 +29,41 @@ func (s *RepositorySuite) TestListPlansIncludesDefaultPlans() {
 	s.Require().NotNil(plans[5].InstructionsPerDepartmentLimit)
 	s.Require().Equal(10, *plans[5].InstructionsPerDepartmentLimit)
 	s.Require().True(plans[5].APIAccessEnabled)
+	s.Require().True(plans[5].WebhooksEnabled)
+	s.Require().Nil(plans[5].MembersPerCompanyLimit)
+	s.Require().Equal(int64(9_990_000), plans[5].MonthlyPriceMinor)
+	s.Require().Equal(int64(90_000_000), plans[5].MonthlyCreditAllowance)
+}
+
+func (s *RepositorySuite) TestEnsureCurrentCreditUsageIsSafeUnderConcurrentDashboardReads() {
+	userID := s.createUser("credit-allowance-concurrent@example.com")
+	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
+	s.Require().NoError(err)
+	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+
+	start := make(chan struct{})
+	errorsFound := make(chan error, 8)
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, callErr := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now)
+			errorsFound <- callErr
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errorsFound)
+	for callErr := range errorsFound {
+		s.Require().NoError(callErr)
+	}
+	var epochs, grants int
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM allowance_epochs WHERE subscription_uuid=$1`, subscription.ID).Scan(&epochs))
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM credit_grants WHERE allowance_epoch_uuid IN (SELECT allowance_epoch_uuid FROM allowance_epochs WHERE subscription_uuid=$1)`, subscription.ID).Scan(&grants))
+	s.Require().Equal(1, epochs)
+	s.Require().Equal(1, grants)
 }
 
 func (s *RepositorySuite) TestUserBusinessSubscriptionDoesNotCoverCompany() {
@@ -118,6 +158,269 @@ func (s *RepositorySuite) TestAddUsageMinutesAccumulatesCurrentPeriod() {
 	usedMinutes, err := s.repository.CountUsedMinutes(s.ctx, subscription.ID, now)
 	s.Require().NoError(err)
 	s.Require().Equal(7, usedMinutes)
+}
+
+func (s *RepositorySuite) TestEnsureCurrentCreditUsageCreatesBalancedMonthlyAllowanceOnce() {
+	userID := s.createUser("credit-allowance@example.com")
+	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(250_000), subscription.Plan.MonthlyCreditAllowance)
+
+	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	first, err := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now)
+	s.Require().NoError(err)
+	s.Require().Equal(subscription.Plan.MonthlyCreditAllowance, first.AllowanceCredits)
+	s.Require().Equal(subscription.Plan.MonthlyCreditAllowance, first.AllowanceRemaining)
+	s.Require().Equal(time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), first.ResetsAt)
+
+	second, err := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now.Add(time.Hour))
+	s.Require().NoError(err)
+	s.Require().Equal(first, second)
+
+	var epochs, grants, transactions int
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM allowance_epochs WHERE subscription_uuid=$1`, subscription.ID).Scan(&epochs))
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM credit_grants WHERE source_reference LIKE 'allowance:%'`).Scan(&grants))
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM credit_ledger_transactions WHERE transaction_type='allowance_opened'`).Scan(&transactions))
+	s.Require().Equal(1, epochs)
+	s.Require().Equal(1, grants)
+	s.Require().Equal(1, transactions)
+
+	var postingSum int64
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT COALESCE(sum(amount_credits),0) FROM credit_ledger_postings`).Scan(&postingSum))
+	s.Require().Zero(postingSum)
+}
+
+func (s *RepositorySuite) TestReserveAndSettleCreditsNeverExceedsMaximumCharge() {
+	userID := s.createUser("credit-settlement@example.com")
+	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
+	s.Require().NoError(err)
+	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+
+	operationID := uuid.New()
+	reserved, err := s.repository.ReserveCredits(s.ctx, subscription, models.ReserveCreditsInput{
+		OperationUUID: operationID, OperationType: "analysis", Environment: "production",
+		Provider: "openrouter", Model: "openai/gpt-5-mini", IdempotencyKey: "analysis:test:1",
+		MaximumCharge: 1_000,
+	}, now)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1_000), reserved.ReservedCredits)
+
+	duplicate, err := s.repository.ReserveCredits(s.ctx, subscription, models.ReserveCreditsInput{
+		OperationUUID: operationID, OperationType: "analysis", Environment: "production",
+		Provider: "openrouter", Model: "openai/gpt-5-mini", IdempotencyKey: "analysis:test:1",
+		MaximumCharge: 1_000,
+	}, now)
+	s.Require().NoError(err)
+	s.Require().Equal(reserved, duplicate)
+
+	settled, err := s.repository.SettleCredits(s.ctx, models.SettleCreditsInput{
+		OperationUUID: operationID, ActualChargeCredits: 1_250,
+		ProviderCostNanoUSD: 3_500_000, ProviderUsageJSON: []byte(`{"total_tokens":100}`),
+	}, now.Add(time.Second))
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1_000), settled.SettledCredits)
+	s.Require().Equal(int64(250), settled.InternalPricingLossCredits)
+	s.Require().Zero(settled.ReservedCredits)
+
+	usage, err := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now.Add(time.Minute))
+	s.Require().NoError(err)
+	s.Require().Equal(subscription.Plan.MonthlyCreditAllowance-1_000, usage.AllowanceRemaining)
+
+	var ledgerSum, reservedBalance int64
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT COALESCE(sum(amount_credits),0) FROM credit_ledger_postings`).Scan(&ledgerSum))
+	s.Require().Zero(ledgerSum)
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `
+		SELECT COALESCE(sum(p.amount_credits),0)
+		FROM credit_ledger_postings p JOIN credit_ledger_accounts a USING(credit_ledger_account_uuid)
+		WHERE a.operation_uuid=$1 AND a.account_type='customer_reserved'
+	`, operationID).Scan(&reservedBalance))
+	s.Require().Zero(reservedBalance)
+}
+
+func (s *RepositorySuite) TestReserveCreditsRejectsPartialFunding() {
+	userID := s.createUser("credit-insufficient@example.com")
+	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
+	s.Require().NoError(err)
+	_, err = s.repository.ReserveCredits(s.ctx, subscription, models.ReserveCreditsInput{
+		OperationUUID: uuid.New(), OperationType: "analysis", Environment: "production",
+		Provider: "openrouter", Model: "openai/gpt-5-mini", IdempotencyKey: "analysis:too-expensive",
+		MaximumCharge: subscription.Plan.MonthlyCreditAllowance + 1,
+	}, time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC))
+	s.Require().ErrorIs(err, models.ErrInsufficientCredits)
+
+	var operations int
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM usage_operations`).Scan(&operations))
+	s.Require().Zero(operations)
+}
+
+func (s *RepositorySuite) TestReserveCreditsEnforcesApplicationBudgetsAtomically() {
+	userID := s.createUser("application-budget@example.com")
+	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
+	s.Require().NoError(err)
+	daily, monthly, perOperation := int64(1_500), int64(2_000), int64(1_000)
+	app, err := s.repository.CreateDeveloperApplication(s.ctx, models.CreateDeveloperApplicationInput{
+		OwnerType: "user", OwnerUUID: userID, CreatedByUserUUID: userID,
+		Name: "Production API", Environment: "production", Capabilities: []string{"calls:write"},
+		DailyCreditLimit: &daily, MonthlyCreditLimit: &monthly, MaxCreditsPerOperation: &perOperation,
+	})
+	s.Require().NoError(err)
+	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+
+	_, err = s.repository.ReserveCredits(s.ctx, subscription, models.ReserveCreditsInput{
+		OperationUUID: uuid.New(), ApplicationUUID: uuid.NullUUID{UUID: app.ID, Valid: true}, OperationType: "analysis", Environment: "production",
+		Provider: "openrouter", Model: "openai/gpt-5-mini", IdempotencyKey: "budget:first", MaximumCharge: 900,
+	}, now)
+	s.Require().NoError(err)
+
+	_, err = s.repository.ReserveCredits(s.ctx, subscription, models.ReserveCreditsInput{
+		OperationUUID: uuid.New(), ApplicationUUID: uuid.NullUUID{UUID: app.ID, Valid: true}, OperationType: "analysis", Environment: "production",
+		Provider: "openrouter", Model: "openai/gpt-5-mini", IdempotencyKey: "budget:per-operation", MaximumCharge: 1_001,
+	}, now)
+	s.Require().ErrorIs(err, models.ErrApplicationBudgetExceeded)
+
+	_, err = s.repository.ReserveCredits(s.ctx, subscription, models.ReserveCreditsInput{
+		OperationUUID: uuid.New(), ApplicationUUID: uuid.NullUUID{UUID: app.ID, Valid: true}, OperationType: "analysis", Environment: "production",
+		Provider: "openrouter", Model: "openai/gpt-5-mini", IdempotencyKey: "budget:daily", MaximumCharge: 601,
+	}, now)
+	s.Require().ErrorIs(err, models.ErrApplicationBudgetExceeded)
+}
+
+func (s *RepositorySuite) TestDeveloperApplicationSeparatesSandboxAndRevealsKeyOnce() {
+	managerID := s.createUser("developer-platform@example.com")
+	companyID := s.createCompany(managerID)
+	app, err := s.repository.CreateDeveloperApplication(s.ctx, models.CreateDeveloperApplicationInput{
+		OwnerType: "company", OwnerUUID: companyID, CreatedByUserUUID: managerID,
+		Name: "CRM sandbox", Environment: "sandbox", Capabilities: []string{"calls:write", "usage:read"},
+	})
+	s.Require().NoError(err)
+	s.Require().Equal("sandbox", app.Environment)
+
+	apps, err := s.repository.ListDeveloperApplications(s.ctx, "company", companyID)
+	s.Require().NoError(err)
+	s.Require().Len(apps, 1)
+	s.Require().ElementsMatch([]string{"calls:write", "usage:read"}, apps[0].Capabilities)
+	s.Require().Equal(int64(1), apps[0].LockVersion)
+	updated, err := s.repository.UpdateDeveloperApplication(s.ctx, models.UpdateDeveloperApplicationInput{ApplicationUUID: app.ID, ActorUUID: managerID, Name: "CRM sandbox updated", Capabilities: []string{"calls:write", "usage:read"}, ExpectedLockVersion: apps[0].LockVersion})
+	s.Require().NoError(err)
+	s.Require().Equal("CRM sandbox updated", updated.Name)
+	s.Require().Equal(int64(2), updated.LockVersion)
+	_, err = s.repository.UpdateDeveloperApplication(s.ctx, models.UpdateDeveloperApplicationInput{ApplicationUUID: app.ID, ActorUUID: managerID, Name: "stale", Capabilities: []string{"calls:write", "usage:read"}, ExpectedLockVersion: 1})
+	s.Require().ErrorIs(err, models.ErrIntegrationConflict)
+
+	key, plaintext, err := s.repository.CreateIntegrationAPIKey(s.ctx, app.ID, managerID, "CI key", []string{"calls:write"}, nil)
+	s.Require().NoError(err)
+	s.Require().NotEmpty(plaintext)
+	s.Require().Contains(plaintext, "vt_test_")
+	s.Require().NotContains(key.Prefix, ".")
+	var storedSecret string
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT encode(secret_hash,'hex') FROM integration_api_keys WHERE key_uuid=$1`, key.ID).Scan(&storedSecret))
+	s.Require().NotEqual(plaintext, storedSecret)
+	principal, err := s.repository.AuthenticateIntegrationKey(s.ctx, plaintext, "sandbox", "calls:write")
+	s.Require().NoError(err)
+	s.Require().Equal(app.ID, principal.ApplicationUUID)
+	_, err = s.repository.AuthenticateIntegrationKey(s.ctx, plaintext, "production", "calls:write")
+	s.Require().ErrorIs(err, models.ErrAPIKeyEnvironmentMismatch)
+	accounts, err := s.repository.ListIntegrationServiceAccounts(s.ctx, principal.ConnectionUUID, managerID)
+	s.Require().NoError(err)
+	s.Require().Len(accounts, 1)
+	serviceAccount, err := s.repository.CreateIntegrationServiceAccount(s.ctx, principal.ConnectionUUID, managerID, "Partner worker", []string{"calls:write", "usage:read"})
+	s.Require().NoError(err)
+	partnerKey, partnerPlaintext, err := s.repository.CreateIntegrationAPIKeyForServiceAccount(s.ctx, serviceAccount.ID, managerID, "Partner key", []string{"calls:write"}, nil)
+	s.Require().NoError(err)
+	s.Require().Equal(serviceAccount.ID, partnerKey.ServiceAccountID)
+	_, err = s.repository.AuthenticateIntegrationKey(s.ctx, partnerPlaintext, "sandbox", "calls:write")
+	s.Require().NoError(err)
+	rotated, rotatedPlaintext, err := s.repository.RotateIntegrationAPIKey(s.ctx, partnerKey.ID, managerID, 0)
+	s.Require().NoError(err)
+	s.Require().Equal(serviceAccount.ID, rotated.ServiceAccountID)
+	_, err = s.repository.AuthenticateIntegrationKey(s.ctx, partnerPlaintext, "sandbox", "calls:write")
+	s.Require().ErrorIs(err, models.ErrInvalidAPIKey)
+	_, err = s.repository.AuthenticateIntegrationKey(s.ctx, rotatedPlaintext, "sandbox", "calls:write")
+	s.Require().NoError(err)
+	s.Require().NoError(s.repository.RevokeIntegrationAPIKey(s.ctx, rotated.ID, managerID))
+	_, err = s.repository.AuthenticateIntegrationKey(s.ctx, rotatedPlaintext, "sandbox", "calls:write")
+	s.Require().ErrorIs(err, models.ErrInvalidAPIKey)
+	s.Require().NoError(s.repository.RevokeIntegrationServiceAccount(s.ctx, serviceAccount.ID, managerID))
+	_, _, err = s.repository.CreateIntegrationAPIKeyForServiceAccount(s.ctx, serviceAccount.ID, managerID, "must fail", []string{"calls:write"}, nil)
+	s.Require().ErrorIs(err, models.ErrForbidden)
+
+	var sandboxBalance int64
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT COALESCE(sum(p.amount_credits),0) FROM credit_ledger_postings p JOIN credit_ledger_accounts a USING(credit_ledger_account_uuid) WHERE a.billing_account_uuid=$1 AND a.environment='sandbox' AND a.account_type='customer_available'`, app.BillingAccountUUID).Scan(&sandboxBalance))
+	s.Require().Equal(int64(100_000), sandboxBalance)
+}
+
+func (s *RepositorySuite) TestMockPurchaseIsIdempotentAndDoesNotChangeAllowance() {
+	userID := s.createUser("mock-purchase@example.com")
+	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
+	s.Require().NoError(err)
+	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	before, err := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now)
+	s.Require().NoError(err)
+	input := models.MockCreditPurchaseInput{OwnerType: "user", OwnerUUID: userID, ActorUUID: userID, Credits: 25_000, RequestID: "purchase-test-1"}
+	first, err := s.repository.MockPurchaseCredits(s.ctx, input)
+	s.Require().NoError(err)
+	second, err := s.repository.MockPurchaseCredits(s.ctx, input)
+	s.Require().NoError(err)
+	s.Require().Equal(first, second)
+	after, err := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now)
+	s.Require().NoError(err)
+	s.Require().Equal(before.AllowanceRemaining, after.AllowanceRemaining)
+	s.Require().Equal(int64(25_000), after.WalletCredits)
+	var purchases int
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM credit_ledger_transactions WHERE transaction_type='purchase'`).Scan(&purchases))
+	s.Require().Equal(1, purchases)
+}
+
+func (s *RepositorySuite) TestSandboxWalletIsApplicationScopedAndAdjustmentsAreIdempotent() {
+	userID := s.createUser("sandbox-wallet@example.com")
+	first, err := s.repository.CreateDeveloperApplication(s.ctx, models.CreateDeveloperApplicationInput{OwnerType: "user", OwnerUUID: userID, CreatedByUserUUID: userID, Name: "First sandbox", Environment: "sandbox", Capabilities: []string{"calls:write"}})
+	s.Require().NoError(err)
+	second, err := s.repository.CreateDeveloperApplication(s.ctx, models.CreateDeveloperApplicationInput{OwnerType: "user", OwnerUUID: userID, CreatedByUserUUID: userID, Name: "Second sandbox", Environment: "sandbox", Capabilities: []string{"calls:write"}})
+	s.Require().NoError(err)
+	balance, err := s.repository.AdjustSandboxWallet(s.ctx, first.ID, userID, "add", 25_000, "add-1")
+	s.Require().NoError(err)
+	s.Require().Equal(int64(125_000), balance)
+	balance, err = s.repository.AdjustSandboxWallet(s.ctx, first.ID, userID, "add", 25_000, "add-1")
+	s.Require().NoError(err)
+	s.Require().Equal(int64(125_000), balance)
+	balance, err = s.repository.AdjustSandboxWallet(s.ctx, first.ID, userID, "set", 10_000, "set-1")
+	s.Require().NoError(err)
+	s.Require().Equal(int64(10_000), balance)
+	balance, err = s.repository.AdjustSandboxWallet(s.ctx, first.ID, userID, "reset", 0, "reset-1")
+	s.Require().NoError(err)
+	s.Require().Equal(int64(100_000), balance)
+	wallet, err := s.repository.GetSandboxWallet(s.ctx, first.ID, userID)
+	s.Require().NoError(err)
+	s.Require().Equal("First sandbox", wallet.ApplicationName)
+	s.Require().Equal(int64(100_000), wallet.BalanceCredits)
+	s.Require().Len(wallet.Entries, 4)
+	outsider := s.createUser("sandbox-wallet-outsider@example.com")
+	_, err = s.repository.GetSandboxWallet(s.ctx, first.ID, outsider)
+	s.Require().ErrorIs(err, models.ErrForbidden)
+	var secondBalance int64
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT COALESCE(sum(p.amount_credits),0) FROM credit_grants g JOIN credit_ledger_accounts a USING(credit_grant_uuid) LEFT JOIN credit_ledger_postings p USING(credit_ledger_account_uuid) WHERE g.application_uuid=$1 AND a.account_type='customer_available'`, second.ID).Scan(&secondBalance))
+	s.Require().Equal(int64(100_000), secondBalance)
+}
+
+func (s *RepositorySuite) TestReconciliationReleasesReservationThatNeverReachedProvider() {
+	userID := s.createUser("reconcile-reserve@example.com")
+	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
+	s.Require().NoError(err)
+	now := time.Now().UTC()
+	_, err = s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now)
+	s.Require().NoError(err)
+	operationID := uuid.New()
+	_, err = s.repository.ReserveCredits(s.ctx, subscription, models.ReserveCreditsInput{OperationUUID: operationID, OperationType: "analysis", Environment: "production", Provider: "openrouter", Model: "openai/gpt-5-mini", IdempotencyKey: "reconcile-before-provider", MaximumCharge: 1000}, now)
+	s.Require().NoError(err)
+	summary, err := s.repository.ReconcileCreditOperations(s.ctx, now.Add(time.Minute), 100)
+	s.Require().NoError(err)
+	s.Require().GreaterOrEqual(summary.Checked, int64(1))
+	var status string
+	var reserved, settled int64
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT status,reserved_credits,settled_credits FROM usage_operations WHERE usage_operation_uuid=$1`, operationID).Scan(&status, &reserved, &settled))
+	s.Require().Equal("settled", status)
+	s.Require().Zero(reserved)
+	s.Require().Zero(settled)
 }
 
 func (s *RepositorySuite) TestPersonalSubscriptionPlanAndUsageLifecycle() {
@@ -234,10 +537,11 @@ func (s *RepositorySuite) createUser(email string) uuid.UUID {
 			RETURNING user_uuid
 		)
 		INSERT INTO user_profiles (user_uuid, full_name, full_surname, username)
-		SELECT user_uuid, 'Dmitry', 'Mukhachev', 'muxa' FROM account`,
+		SELECT user_uuid, 'Dmitry', 'Mukhachev', $4 FROM account`,
 		id,
 		email,
 		time.Now().UTC(),
+		"muxa-"+id.String()[:8],
 	)
 	s.Require().NoError(err)
 

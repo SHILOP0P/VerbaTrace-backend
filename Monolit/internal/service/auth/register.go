@@ -11,6 +11,7 @@ import (
 	"verbatrace/monolit/internal/username"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const defaultUserRole = model.UserRoleUser
@@ -84,6 +85,7 @@ func (s *Service) Register(ctx context.Context, input model.CreateUserInput) (mo
 			StartsAt: time.Now().UTC(),
 		})
 		if err != nil {
+			s.log.Error(ctx, "failed to provision default subscription", zap.String("user_id", createUser.ID.String()), zap.Error(err))
 			return model.CurrentUser{}, err
 		}
 	}

@@ -113,7 +113,7 @@ func TestStandardTranscriptDisablesSpeakerLabels(t *testing.T) {
 	}
 }
 
-func TestIdentifiedTranscriptWithoutCandidatesStillAttemptsNameIdentification(t *testing.T) {
+func TestIdentifiedTranscriptWithoutCandidatesFallsBackToDiarization(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -126,15 +126,8 @@ func TestIdentifiedTranscriptWithoutCandidatesStillAttemptsNameIdentification(t 
 		if !request.SpeakerLabels {
 			t.Fatal("identified mode must keep speaker diarization enabled")
 		}
-		if request.SpeechUnderstanding == nil {
-			t.Fatal("identified mode must request speaker identification")
-		}
-		identification := request.SpeechUnderstanding.Request.SpeakerIdentification
-		if identification.SpeakerType != "name" || len(identification.Speakers) != 0 {
-			t.Fatalf("unexpected open-ended speaker identification: %+v", identification)
-		}
-		if strings.Contains(string(body), `"speakers"`) {
-			t.Fatalf("empty speakers list must be omitted: %s", body)
+		if request.SpeechUnderstanding != nil {
+			t.Fatalf("speaker identification must be omitted without candidates: %s", body)
 		}
 		_, _ = w.Write([]byte(`{"id":"transcript-id"}`))
 	}))

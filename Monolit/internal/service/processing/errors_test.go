@@ -65,6 +65,16 @@ func TestIsPermanentProcessingError(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "insufficient credits",
+			err:  fmt.Errorf("reserve analysis credits: %w", models.ErrInsufficientCredits),
+			want: true,
+		},
+		{
+			name: "application budget exceeded",
+			err:  fmt.Errorf("reserve analysis credits: %w", models.ErrApplicationBudgetExceeded),
+			want: true,
+		},
+		{
 			name: "temporary provider error",
 			err:  errors.New("provider timeout"),
 			want: false,

@@ -9,7 +9,11 @@ type PlanResponse struct {
 	Code                           string `json:"code"`
 	Type                           string `json:"type"`
 	Name                           string `json:"name"`
+	MonthlyPriceMinor              int64  `json:"monthly_price_minor"`
+	Currency                       string `json:"currency"`
+	MarketingHoursHint             int    `json:"marketing_hours_hint"`
 	MonthlyMinutesLimit            int    `json:"monthly_minutes_limit"`
+	MonthlyCreditAllowance         int64  `json:"monthly_credit_allowance"`
 	ActiveInstructionLimit         int    `json:"active_instruction_limit"`
 	CompanyLimit                   *int   `json:"company_limit"`
 	DepartmentsPerCompanyLimit     *int   `json:"departments_per_company_limit"`
@@ -20,6 +24,7 @@ type PlanResponse struct {
 	ExportEnabled                  bool   `json:"export_enabled"`
 	TeamAnalyticsEnabled           bool   `json:"team_analytics_enabled"`
 	APIAccessEnabled               bool   `json:"api_access_enabled"`
+	WebhooksEnabled                bool   `json:"webhooks_enabled"`
 }
 
 type PlansResponse struct {
@@ -46,6 +51,11 @@ type SubscriptionUsageResponse struct {
 	LimitMinutes            int                  `json:"limit_minutes"`
 	RemainingMinutes        int                  `json:"remaining_minutes"`
 	Percent                 float64              `json:"percent"`
+	RemainingPercent        float64              `json:"remaining_percent"`
+	DaysUntilReset          int                  `json:"days_until_reset"`
+	ResetsAt                string               `json:"resets_at"`
+	AllowanceExhausted      bool                 `json:"allowance_exhausted"`
+	WalletCredits           *int64               `json:"wallet_credits,omitempty"`
 	MembersLimit            *int                 `json:"members_limit,omitempty"`
 	MembersUsed             *int                 `json:"members_used,omitempty"`
 	DepartmentsLimit        *int                 `json:"departments_limit,omitempty"`

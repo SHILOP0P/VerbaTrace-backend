@@ -13,7 +13,11 @@ func PlanModelToAPI(plan models.Plan) (dto.PlanResponse, error) {
 		Code:                           string(plan.Code),
 		Type:                           string(plan.Type),
 		Name:                           plan.Name,
+		MonthlyPriceMinor:              plan.MonthlyPriceMinor,
+		Currency:                       plan.Currency,
+		MarketingHoursHint:             plan.MarketingHoursHint,
 		MonthlyMinutesLimit:            plan.MonthlyMinutesLimit,
+		MonthlyCreditAllowance:         plan.MonthlyCreditAllowance,
 		ActiveInstructionLimit:         plan.ActiveInstructionLimit,
 		CompanyLimit:                   plan.CompanyLimit,
 		DepartmentsPerCompanyLimit:     plan.DepartmentsPerCompanyLimit,
@@ -24,6 +28,7 @@ func PlanModelToAPI(plan models.Plan) (dto.PlanResponse, error) {
 		ExportEnabled:                  plan.ExportEnabled,
 		TeamAnalyticsEnabled:           plan.TeamAnalyticsEnabled,
 		APIAccessEnabled:               plan.APIAccessEnabled,
+		WebhooksEnabled:                plan.WebhooksEnabled,
 	}, nil
 }
 
@@ -78,6 +83,11 @@ func SubscriptionUsageModelToAPI(usage models.SubscriptionUsage) (dto.Subscripti
 		LimitMinutes:            usage.LimitMinutes,
 		RemainingMinutes:        usage.RemainingMinutes,
 		Percent:                 usage.Percent,
+		RemainingPercent:        usage.RemainingPercent,
+		DaysUntilReset:          usage.DaysUntilReset,
+		ResetsAt:                formatBillingTime(usage.ResetsAt),
+		AllowanceExhausted:      usage.AllowanceExhausted,
+		WalletCredits:           usage.WalletCredits,
 		MembersLimit:            usage.MembersLimit,
 		MembersUsed:             usage.MembersUsed,
 		DepartmentsLimit:        usage.DepartmentsLimit,

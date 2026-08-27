@@ -29,6 +29,12 @@ func (r *Repository) UpsertSubscription(ctx context.Context, input models.Upsert
 		input.StartsAt = time.Now().UTC()
 	}
 
+	conflictTarget := "(subscription_uuid)"
+	if input.Status == models.SubscriptionStatusActive && input.UserUUID.Valid {
+		conflictTarget = "(type, user_uuid) WHERE status = 'active' AND user_uuid IS NOT NULL"
+	} else if input.Status == models.SubscriptionStatusActive && input.CompanyUUID.Valid {
+		conflictTarget = "(type, company_uuid) WHERE status = 'active' AND company_uuid IS NOT NULL"
+	}
 	query := `
 	WITH selected_plan AS (
 	    SELECT plan_uuid, type
@@ -48,7 +54,7 @@ func (r *Repository) UpsertSubscription(ctx context.Context, input models.Upsert
 	    )
 	    SELECT $1, plan_uuid, type, $3, $4, $5, $6, $7
 	    FROM selected_plan
-	    ON CONFLICT (subscription_uuid)
+	    ON CONFLICT ` + conflictTarget + `
 	    DO UPDATE SET plan_uuid = EXCLUDED.plan_uuid,
 	                  type = EXCLUDED.type,
 	                  user_uuid = EXCLUDED.user_uuid,

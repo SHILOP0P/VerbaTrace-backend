@@ -13,6 +13,9 @@ func TestAnalyzer(t *testing.T) {
 	if analyzer.Provider() != "mock" {
 		t.Fatalf("provider = %q", analyzer.Provider())
 	}
+	if got := analyzer.MaximumCompletionTokens(models.AnalysisRequest{}); got != 512 {
+		t.Fatalf("maximum completion tokens = %d, want 512", got)
+	}
 	result, err := analyzer.Analyze(context.Background(), models.AnalysisRequest{
 		Transcription: "hello",
 		Instructions:  []models.AnalysisInstructionContent{{Content: "guide"}},

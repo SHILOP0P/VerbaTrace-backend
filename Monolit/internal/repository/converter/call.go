@@ -21,6 +21,7 @@ func RepoCallToModel(repoCall repoModel.Call) (model.Call, error) {
 		DepartmentUUID:         repoCall.DepartmentUUID,
 		VisibilityScope:        model.CallVisibilityScope(repoCall.VisibilityScope),
 		SkipCustomInstructions: repoCall.SkipCustomInstructions,
+		IsTest:                 repoCall.IsTest,
 		CreatedAt:              repoCall.CreatedAt,
 	}, nil
 }
@@ -49,6 +50,7 @@ func ModelCallToRepoCall(modelCall model.Call) (repoCall repoModel.Call, err err
 		DepartmentUUID:         modelCall.DepartmentUUID,
 		VisibilityScope:        string(modelCall.VisibilityScope),
 		SkipCustomInstructions: modelCall.SkipCustomInstructions,
+		IsTest:                 modelCall.IsTest,
 		CreatedAt:              modelCall.CreatedAt,
 	}, nil
 }

@@ -78,6 +78,22 @@ func TestAnalyzeCallEnqueuesAnalysisJob(t *testing.T) {
 	}
 }
 
+func TestAnalyzeCallRejectsTestCallWithoutCreatingJob(t *testing.T) {
+	callID, userID := uuid.New(), uuid.New()
+	callRepo := &analysisCallRepository{call: models.Call{ID: callID, Status: models.CallStatusTranscribed, IsTest: true}}
+	jobRepo := &analysisProcessingJobRepository{}
+	service := NewService(callRepo, &analysisTranscriptionRepository{}, &analysisInstructionRepository{}, &analysisRepository{}, &analysisInstructionStorage{}, &recordingAnalyzer{}, nil)
+	service.SetProcessingJobRepository(jobRepo)
+
+	_, err := service.AnalyzeCall(context.Background(), models.AnalyzeCallInput{CallUUID: callID, UserUUID: userID})
+	if !errors.Is(err, models.ErrTestCallReadOnly) {
+		t.Fatalf("AnalyzeCall() error = %v, want ErrTestCallReadOnly", err)
+	}
+	if jobRepo.enqueued {
+		t.Fatal("test call analysis job was enqueued")
+	}
+}
+
 func TestProcessAnalyzeCallPassesCompanyAndDepartmentInstructions(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()

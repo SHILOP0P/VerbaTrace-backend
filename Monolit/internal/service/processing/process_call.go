@@ -116,7 +116,17 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 		return fmt.Errorf("%w: %s", models.ErrInvalidCallStatusTransition, call.Status)
 	}
 
-	transcription, err := s.createProcessingTranscription(ctx, call.ID, mode)
+	provider := s.transcriber
+	if s.creditMeter != nil && s.sandboxTranscriber != nil {
+		mock, checkErr := s.creditMeter.IsSandboxMockCall(ctx, call.ID)
+		if checkErr != nil {
+			return fmt.Errorf("resolve sandbox AI mode: %w", checkErr)
+		}
+		if mock {
+			provider = s.sandboxTranscriber
+		}
+	}
+	transcription, err := s.createProcessingTranscription(ctx, call.ID, mode, provider)
 	if err != nil {
 		return fmt.Errorf("create transcription record: %w", err)
 	}
@@ -127,19 +137,41 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 	}
 	audioFile.SpeakerCandidates = speakerCandidates(call)
 	defer func() { _ = audioFile.Content.Close() }()
+	var creditOperationID uuid.UUID
+	if s.creditMeter != nil {
+		creditOperationID, err = s.creditMeter.ReserveTranscription(ctx, call, mode)
+		if err != nil {
+			return fmt.Errorf("reserve transcription credits: %w", err)
+		}
+	}
 
 	sttStartedAt := time.Now()
-	result, err := s.transcribe(ctx, audioFile, mode)
+	result, err := transcribeWith(ctx, provider, audioFile, mode)
 	if err != nil {
+		if s.creditMeter != nil {
+			_ = s.creditMeter.MarkCreditOperationReconciling(context.Background(), creditOperationID, "transcription_provider_error")
+		}
 		return fmt.Errorf("transcribe audio: %w", err)
 	}
 	if mode != models.TranscriptionModeStandard && len(result.Segments) == 0 {
-		return fmt.Errorf("transcribe audio: diarization required for %s mode but provider returned no speaker segments", mode)
+		// Missing speaker turns is a provider-quality degradation, not a
+		// retryable transport failure. Persist an explicitly unidentified turn so
+		// the call can finish and is never presented as successfully diarized.
+		result.Segments = []models.TranscriptionSegment{{Speaker: "unknown", Text: result.Text}}
+		s.log.Warn(ctx, "transcription provider returned no speaker segments",
+			zap.String("call_id", call.ID.String()),
+			zap.String("provider", providerForMode(provider, mode)),
+			zap.String("transcription_mode", string(mode)))
 	}
 	if mode == models.TranscriptionModeStandard {
 		// Start includes only a continuous transcript. Keep this guard even if a
 		// provider returns timestamps unexpectedly, so the API never exposes them.
 		result.Segments = nil
+	}
+	if s.creditMeter != nil {
+		if err = s.creditMeter.SettleTranscription(ctx, creditOperationID, call, mode); err != nil {
+			return fmt.Errorf("settle transcription credits: %w", err)
+		}
 	}
 
 	if _, err = s.transcriptionRepository.MarkTranscribed(ctx, transcription.ID, result.Text, result.Segments, result.Words, result.Language); err != nil {
@@ -154,7 +186,7 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 		return fmt.Errorf("enqueue analysis job: %w", err)
 	}
 
-	s.log.Info(ctx, "call transcribed", zap.String("call_id", call.ID.String()), zap.String("provider", s.providerForMode(mode)), zap.String("transcription_mode", string(mode)), zap.Duration("stt_duration", time.Since(sttStartedAt)), zap.Duration("transcription_end_to_end_duration", time.Since(startedAt)))
+	s.log.Info(ctx, "call transcribed", zap.String("call_id", call.ID.String()), zap.String("provider", providerForMode(provider, mode)), zap.String("transcription_mode", string(mode)), zap.Duration("stt_duration", time.Since(sttStartedAt)), zap.Duration("transcription_end_to_end_duration", time.Since(startedAt)))
 
 	return nil
 }
@@ -227,7 +259,7 @@ func (s *Service) enqueueAnalyzeJob(ctx context.Context, callID uuid.UUID) error
 	return nil
 }
 
-func (s *Service) createProcessingTranscription(ctx context.Context, callID uuid.UUID, mode models.TranscriptionMode) (models.Transcription, error) {
+func (s *Service) createProcessingTranscription(ctx context.Context, callID uuid.UUID, mode models.TranscriptionMode, provider transcriber.Transcriber) (models.Transcription, error) {
 	transcriptionID, err := uuid.NewV7()
 	if err != nil {
 		return models.Transcription{}, err
@@ -239,24 +271,24 @@ func (s *Service) createProcessingTranscription(ctx context.Context, callID uuid
 		ID:        transcriptionID,
 		CallUUID:  callID,
 		Status:    models.TranscriptionStatusProcessing,
-		Provider:  s.providerForMode(mode),
+		Provider:  providerForMode(provider, mode),
 		CreatedAt: now,
 		UpdatedAt: now,
 	})
 }
 
-func (s *Service) transcribe(ctx context.Context, file models.File, mode models.TranscriptionMode) (models.TranscriptionResult, error) {
-	if provider, ok := s.transcriber.(transcriber.ModeAware); ok {
-		return provider.TranscribeForMode(ctx, file, mode)
+func transcribeWith(ctx context.Context, provider transcriber.Transcriber, file models.File, mode models.TranscriptionMode) (models.TranscriptionResult, error) {
+	if aware, ok := provider.(transcriber.ModeAware); ok {
+		return aware.TranscribeForMode(ctx, file, mode)
 	}
-	return s.transcriber.Transcribe(ctx, file)
+	return provider.Transcribe(ctx, file)
 }
 
-func (s *Service) providerForMode(mode models.TranscriptionMode) string {
-	if provider, ok := s.transcriber.(transcriber.ModeAware); ok {
-		return provider.ProviderForMode(mode)
+func providerForMode(provider transcriber.Transcriber, mode models.TranscriptionMode) string {
+	if aware, ok := provider.(transcriber.ModeAware); ok {
+		return aware.ProviderForMode(mode)
 	}
-	return s.transcriber.Provider()
+	return provider.Provider()
 }
 
 func (s *Service) openAudio(ctx context.Context, call models.Call) (models.File, error) {

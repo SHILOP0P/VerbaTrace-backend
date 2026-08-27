@@ -20,6 +20,13 @@ type FolderInstructionReader interface {
 	ListInstructionsForCall(ctx context.Context, callID uuid.UUID) ([]models.AnalysisInstruction, error)
 }
 
+type CreditMeter interface {
+	ReserveAnalysis(context.Context, models.Call, uuid.UUID, string, int64) (uuid.UUID, error)
+	SettleAnalysis(context.Context, uuid.UUID, *models.ProviderUsage) error
+	MarkCreditOperationReconciling(context.Context, uuid.UUID, string) error
+	IsSandboxMockCall(context.Context, uuid.UUID) (bool, error)
+}
+
 type attemptRepository interface {
 	CreateAttempt(context.Context, uuid.UUID, uuid.UUID) (models.CallAnalysisAttempt, error)
 	ActiveAttempt(context.Context, uuid.UUID) (models.CallAnalysisAttempt, error)
@@ -42,11 +49,16 @@ type Service struct {
 	processingJobRepository  repo.ProcessingJobRepository
 	instructionStorage       storage.InstructionStorage
 	analyzer                 analyzer.Analyzer
+	sandboxAnalyzer          analyzer.Analyzer
 	processingJobMaxAttempts int
 	log                      logger.Logger
 	personalizationReader    PersonalizationReader
 	folderInstructionReader  FolderInstructionReader
+	creditMeter              CreditMeter
 }
+
+func (s *Service) SetCreditMeter(meter CreditMeter)              { s.creditMeter = meter }
+func (s *Service) SetSandboxAnalyzer(provider analyzer.Analyzer) { s.sandboxAnalyzer = provider }
 
 func (s *Service) SetPersonalizationReader(reader PersonalizationReader) {
 	s.personalizationReader = reader

@@ -63,6 +63,7 @@ func TestHandlerErrorMappings(t *testing.T) {
 		{models.ErrInvalidAnalysisInput, http.StatusBadRequest},
 		{models.ErrAnalyzerNotConfigured, http.StatusServiceUnavailable},
 		{models.ErrInvalidAnalysisStatus, http.StatusConflict},
+		{models.ErrTestCallReadOnly, http.StatusConflict},
 		{errors.New("db"), http.StatusInternalServerError},
 	}
 	for _, tt := range analyzeErrors {

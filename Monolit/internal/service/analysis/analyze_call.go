@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/analyzer"
 	"verbatrace/monolit/internal/instructioncontent"
 	"verbatrace/monolit/internal/models"
 
@@ -26,6 +27,9 @@ func (s *Service) AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("get call: %w", err)
 	}
+	if call.IsTest {
+		return models.CallAnalysis{}, models.ErrTestCallReadOnly
+	}
 
 	transcription, err := s.transcriptionRepository.GetByCallUUID(ctx, call.ID)
 	if err != nil {
@@ -40,7 +44,17 @@ func (s *Service) AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput
 			return models.CallAnalysis{}, fmt.Errorf("create analysis attempt: %w", err)
 		}
 	}
-	analysis, err := s.createPendingAnalysis(ctx, call.ID)
+	activeAnalyzer := s.analyzer
+	if s.creditMeter != nil && s.sandboxAnalyzer != nil {
+		mock, checkErr := s.creditMeter.IsSandboxMockCall(ctx, call.ID)
+		if checkErr != nil {
+			return models.CallAnalysis{}, fmt.Errorf("resolve sandbox AI mode: %w", checkErr)
+		}
+		if mock {
+			activeAnalyzer = s.sandboxAnalyzer
+		}
+	}
+	analysis, err := s.createPendingAnalysis(ctx, call.ID, activeAnalyzer.Provider())
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("create analysis: %w", err)
 	}
@@ -65,6 +79,9 @@ func (s *Service) ProcessAnalyzeCall(ctx context.Context, callID uuid.UUID) erro
 	call, err := s.callRepository.GetByUUIDForProcessing(ctx, callID)
 	if err != nil {
 		return fmt.Errorf("get call for analysis processing: %w", err)
+	}
+	if call.IsTest {
+		return models.ErrTestCallReadOnly
 	}
 
 	if call.Status == models.CallStatusAnalyzed {
@@ -177,8 +194,17 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 			return models.CallAnalysis{}, fmt.Errorf("load analysis personalization: %w", err)
 		}
 	}
-
-	analysis, err := s.createPendingAnalysis(ctx, call.ID)
+	activeAnalyzer := s.analyzer
+	if s.creditMeter != nil && s.sandboxAnalyzer != nil {
+		mock, checkErr := s.creditMeter.IsSandboxMockCall(ctx, call.ID)
+		if checkErr != nil {
+			return models.CallAnalysis{}, fmt.Errorf("resolve sandbox AI mode: %w", checkErr)
+		}
+		if mock {
+			activeAnalyzer = s.sandboxAnalyzer
+		}
+	}
+	analysis, err := s.createPendingAnalysis(ctx, call.ID, activeAnalyzer.Provider())
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("create analysis: %w", err)
 	}
@@ -192,15 +218,35 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("mark analysis processing: %w", err)
 	}
-
-	analysisStartedAt := time.Now()
-	result, err := s.analyzer.Analyze(ctx, models.AnalysisRequest{
+	analysisRequest := models.AnalysisRequest{
 		CallUUID:        call.ID,
 		Transcription:   *transcription.Text,
 		Instructions:    instructions,
 		Personalization: personalization,
-	})
+	}
+	var creditOperationID uuid.UUID
+	if s.creditMeter != nil {
+		var billableInput strings.Builder
+		billableInput.WriteString(*transcription.Text)
+		for _, instruction := range instructions {
+			billableInput.WriteString(instruction.Title)
+			billableInput.WriteString(instruction.Content)
+		}
+		for _, value := range personalization {
+			billableInput.WriteString(value)
+		}
+		creditOperationID, err = s.creditMeter.ReserveAnalysis(ctx, call, analysis.ID, billableInput.String(), analyzer.MaximumCompletionTokens(activeAnalyzer, analysisRequest))
+		if err != nil {
+			return analysis, fmt.Errorf("reserve analysis credits: %w", err)
+		}
+	}
+
+	analysisStartedAt := time.Now()
+	result, err := activeAnalyzer.Analyze(ctx, analysisRequest)
 	if err != nil {
+		if s.creditMeter != nil {
+			_ = s.creditMeter.MarkCreditOperationReconciling(context.Background(), creditOperationID, "analysis_provider_error")
+		}
 		if opts.markAttemptFailed {
 			failedAnalysis, markErr := s.analysisRepository.MarkFailed(ctx, analysis.ID, err.Error())
 			if markErr != nil {
@@ -210,6 +256,11 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		}
 		s.log.Error(ctx, "call analysis failed", zap.String("call_id", call.ID.String()), zap.Error(err))
 		return analysis, fmt.Errorf("analyze call: %w", err)
+	}
+	if s.creditMeter != nil {
+		if err = s.creditMeter.SettleAnalysis(ctx, creditOperationID, result.Usage); err != nil {
+			return analysis, fmt.Errorf("settle analysis credits: %w", err)
+		}
 	}
 
 	result, err = normalizeAnalysisResult(result)
@@ -245,12 +296,12 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		return models.CallAnalysis{}, fmt.Errorf("mark call analyzed: %w", err)
 	}
 
-	s.log.Info(ctx, "call analyzed", zap.String("call_id", call.ID.String()), zap.String("provider", s.analyzer.Provider()), zap.Duration("analysis_duration", time.Since(analysisStartedAt)))
+	s.log.Info(ctx, "call analyzed", zap.String("call_id", call.ID.String()), zap.String("provider", activeAnalyzer.Provider()), zap.Duration("analysis_duration", time.Since(analysisStartedAt)))
 
 	return analysis, nil
 }
 
-func (s *Service) createPendingAnalysis(ctx context.Context, callID uuid.UUID) (models.CallAnalysis, error) {
+func (s *Service) createPendingAnalysis(ctx context.Context, callID uuid.UUID, provider string) (models.CallAnalysis, error) {
 	analysisID, err := uuid.NewV7()
 	if err != nil {
 		return models.CallAnalysis{}, err
@@ -262,7 +313,7 @@ func (s *Service) createPendingAnalysis(ctx context.Context, callID uuid.UUID) (
 		ID:        analysisID,
 		CallUUID:  callID,
 		Status:    models.CallAnalysisStatusPending,
-		Provider:  s.analyzerProviderName(),
+		Provider:  provider,
 		CreatedAt: now,
 		UpdatedAt: now,
 	})

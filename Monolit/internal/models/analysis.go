@@ -53,6 +53,18 @@ type AnalysisResult struct {
 	ResultJSON json.RawMessage
 	ResultText *string
 	Model      *string
+	Usage      *ProviderUsage
+}
+
+type ProviderUsage struct {
+	ProviderRequestID        string
+	PromptTokens             int64
+	CachedTokens             int64
+	CompletionTokens         int64
+	ReasoningTokens          int64
+	TotalTokens              int64
+	CostNanoUSD              int64
+	UpstreamInferenceNanoUSD *int64
 }
 
 type CallAnalysisAttempt struct {

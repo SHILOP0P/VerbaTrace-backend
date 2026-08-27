@@ -50,7 +50,7 @@ func (s *Service) CanAddCompanyMember(ctx context.Context, companyID uuid.UUID) 
 	}
 
 	if subscription.Plan.MembersPerCompanyLimit == nil {
-		return models.ErrMemberLimitExceeded
+		return nil
 	}
 
 	count, err := s.repository.CountCompanyMembers(ctx, companyID)

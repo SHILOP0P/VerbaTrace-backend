@@ -16,5 +16,7 @@ func isPermanentProcessingError(err error) bool {
 		errors.Is(err, models.ErrUnsupportedAudioType) ||
 		errors.Is(err, models.ErrTranscriberNotConfigured) ||
 		errors.Is(err, models.ErrAnalyzerNotConfigured) ||
+		errors.Is(err, models.ErrInsufficientCredits) ||
+		errors.Is(err, models.ErrApplicationBudgetExceeded) ||
 		errors.Is(err, models.ErrInvalidAnalysisStatus)
 }

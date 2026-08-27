@@ -16,7 +16,7 @@ import (
 
 func (r *Repository) GetByUUIDForProcessing(ctx context.Context, callUUID uuid.UUID) (model.Call, error) {
 	query := `
-	SELECT call_uuid,
+	SELECT c.call_uuid,
 	       title,
 	       status,
 	       audio_path,
@@ -30,9 +30,10 @@ func (r *Repository) GetByUUIDForProcessing(ctx context.Context, callUUID uuid.U
 	       department_uuid,
 	       visibility_scope,
 	       skip_custom_instructions,
+	       EXISTS (SELECT 1 FROM ingest_items i JOIN developer_applications a USING(application_uuid) WHERE i.ingest_item_uuid=c.ingest_item_uuid AND a.environment='sandbox') AS is_test,
 	       created_at
-	FROM calls
-	WHERE call_uuid = $1
+	FROM calls c
+	WHERE c.call_uuid = $1
 	`
 
 	row := r.db.QueryRowContext(ctx, query, callUUID)

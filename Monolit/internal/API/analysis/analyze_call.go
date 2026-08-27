@@ -62,6 +62,10 @@ func writeAnalyzeError(w http.ResponseWriter, err error) {
 		response.WriteError(w, http.StatusConflict, response.CodeInvalidAnalysisStatus, "invalid analysis status")
 		return
 	}
+	if errors.Is(err, models.ErrTestCallReadOnly) {
+		response.WriteError(w, http.StatusConflict, response.CodeTestCallReadOnly, "test calls cannot be analyzed")
+		return
+	}
 
 	response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToAnalyzeCall, "failed to analyze call")
 }

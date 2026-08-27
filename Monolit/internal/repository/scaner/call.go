@@ -26,6 +26,7 @@ func ScanCall(row rowScanner) (repoModel.Call, error) {
 		&call.DepartmentUUID,
 		&call.VisibilityScope,
 		&call.SkipCustomInstructions,
+		&call.IsTest,
 		&call.CreatedAt,
 	)
 	if err != nil {

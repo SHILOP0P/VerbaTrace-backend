@@ -5,3 +5,10 @@ coverage.out
 deploy/docker-compose.yaml
 uploads/
 tmp/
+.git/
+.gocache*/
+.cache/
+.verify-gocache*/
+.verify-gomodcache*/
+.verify-gotmp*/
+coverage*/

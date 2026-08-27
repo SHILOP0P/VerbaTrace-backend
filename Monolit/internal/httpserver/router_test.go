@@ -34,6 +34,7 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 		stubNotificationAPI{},
 		stubAdminAPI{},
 		nil,
+		nil,
 		"test-secret",
 		repositoryMocks.NewRefreshSessionRepository(t),
 		logger.NewNop(),
