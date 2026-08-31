@@ -10,7 +10,7 @@ Set-Location C:\projects\VerbaTrace\Monolit
 
 VerbaTrace — платформа анализа аудио- и видеозвонков. Backend-монолит на Go хранит записи, транскрипции, версии анализа и применённых инструкций, управляет доступом компаний и отделов, запускает фоновые задания и предоставляет API для рабочего интерфейса.
 
-Текущая реализация охватывает авторизацию и подписки, загрузку и хранение медиа, транскрибацию с диаризацией, AI-анализ, инструкции анализа, Human QA, действия по итогам звонка, отчёты, уведомления, компании, отделы и ролевой доступ.
+Текущая реализация охватывает авторизацию и подписки, credit billing, загрузку и хранение медиа, транскрибацию с диаризацией, AI-анализ, инструкции анализа, Human QA, действия по итогам звонка, отчёты, уведомления, компании, отделы, ролевой доступ, developer ingest API и company-scoped коннектор Bitrix24.
 
 ## Стек
 
@@ -64,6 +64,14 @@ VerbaTrace — платформа анализа аудио- и видеозво
 - Уведомления для bell с read/unread API; автоматическое создание подключено для invitation-событий.
 - Human QA с очередью проверок, черновиком, публикацией неизменяемой ревизии, апелляциями и журналом событий.
 - Действия по итогам звонка со сроком, ответственным, evidence, сменой статуса, переносом и аудитом изменений.
+- Credit ledger с reserve/settle/release/reconciliation, sandbox-балансами, тарифными лимитами и dashboard расхода.
+- Developer applications, scoped API keys, URL/multipart ingest, idempotency/dedup, retry/cancel, audit и подписанные webhooks.
+- Company-scoped Bitrix24 OAuth с зашифрованными credentials, refresh lease, capability health-check, pause/resume и reconnect state.
+- Импорт истории Bitrix24 через `voximplant.statistic.get`: preview периода, пагинация, backfill worker, delayed recording recovery и защита от дублей.
+- Сопоставление пользователей Bitrix24 с сотрудниками/отделами VerbaTrace, включая руководителя компании без обязательного отдела.
+- Подтверждаемая отправка действий в задачи Bitrix24 с запретом self-approval, optimistic locking, аудитом и ручным разрешением неоднозначного результата/внешних конфликтов.
+- Фильтры звонков по времени, длительности, пользователю, отделу, источнику, connection и состоянию обработки.
+- Запрашиваемый support-доступ: заявка, явное одобрение владельцем/менеджером, allowlist ресурсов и команд, срок действия, отзыв и аудит.
 - Ролевая модель доступа к загрузке и просмотру звонков.
 - Единый JSON-формат ошибок API.
 - Логирование запросов.
@@ -72,11 +80,12 @@ VerbaTrace — платформа анализа аудио- и видеозво
 Пока не реализовано:
 
 - Реальные OpenAI-провайдеры для transcriber и analyzer.
-- Оплата и тарифы.
+- Реальный платёжный провайдер, invoices и refunds. Внутренний credit billing и тестовое пополнение реализованы.
 - Email-приглашения.
 - Сброс пароля.
 - Передача управления компанией другому пользователю.
 - Production deploy-конфигурация.
+- Финальная приёмка Bitrix24 на настоящем платном телефонном звонке с доступной аудиозаписью. Репозиторная реализация и read-only проверка портала не заменяют этот внешний тест.
 
 ## Основные сущности
 
@@ -312,6 +321,36 @@ sequenceDiagram
 Для MVP выбран консервативный вариант department-invite: лидер отдела может приглашать в отдел только уже активного участника компании. Такой accept не создает `company_members`, поэтому не расширяет права лидера отдела до ввода новых людей в компанию.
 
 Если пользователь был `left` или `suspended` в компании, принятие company-invite реактивирует запись в `company_members` со статусом `active`. Лимит участников компании проверяется на `accept`, а pending invitation не занимает место в лимите.
+
+## Bitrix24-коннектор
+
+Коннектор создаётся только для компании и управляется её активным руководителем.
+OAuth-токены сохраняются зашифрованно; браузер получает только состояние
+подключения и capabilities. Основной read-контур использует официальный
+`voximplant.statistic.get`, users — `user.get`, задачи — методы `tasks.task.*`.
+
+Поддержанный поток:
+
+1. Создать company-owned developer application и connection с provider `bitrix24`.
+2. Пройти server-side OAuth и выполнить capability check.
+3. Сопоставить пользователей портала с участниками и отделами VerbaTrace.
+4. Проверить период и запустить идемпотентный backfill звонков.
+5. После появления записи импортировать звонок в общий ingest/processing pipeline.
+6. Создать внутреннее действие, отправить запрос на синхронизацию и получить
+   отдельное одобрение manager/department leader перед `tasks.task.add`.
+7. Сверять внешнюю задачу и вручную разрешать изменения, удаление или
+   неоднозначный результат вместо слепого повтора.
+
+Состояние `degraded` отключает только недоступные возможности. Если чтение
+статистики подтверждено, reconciliation и backfill продолжают работать даже при
+отсутствии права создания задач. `connector_verified` не выставляется одним
+health-check: для него нужна сохранённая приёмка реального звонка, записи,
+импорта и task-flow. Аренда номера и телефонный трафик в Bitrix24 могут быть
+платными и не входят в локальные автоматические тесты.
+
+Операционные детали: [runbook](docs/runbooks/bitrix24-connector.md), полный
+контракт и Definition of Done:
+[спецификация](docs/specs/bitrix24-connector-call-filters-and-task-writeback.md).
 
 ## API
 
@@ -1355,6 +1394,13 @@ workflow, `CI Gate` и pre-commit build.
 - `ANALYZER_PROVIDER`
 - `ANALYZER_API_KEY`
 - `ANALYZER_MODEL`
+- `INTEGRATION_MASTER_KEY_BASE64`
+- `PUBLIC_APP_URL`
+- `BITRIX24_CLIENT_ID`
+- `BITRIX24_CLIENT_SECRET`
+- `BITRIX24_REDIRECT_URI`
+- `BITRIX24_TOKEN_URL` (необязательно; по умолчанию официальный OAuth endpoint)
+- `BITRIX24_APPLICATION_TOKEN` (нужен для проверки входящих Bitrix24 events)
 
 Для анализа через OpenRouter рекомендуется недорогая модель `mistralai/mistral-nemo`: она подходит для русских звонков, поддерживает структурированные JSON-ответы и не использует более строгие лимиты `:free` моделей.
 
@@ -1374,13 +1420,18 @@ internal/auth/              Password, token, refresh helpers
 internal/config/            Конфигурация из env
 internal/converter/         Конвертеры domain -> API
 internal/httpserver/        Router и HTTP middleware
+internal/integrationcrypto/ Шифрование integration credentials и secrets
 internal/logger/            Logger приложения
 internal/migrator/          Обертка над goose migrator
 internal/models/            Доменные модели
 internal/repository/        PostgreSQL repositories
 internal/service/           Бизнес-логика
+internal/service/bitrix24/  OAuth, mapping, backfill, reconciliation и task write-back
+internal/service/supportaccess/ Запрашиваемый и аудируемый support-доступ
 internal/storage/audio/     Локальное хранение аудио
 internal/storage/instruction/ Локальное хранение файлов инструкций
 internal/transcriber/       Абстракция и mock-провайдер транскрибации
 migrations/                 SQL-миграции goose
+docs/runbooks/              Операционные инструкции и real-portal checklist
+docs/specs/                 Контракты, ограничения и Definition of Done
 ```

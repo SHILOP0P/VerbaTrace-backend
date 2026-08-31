@@ -17,6 +17,10 @@ import (
 func (r *Repository) ListAdminCompanies(ctx context.Context, input models.ListAdminCompaniesInput) (models.ListAdminCompaniesResult, error) {
 	args := []any{}
 	where := "deleted_at IS NULL"
+	if input.VisibleCompanyUUIDs != nil {
+		args = append(args, input.VisibleCompanyUUIDs)
+		where += fmt.Sprintf(" AND company_uuid=ANY($%d)", len(args))
+	}
 	if q := strings.TrimSpace(input.Query); q != "" {
 		args = append(args, "%"+strings.ToLower(q)+"%")
 		where += fmt.Sprintf(" AND LOWER(name) LIKE $%d", len(args))
@@ -63,6 +67,15 @@ func (r *Repository) GetAdminCompanySubscription(ctx context.Context, id uuid.UU
 }
 func getAdminSubscription(ctx context.Context, q queryRower, owner string, id uuid.UUID) (models.AdminSubscription, error) {
 	row := q.QueryRowContext(ctx, fmt.Sprintf(`SELECT s.subscription_uuid,p.code,s.type,s.status,s.user_uuid,s.company_uuid,s.starts_at,s.ends_at,s.created_at,s.updated_at FROM subscriptions s JOIN plans p ON p.plan_uuid=s.plan_uuid WHERE s.%s=$1 AND s.status='active' AND s.starts_at<=now() AND (s.ends_at IS NULL OR s.ends_at>now()) ORDER BY s.starts_at DESC LIMIT 1`, owner), id)
+	return scanAdminSubscription(row)
+}
+
+func getAdminSubscriptionByPlan(ctx context.Context, q queryRower, owner string, id, planID uuid.UUID) (models.AdminSubscription, error) {
+	row := q.QueryRowContext(ctx, fmt.Sprintf(`SELECT s.subscription_uuid,p.code,s.type,s.status,s.user_uuid,s.company_uuid,s.starts_at,s.ends_at,s.created_at,s.updated_at FROM subscriptions s JOIN plans p ON p.plan_uuid=s.plan_uuid WHERE s.%s=$1 AND s.plan_uuid=$2 AND s.status='active' AND (s.ends_at IS NULL OR s.ends_at>now()) ORDER BY s.starts_at DESC,s.created_at DESC,s.subscription_uuid DESC LIMIT 1`, owner), id, planID)
+	return scanAdminSubscription(row)
+}
+
+func scanAdminSubscription(row interface{ Scan(...any) error }) (models.AdminSubscription, error) {
 	var sub models.AdminSubscription
 	var code, typ, status string
 	var end sql.NullTime
@@ -113,8 +126,8 @@ func (r *Repository) GrantAdminSubscription(ctx context.Context, in models.Grant
 	if models.PlanType(planType) != subscriptionType {
 		return models.AdminSubscription{}, models.ErrInvalidBillingInput
 	}
-	old, oldErr := getAdminSubscription(ctx, tx, ownerColumn, owner)
-	if oldErr == nil && old.PlanCode == in.PlanCode {
+	old, oldErr := getAdminSubscriptionByPlan(ctx, tx, ownerColumn, owner, planID)
+	if oldErr == nil {
 		if _, err = tx.ExecContext(ctx, "UPDATE subscriptions SET ends_at=$2,updated_at=now() WHERE subscription_uuid=$1", old.ID, in.EndsAt); err != nil {
 			return models.AdminSubscription{}, err
 		}

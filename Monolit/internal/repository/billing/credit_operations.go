@@ -78,6 +78,15 @@ func (r *Repository) ReserveCredits(ctx context.Context, subscription models.Sub
 			return models.CreditOperation{}, err
 		}
 	}
+	keyID, err := integrationKeyForCall(ctx, tx, input.CallUUID)
+	if err != nil {
+		return models.CreditOperation{}, err
+	}
+	if keyID.Valid {
+		if err = enforceIntegrationKeyBudget(ctx, tx, keyID.UUID, input.MaximumCharge, now); err != nil {
+			return models.CreditOperation{}, err
+		}
+	}
 
 	pricingID, err := activePricingCatalog(ctx, tx, now)
 	if err != nil {
@@ -93,11 +102,11 @@ func (r *Repository) ReserveCredits(ctx context.Context, subscription models.Sub
 
 	if _, err = tx.ExecContext(ctx, `
 		INSERT INTO usage_operations(
-			usage_operation_uuid,billing_account_uuid,application_uuid,call_uuid,
+			usage_operation_uuid,billing_account_uuid,application_uuid,key_uuid,call_uuid,
 			operation_type,environment,provider,model,mode,pricing_catalog_version_uuid,
 			idempotency_key,status,maximum_charge_credits,reserved_credits,started_at
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'reserved',$12,$12,$13)
-	`, input.OperationUUID, accountID, nullableUUID(input.ApplicationUUID), nullableUUID(input.CallUUID),
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'reserved',$13,$13,$14)
+	`, input.OperationUUID, accountID, nullableUUID(input.ApplicationUUID), nullableUUID(keyID), nullableUUID(input.CallUUID),
 		input.OperationType, input.Environment, input.Provider, input.Model, input.Mode,
 		pricingID, input.IdempotencyKey, input.MaximumCharge, now.UTC()); err != nil {
 		return models.CreditOperation{}, fmt.Errorf("create usage operation: %w", err)
@@ -156,6 +165,51 @@ func (r *Repository) ReserveCredits(ctx context.Context, subscription models.Sub
 		return models.CreditOperation{}, fmt.Errorf("commit credit reserve: %w", err)
 	}
 	return result, nil
+}
+
+func integrationKeyForCall(ctx context.Context, tx *sql.Tx, callID uuid.NullUUID) (uuid.NullUUID, error) {
+	if !callID.Valid {
+		return uuid.NullUUID{}, nil
+	}
+	var key uuid.NullUUID
+	err := tx.QueryRowContext(ctx, `SELECT i.key_uuid FROM ingest_items i WHERE i.call_uuid=$1`, callID.UUID).Scan(&key)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.NullUUID{}, nil
+	}
+	return key, err
+}
+
+func enforceIntegrationKeyBudget(ctx context.Context, tx *sql.Tx, keyID uuid.UUID, maximumCharge int64, now time.Time) error {
+	var permanent, temporary sql.NullInt64
+	var starts, ends sql.NullTime
+	err := tx.QueryRowContext(ctx, `SELECT permanent_credit_limit,temporary_credit_limit,temporary_limit_starts_at,temporary_limit_ends_at FROM integration_api_keys WHERE key_uuid=$1 AND revoked_at IS NULL FOR UPDATE`, keyID).Scan(&permanent, &temporary, &starts, &ends)
+	if errors.Is(err, sql.ErrNoRows) {
+		return models.ErrInvalidAPIKey
+	}
+	if err != nil {
+		return err
+	}
+	var lifetimeUsed int64
+	if permanent.Valid {
+		err = tx.QueryRowContext(ctx, `SELECT COALESCE(sum(CASE WHEN status='settled' THEN settled_credits ELSE reserved_credits END),0) FROM usage_operations WHERE key_uuid=$1 AND status IN ('reserved','provider_running','settled','reconciling')`, keyID).Scan(&lifetimeUsed)
+		if err != nil {
+			return err
+		}
+		if maximumCharge > permanent.Int64-lifetimeUsed {
+			return models.ErrApplicationBudgetExceeded
+		}
+	}
+	if temporary.Valid && starts.Valid && ends.Valid && !now.Before(starts.Time) && now.Before(ends.Time) {
+		var windowUsed int64
+		err = tx.QueryRowContext(ctx, `SELECT COALESCE(sum(CASE WHEN status='settled' THEN settled_credits ELSE reserved_credits END),0) FROM usage_operations WHERE key_uuid=$1 AND started_at >= $2 AND started_at < $3 AND status IN ('reserved','provider_running','settled','reconciling')`, keyID, starts.Time, ends.Time).Scan(&windowUsed)
+		if err != nil {
+			return err
+		}
+		if maximumCharge > temporary.Int64-windowUsed {
+			return models.ErrApplicationBudgetExceeded
+		}
+	}
+	return nil
 }
 
 // enforceApplicationBudget runs after the billing-account lock and inside the

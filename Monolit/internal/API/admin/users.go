@@ -26,6 +26,9 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidAdminInput, "invalid admin user filters")
 		return
 	}
+	// The admin directory is administrative metadata, not customer business
+	// content. It must remain available to an authenticated administrator so
+	// they can identify the subject of a future support-access request.
 	result, err := h.service.ListUsers(r.Context(), input)
 	if err != nil {
 		writeAdminError(w, err, response.CodeFailedToListAdminUsers, "failed to list users")
@@ -52,6 +55,9 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListUserCalls(w http.ResponseWriter, r *http.Request) {
 	userID, ok := adminUserID(w, r)
 	if !ok {
+		return
+	}
+	if !h.authorizeUser(w, r, userID, "calls") {
 		return
 	}
 	limit, offset := 50, 0

@@ -143,6 +143,40 @@ func (r *Repository) QueueWebhookTest(ctx context.Context, connectionID, actorID
 	return eventID, nil
 }
 
+func (r *Repository) ReplayWebhookDelivery(ctx context.Context, deliveryID, actorID uuid.UUID) (uuid.UUID, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var appID, connectionID, aggregateID uuid.UUID
+	var eventType string
+	var payload []byte
+	err = tx.QueryRowContext(ctx, `SELECT o.application_uuid,o.connection_uuid,o.aggregate_uuid,o.event_type,o.payload
+		FROM integration_webhook_deliveries d JOIN integration_outbox o USING(outbox_uuid)
+		JOIN developer_applications a ON a.application_uuid=o.application_uuid
+		WHERE d.delivery_uuid=$1 AND (`+actorAccessSQL+`) FOR UPDATE OF o`, deliveryID, actorID).Scan(&appID, &connectionID, &aggregateID, &eventType, &payload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, models.ErrForbidden
+	}
+	if err != nil {
+		return uuid.Nil, err
+	}
+	outboxID, _ := uuid.NewV7()
+	eventID, _ := uuid.NewV7()
+	_, err = tx.ExecContext(ctx, `INSERT INTO integration_outbox(outbox_uuid,application_uuid,connection_uuid,event_id,event_type,aggregate_uuid,payload,status) VALUES($1,$2,$3,$4,$5,$6,$7,'pending')`, outboxID, appID, connectionID, eventID, eventType, aggregateID, payload)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if err = audit(ctx, tx, appID, uuid.NullUUID{UUID: connectionID, Valid: true}, "user", uuid.NullUUID{UUID: actorID, Valid: true}, "webhook.delivery_replayed", "webhook_delivery", deliveryID, map[string]any{"replay_event_id": eventID}); err != nil {
+		return uuid.Nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return uuid.Nil, err
+	}
+	return eventID, nil
+}
+
 func (r *Repository) ClaimWebhook(ctx context.Context, worker string, lease time.Duration) (models.ClaimedWebhookEvent, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {

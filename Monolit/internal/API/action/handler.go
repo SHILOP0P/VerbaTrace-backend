@@ -1,6 +1,7 @@
 package action
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -17,9 +18,22 @@ import (
 	actionservice "verbatrace/monolit/internal/service/action"
 )
 
-type Handler struct{ service *actionservice.Service }
+type supportAccessAuthorizer interface {
+	AuthorizedSubjects(context.Context, uuid.UUID, string) ([]uuid.UUID, []uuid.UUID, error)
+	AuthorizeCompany(context.Context, uuid.UUID, uuid.UUID, string, string) error
+	AuthorizeAction(context.Context, uuid.UUID, uuid.UUID, string, string) error
+}
+
+type Handler struct {
+	service           *actionservice.Service
+	supportAuthorizer supportAccessAuthorizer
+}
 
 func NewHandler(service *actionservice.Service) *Handler { return &Handler{service: service} }
+
+func (h *Handler) SetSupportAccessAuthorizer(authorizer supportAccessAuthorizer) {
+	h.supportAuthorizer = authorizer
+}
 
 type createRequest struct {
 	AnalysisUUID         string                        `json:"analysis_uuid"`
@@ -121,6 +135,10 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request, admin bool) {
 		writeErr(w, actionservice.ErrInvalidInput)
 		return
 	}
+	if admin && (h.supportAuthorizer == nil || h.supportAuthorizer.AuthorizeAction(r.Context(), actor, id, "actions", "") != nil) {
+		response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "temporary support access is required")
+		return
+	}
 	item, err := h.service.Get(r.Context(), id, actor, admin)
 	if err != nil {
 		writeErr(w, err)
@@ -144,6 +162,18 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, admin bool) {
 	in.CallUUID = parseNullUUID(q.Get("call_uuid"))
 	in.DepartmentUUID = parseNullUUID(q.Get("department_uuid"))
 	in.AssigneeUUID = parseNullUUID(q.Get("assignee_uuid"))
+	if admin {
+		if h.supportAuthorizer == nil {
+			response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "temporary support access is required")
+			return
+		}
+		_, companies, accessErr := h.supportAuthorizer.AuthorizedSubjects(r.Context(), actor, "actions")
+		if accessErr != nil {
+			response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "temporary support access is required")
+			return
+		}
+		in.SupportCompanyUUIDs = companies
+	}
 	result, err := h.service.List(r.Context(), in)
 	if err != nil {
 		writeErr(w, err)
@@ -165,6 +195,10 @@ func (h *Handler) listAssignees(w http.ResponseWriter, r *http.Request, admin bo
 	company, err := uuid.Parse(chi.URLParam(r, "uuid"))
 	if !ok || err != nil {
 		writeErr(w, actionservice.ErrInvalidInput)
+		return
+	}
+	if admin && (h.supportAuthorizer == nil || h.supportAuthorizer.AuthorizeCompany(r.Context(), actor, company, "actions", "") != nil) {
+		response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "temporary support access is required")
 		return
 	}
 	items, err := h.service.ListAssignees(r.Context(), actor, company, r.URL.Query().Get("q"), parseNullUUID(r.URL.Query().Get("department_uuid")), admin)

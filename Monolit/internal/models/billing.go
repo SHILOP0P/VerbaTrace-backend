@@ -229,15 +229,29 @@ type UpdateDeveloperApplicationInput struct {
 }
 
 type IntegrationAPIKey struct {
-	ID               uuid.UUID  `json:"key_uuid"`
-	ServiceAccountID uuid.UUID  `json:"service_account_uuid"`
-	Name             string     `json:"name"`
-	Prefix           string     `json:"prefix"`
-	Scopes           []string   `json:"scopes"`
-	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
-	LastUsed         *time.Time `json:"last_used_at,omitempty"`
-	RevokedAt        *time.Time `json:"revoked_at,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
+	ID                     uuid.UUID  `json:"key_uuid"`
+	ServiceAccountID       uuid.UUID  `json:"service_account_uuid"`
+	Name                   string     `json:"name"`
+	Prefix                 string     `json:"prefix"`
+	Scopes                 []string   `json:"scopes"`
+	ExpiresAt              *time.Time `json:"expires_at,omitempty"`
+	LastUsed               *time.Time `json:"last_used_at,omitempty"`
+	RevokedAt              *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt              time.Time  `json:"created_at"`
+	PermanentCreditLimit   *int64     `json:"permanent_credit_limit,omitempty"`
+	TemporaryCreditLimit   *int64     `json:"temporary_credit_limit,omitempty"`
+	TemporaryLimitStartsAt *time.Time `json:"temporary_limit_starts_at,omitempty"`
+	TemporaryLimitEndsAt   *time.Time `json:"temporary_limit_ends_at,omitempty"`
+}
+
+type CreateIntegrationAPIKeyInput struct {
+	Name                   string
+	Scopes                 []string
+	ExpiresAt              *time.Time
+	PermanentCreditLimit   *int64
+	TemporaryCreditLimit   *int64
+	TemporaryLimitStartsAt *time.Time
+	TemporaryLimitEndsAt   *time.Time
 }
 
 type MockCreditPurchaseInput struct {
@@ -249,6 +263,7 @@ type MockCreditPurchaseInput struct {
 }
 
 type IntegrationPrincipal struct {
+	KeyUUID            uuid.UUID
 	ApplicationUUID    uuid.UUID
 	ConnectionUUID     uuid.UUID
 	ServiceAccountUUID uuid.UUID

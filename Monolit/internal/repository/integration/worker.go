@@ -68,7 +68,8 @@ func (r *Repository) CompleteIngest(ctx context.Context, itemID, callID uuid.UUI
 	}
 	defer func() { _ = tx.Rollback() }()
 	var app, connection uuid.UUID
-	err = tx.QueryRowContext(ctx, `SELECT application_uuid,connection_uuid FROM ingest_items WHERE ingest_item_uuid=$1 AND status='processing' FOR UPDATE`, itemID).Scan(&app, &connection)
+	var occurredAt sql.NullTime
+	err = tx.QueryRowContext(ctx, `SELECT application_uuid,connection_uuid,occurred_at FROM ingest_items WHERE ingest_item_uuid=$1 AND status='processing' FOR UPDATE`, itemID).Scan(&app, &connection, &occurredAt)
 	if err != nil {
 		return err
 	}
@@ -80,7 +81,17 @@ func (r *Repository) CompleteIngest(ctx context.Context, itemID, callID uuid.UUI
 	if n != 1 {
 		return models.ErrIntegrationConflict
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE calls SET integration_connection_uuid=$2,ingest_item_uuid=$1 WHERE call_uuid=$3 AND ingest_item_uuid IS NULL`, itemID, connection, callID)
+	_, err = tx.ExecContext(ctx, `UPDATE calls SET integration_connection_uuid=$2,ingest_item_uuid=$1,occurred_at=$4 WHERE call_uuid=$3 AND ingest_item_uuid IS NULL`, itemID, connection, callID, timePtr(occurredAt))
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO integration_call_participants(call_uuid,connection_uuid,external_user_id,internal_user_uuid,role,display_snapshot)
+		SELECT $2,$3,p->>'external_user_id',m.internal_user_uuid,COALESCE(NULLIF(p->>'role',''),'participant'),COALESCE(m.external_display_snapshot,'')
+		FROM ingest_items i JOIN ingest_events e ON e.event_uuid=i.event_uuid
+		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(e.payload_redacted->'participants','[]'::jsonb)) p
+		LEFT JOIN integration_external_user_mappings m ON m.connection_uuid=i.connection_uuid AND m.external_user_id=p->>'external_user_id' AND m.status='mapped'
+		WHERE i.ingest_item_uuid=$1 AND NULLIF(p->>'external_user_id','') IS NOT NULL
+		ON CONFLICT(call_uuid,connection_uuid,external_user_id) DO NOTHING`, itemID, callID, connection)
 	if err != nil {
 		return err
 	}

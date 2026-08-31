@@ -92,19 +92,20 @@ type Capabilities struct {
 }
 
 type ListInput struct {
-	ActorUserUUID  uuid.UUID
-	CompanyUUID    uuid.NullUUID
-	CallUUID       uuid.NullUUID
-	DepartmentUUID uuid.NullUUID
-	AssigneeUUID   uuid.NullUUID
-	Status         string
-	Query          string
-	CompanyTag     string
-	Department     string
-	Mine           bool
-	Limit          int
-	Offset         int
-	Admin          bool
+	ActorUserUUID       uuid.UUID
+	CompanyUUID         uuid.NullUUID
+	CallUUID            uuid.NullUUID
+	DepartmentUUID      uuid.NullUUID
+	AssigneeUUID        uuid.NullUUID
+	Status              string
+	Query               string
+	CompanyTag          string
+	Department          string
+	Mine                bool
+	Limit               int
+	Offset              int
+	Admin               bool
+	SupportCompanyUUIDs []uuid.UUID
 }
 
 type ListResult struct {

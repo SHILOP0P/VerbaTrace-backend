@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"verbatrace/monolit/internal/integrationcrypto"
 	"verbatrace/monolit/internal/mediafetch"
@@ -35,11 +36,15 @@ type Repository interface {
 	RevokeWebhook(context.Context, uuid.UUID, uuid.UUID) error
 	ListDeliveries(context.Context, uuid.UUID, uuid.UUID) ([]models.WebhookDelivery, error)
 	QueueWebhookTest(context.Context, uuid.UUID, uuid.UUID) (uuid.UUID, error)
+	ReplayWebhookDelivery(context.Context, uuid.UUID, uuid.UUID) (uuid.UUID, error)
 	ListDestinations(context.Context, models.IntegrationPrincipal) ([]models.IntegrationDestination, error)
 	ListFolders(context.Context, models.IntegrationPrincipal, string, uuid.UUID, uuid.UUID) ([]models.IntegrationFolder, error)
 	GetCall(context.Context, models.IntegrationPrincipal, uuid.UUID) (models.IntegrationCallView, error)
+	GetCallBySourceRef(context.Context, models.IntegrationPrincipal, string) (models.IntegrationCallView, error)
+	ListCalls(context.Context, models.IntegrationPrincipal, models.IntegrationCallFilter) ([]models.IntegrationCallView, error)
 	GetTranscription(context.Context, models.IntegrationPrincipal, uuid.UUID) (models.IntegrationTranscriptionView, error)
 	GetAnalysis(context.Context, models.IntegrationPrincipal, uuid.UUID) (models.IntegrationAnalysisView, error)
+	GetUsage(context.Context, models.IntegrationPrincipal, time.Time) (models.IntegrationUsageView, error)
 }
 type KeyAuthenticator interface {
 	AuthenticateIntegrationKey(context.Context, string, string, string) (models.IntegrationPrincipal, error)
@@ -276,7 +281,7 @@ func (s *Service) CreateWebhook(ctx context.Context, app, connection, actor uuid
 	if err := mediafetch.ValidateURL(url); err != nil {
 		return models.WebhookEndpoint{}, "", models.ErrRecordingURLForbidden
 	}
-	allowed := map[string]bool{"ingest.accepted": true, "ingest.completed": true, "ingest.failed": true}
+	allowed := map[string]bool{"ingest.accepted": true, "ingest.completed": true, "ingest.failed": true, "transcription.completed": true, "analysis.completed": true}
 	for _, value := range eventTypes {
 		if !allowed[value] {
 			return models.WebhookEndpoint{}, "", models.ErrInvalidBillingInput
@@ -296,6 +301,9 @@ func (s *Service) ListDeliveries(ctx context.Context, connection, actor uuid.UUI
 func (s *Service) QueueWebhookTest(ctx context.Context, connection, actor uuid.UUID) (uuid.UUID, error) {
 	return s.repo.QueueWebhookTest(ctx, connection, actor)
 }
+func (s *Service) ReplayWebhookDelivery(ctx context.Context, delivery, actor uuid.UUID) (uuid.UUID, error) {
+	return s.repo.ReplayWebhookDelivery(ctx, delivery, actor)
+}
 func (s *Service) ListDestinations(ctx context.Context, p models.IntegrationPrincipal) ([]models.IntegrationDestination, error) {
 	return s.repo.ListDestinations(ctx, p)
 }
@@ -305,9 +313,24 @@ func (s *Service) ListFolders(ctx context.Context, p models.IntegrationPrincipal
 func (s *Service) GetCall(ctx context.Context, p models.IntegrationPrincipal, id uuid.UUID) (models.IntegrationCallView, error) {
 	return s.repo.GetCall(ctx, p, id)
 }
+func (s *Service) GetCallBySourceRef(ctx context.Context, p models.IntegrationPrincipal, sourceRef string) (models.IntegrationCallView, error) {
+	if !strings.HasPrefix(sourceRef, "vtsrc_") || len(sourceRef) > 512 {
+		return models.IntegrationCallView{}, models.ErrInvalidBillingInput
+	}
+	return s.repo.GetCallBySourceRef(ctx, p, sourceRef)
+}
+func (s *Service) ListCalls(ctx context.Context, p models.IntegrationPrincipal, filter models.IntegrationCallFilter) ([]models.IntegrationCallView, error) {
+	if filter.Limit < 1 || filter.Limit > 100 || (filter.Status != "" && filter.Status != "new" && filter.Status != "processing" && filter.Status != "transcribed" && filter.Status != "analyzed" && filter.Status != "failed") {
+		return nil, models.ErrInvalidBillingInput
+	}
+	return s.repo.ListCalls(ctx, p, filter)
+}
 func (s *Service) GetTranscription(ctx context.Context, p models.IntegrationPrincipal, id uuid.UUID) (models.IntegrationTranscriptionView, error) {
 	return s.repo.GetTranscription(ctx, p, id)
 }
 func (s *Service) GetAnalysis(ctx context.Context, p models.IntegrationPrincipal, id uuid.UUID) (models.IntegrationAnalysisView, error) {
 	return s.repo.GetAnalysis(ctx, p, id)
+}
+func (s *Service) GetUsage(ctx context.Context, p models.IntegrationPrincipal, now time.Time) (models.IntegrationUsageView, error) {
+	return s.repo.GetUsage(ctx, p, now.UTC())
 }

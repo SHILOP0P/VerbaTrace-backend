@@ -19,14 +19,14 @@ import (
 type developerService interface {
 	CreateDeveloperApplication(context.Context, models.CreateDeveloperApplicationInput) (models.DeveloperApplication, error)
 	ListDeveloperApplications(context.Context, string, uuid.UUID, uuid.UUID) ([]models.DeveloperApplication, error)
-	CreateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, string, []string, *time.Time) (models.IntegrationAPIKey, string, error)
+	CreateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error)
 	MockPurchaseCredits(context.Context, models.MockCreditPurchaseInput) (int64, error)
 	AuthenticateIntegrationKey(context.Context, string, string, string) (models.IntegrationPrincipal, error)
 	RevokeIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID) error
 	RotateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, time.Duration) (models.IntegrationAPIKey, string, error)
 	CreateIntegrationServiceAccount(context.Context, uuid.UUID, uuid.UUID, string, []string) (models.IntegrationServiceAccount, error)
 	ListIntegrationServiceAccounts(context.Context, uuid.UUID, uuid.UUID) ([]models.IntegrationServiceAccount, error)
-	CreateIntegrationAPIKeyForServiceAccount(context.Context, uuid.UUID, uuid.UUID, string, []string, *time.Time) (models.IntegrationAPIKey, string, error)
+	CreateIntegrationAPIKeyForServiceAccount(context.Context, uuid.UUID, uuid.UUID, models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error)
 	GetDeveloperApplication(context.Context, uuid.UUID, uuid.UUID) (models.DeveloperApplication, error)
 	ChangeDeveloperApplicationStatus(context.Context, uuid.UUID, uuid.UUID, string) (models.DeveloperApplication, error)
 	AdjustSandboxWallet(context.Context, uuid.UUID, uuid.UUID, string, int64, string) (int64, error)
@@ -272,13 +272,13 @@ func (h *Handler) CreateServiceAccountAPIKey(w http.ResponseWriter, r *http.Requ
 		response.WriteError(w, 400, response.CodeInvalidBillingInput, "invalid request")
 		return
 	}
-	key, secret, err := h.service.(developerService).CreateIntegrationAPIKeyForServiceAccount(r.Context(), serviceID, actor, req.Name, req.Scopes, req.ExpiresAt)
+	key, secret, err := h.service.(developerService).CreateIntegrationAPIKeyForServiceAccount(r.Context(), serviceID, actor, req.input())
 	if err != nil {
 		writeBillingError(w, err, response.CodeInvalidBillingInput, "failed to create api key")
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	_ = response.WriteJSON(w, 201, map[string]any{"key_uuid": key.ID, "service_account_uuid": key.ServiceAccountID, "name": key.Name, "prefix": key.Prefix, "scopes": key.Scopes, "expires_at": key.ExpiresAt, "created_at": key.CreatedAt, "secret": secret, "secret_visible_once": true})
+	_ = response.WriteJSON(w, 201, createdKeyResponse(key, secret))
 }
 
 func (h *Handler) RevokeDeveloperAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -322,7 +322,7 @@ func (h *Handler) RotateDeveloperAPIKey(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	_ = response.WriteJSON(w, 201, map[string]any{"key_uuid": key.ID, "name": key.Name, "prefix": key.Prefix, "scopes": key.Scopes, "created_at": key.CreatedAt, "secret": secret, "secret_visible_once": true})
+	_ = response.WriteJSON(w, 201, createdKeyResponse(key, secret))
 }
 
 func (h *Handler) ValidateSandboxKey(w http.ResponseWriter, r *http.Request) {
@@ -389,9 +389,17 @@ type developerApplicationRequest struct {
 	MaxCreditsPerOperation *int64    `json:"max_credits_per_operation"`
 }
 type apiKeyRequest struct {
-	Name      string     `json:"name"`
-	Scopes    []string   `json:"scopes"`
-	ExpiresAt *time.Time `json:"expires_at"`
+	Name                   string     `json:"name"`
+	Scopes                 []string   `json:"scopes"`
+	ExpiresAt              *time.Time `json:"expires_at"`
+	PermanentCreditLimit   *int64     `json:"permanent_credit_limit"`
+	TemporaryCreditLimit   *int64     `json:"temporary_credit_limit"`
+	TemporaryLimitStartsAt *time.Time `json:"temporary_limit_starts_at"`
+	TemporaryLimitEndsAt   *time.Time `json:"temporary_limit_ends_at"`
+}
+
+func (r apiKeyRequest) input() models.CreateIntegrationAPIKeyInput {
+	return models.CreateIntegrationAPIKeyInput{Name: r.Name, Scopes: r.Scopes, ExpiresAt: r.ExpiresAt, PermanentCreditLimit: r.PermanentCreditLimit, TemporaryCreditLimit: r.TemporaryCreditLimit, TemporaryLimitStartsAt: r.TemporaryLimitStartsAt, TemporaryLimitEndsAt: r.TemporaryLimitEndsAt}
 }
 
 func (h *Handler) CreateDeveloperApplication(w http.ResponseWriter, r *http.Request) {
@@ -467,13 +475,17 @@ func (h *Handler) CreateDeveloperAPIKey(w http.ResponseWriter, r *http.Request) 
 		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidBillingInput, "invalid request")
 		return
 	}
-	key, secret, err := h.service.(developerService).CreateIntegrationAPIKey(r.Context(), appID, actor, req.Name, req.Scopes, req.ExpiresAt)
+	key, secret, err := h.service.(developerService).CreateIntegrationAPIKey(r.Context(), appID, actor, req.input())
 	if err != nil {
 		writeBillingError(w, err, response.CodeInvalidBillingInput, "failed to create api key")
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	_ = response.WriteJSON(w, http.StatusCreated, map[string]any{"key_uuid": key.ID, "name": key.Name, "prefix": key.Prefix, "scopes": key.Scopes, "expires_at": key.ExpiresAt, "created_at": key.CreatedAt, "secret": secret, "secret_visible_once": true})
+	_ = response.WriteJSON(w, http.StatusCreated, createdKeyResponse(key, secret))
+}
+
+func createdKeyResponse(key models.IntegrationAPIKey, secret string) map[string]any {
+	return map[string]any{"key_uuid": key.ID, "service_account_uuid": key.ServiceAccountID, "name": key.Name, "prefix": key.Prefix, "scopes": key.Scopes, "expires_at": key.ExpiresAt, "permanent_credit_limit": key.PermanentCreditLimit, "temporary_credit_limit": key.TemporaryCreditLimit, "temporary_limit_starts_at": key.TemporaryLimitStartsAt, "temporary_limit_ends_at": key.TemporaryLimitEndsAt, "created_at": key.CreatedAt, "secret": secret, "secret_visible_once": true}
 }
 
 func developerApplicationResponse(app models.DeveloperApplication) map[string]any {

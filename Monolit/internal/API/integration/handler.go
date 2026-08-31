@@ -3,6 +3,7 @@ package integration
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"verbatrace/monolit/internal/API/response"
 	"verbatrace/monolit/internal/httpserver/middleware"
@@ -38,15 +40,26 @@ type Service interface {
 	RevokeWebhook(context.Context, uuid.UUID, uuid.UUID) error
 	ListDeliveries(context.Context, uuid.UUID, uuid.UUID) ([]models.WebhookDelivery, error)
 	QueueWebhookTest(context.Context, uuid.UUID, uuid.UUID) (uuid.UUID, error)
+	ReplayWebhookDelivery(context.Context, uuid.UUID, uuid.UUID) (uuid.UUID, error)
 	ListDestinations(context.Context, models.IntegrationPrincipal) ([]models.IntegrationDestination, error)
 	ListFolders(context.Context, models.IntegrationPrincipal, string, uuid.UUID, uuid.UUID) ([]models.IntegrationFolder, error)
 	GetCall(context.Context, models.IntegrationPrincipal, uuid.UUID) (models.IntegrationCallView, error)
+	GetCallBySourceRef(context.Context, models.IntegrationPrincipal, string) (models.IntegrationCallView, error)
+	ListCalls(context.Context, models.IntegrationPrincipal, models.IntegrationCallFilter) ([]models.IntegrationCallView, error)
 	GetTranscription(context.Context, models.IntegrationPrincipal, uuid.UUID) (models.IntegrationTranscriptionView, error)
 	GetAnalysis(context.Context, models.IntegrationPrincipal, uuid.UUID) (models.IntegrationAnalysisView, error)
+	GetUsage(context.Context, models.IntegrationPrincipal, time.Time) (models.IntegrationUsageView, error)
 }
-type Handler struct{ service Service }
+type Handler struct {
+	service       Service
+	supportAccess SupportAccessService
+	bitrix24      Bitrix24Service
+}
 
 func NewHandler(s Service) *Handler { return &Handler{service: s} }
+
+func (h *Handler) SetSupportAccessService(service SupportAccessService) { h.supportAccess = service }
+func (h *Handler) SetBitrix24Service(service Bitrix24Service)           { h.bitrix24 = service }
 
 func (h *Handler) CreateConnection(w http.ResponseWriter, r *http.Request) {
 	actor, ok := middleware.UserIDFromContext(r.Context())
@@ -336,6 +349,87 @@ func (h *Handler) GetSandboxCall(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetProductionCall(w http.ResponseWriter, r *http.Request) {
 	h.getCall(w, r, "production")
 }
+func (h *Handler) ListSandboxCalls(w http.ResponseWriter, r *http.Request) {
+	h.listCalls(w, r, "sandbox")
+}
+func (h *Handler) ListProductionCalls(w http.ResponseWriter, r *http.Request) {
+	h.listCalls(w, r, "production")
+}
+func (h *Handler) GetSandboxCallBySourceRef(w http.ResponseWriter, r *http.Request) {
+	h.getCallBySourceRef(w, r, "sandbox")
+}
+func (h *Handler) GetProductionCallBySourceRef(w http.ResponseWriter, r *http.Request) {
+	h.getCallBySourceRef(w, r, "production")
+}
+
+func (h *Handler) getCallBySourceRef(w http.ResponseWriter, r *http.Request, environment string) {
+	p, err := h.service.Authenticate(r.Context(), bearer(r.Header.Get("Authorization")), environment, "calls:read")
+	if err != nil {
+		authError(w, err)
+		return
+	}
+	item, err := h.service.GetCallBySourceRef(r.Context(), p, chi.URLParam(r, "source_ref"))
+	if err != nil {
+		integrationError(w, err)
+		return
+	}
+	_ = response.WriteJSON(w, http.StatusOK, item)
+}
+
+func (h *Handler) listCalls(w http.ResponseWriter, r *http.Request, environment string) {
+	p, err := h.service.Authenticate(r.Context(), bearer(r.Header.Get("Authorization")), environment, "calls:read")
+	if err != nil {
+		authError(w, err)
+		return
+	}
+	filter := models.IntegrationCallFilter{Limit: 50, Status: strings.TrimSpace(r.URL.Query().Get("status"))}
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if filter.Limit, err = strconv.Atoi(raw); err != nil {
+			writeError(w, 400, "invalid_request", false)
+			return
+		}
+	}
+	for raw, target := range map[string]**time.Time{"updated_since": &filter.UpdatedSince, "from": &filter.From, "to": &filter.To} {
+		if value := strings.TrimSpace(r.URL.Query().Get(raw)); value != "" {
+			parsed, parseErr := time.Parse(time.RFC3339Nano, value)
+			if parseErr != nil {
+				writeError(w, 400, "invalid_request", false)
+				return
+			}
+			*target = &parsed
+		}
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
+		decoded, decodeErr := base64.RawURLEncoding.DecodeString(raw)
+		if decodeErr != nil {
+			writeError(w, 400, "invalid_cursor", false)
+			return
+		}
+		parts := strings.Split(string(decoded), "|")
+		if len(parts) != 2 {
+			writeError(w, 400, "invalid_cursor", false)
+			return
+		}
+		parsed, timeErr := time.Parse(time.RFC3339Nano, parts[0])
+		id, idErr := uuid.Parse(parts[1])
+		if timeErr != nil || idErr != nil {
+			writeError(w, 400, "invalid_cursor", false)
+			return
+		}
+		filter.CursorUpdatedAt, filter.CursorID = &parsed, id
+	}
+	items, err := h.service.ListCalls(r.Context(), p, filter)
+	if err != nil {
+		integrationError(w, err)
+		return
+	}
+	var next string
+	if len(items) == filter.Limit {
+		last := items[len(items)-1]
+		next = base64.RawURLEncoding.EncodeToString([]byte(last.UpdatedAt.Format(time.RFC3339Nano) + "|" + last.ID.String()))
+	}
+	_ = response.WriteJSON(w, 200, map[string]any{"calls": items, "next_cursor": next})
+}
 func (h *Handler) getCall(w http.ResponseWriter, r *http.Request, environment string) {
 	p, id, ok := h.readCallPrincipal(w, r, environment)
 	if !ok {
@@ -373,6 +467,25 @@ func (h *Handler) GetSandboxAnalysis(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) GetProductionAnalysis(w http.ResponseWriter, r *http.Request) {
 	h.getAnalysis(w, r, "production")
+}
+func (h *Handler) GetSandboxUsage(w http.ResponseWriter, r *http.Request) {
+	h.getUsage(w, r, "sandbox")
+}
+func (h *Handler) GetProductionUsage(w http.ResponseWriter, r *http.Request) {
+	h.getUsage(w, r, "production")
+}
+func (h *Handler) getUsage(w http.ResponseWriter, r *http.Request, environment string) {
+	p, err := h.service.Authenticate(r.Context(), bearer(r.Header.Get("Authorization")), environment, "usage:read")
+	if err != nil {
+		authError(w, err)
+		return
+	}
+	usage, err := h.service.GetUsage(r.Context(), p, time.Now().UTC())
+	if err != nil {
+		integrationError(w, err)
+		return
+	}
+	_ = response.WriteJSON(w, 200, usage)
 }
 func (h *Handler) getAnalysis(w http.ResponseWriter, r *http.Request, environment string) {
 	p, id, ok := h.readCallPrincipal(w, r, environment)
@@ -501,6 +614,25 @@ func (h *Handler) ListWebhookDeliveries(w http.ResponseWriter, r *http.Request) 
 	}
 	_ = response.WriteJSON(w, 200, map[string]any{"deliveries": items})
 }
+
+func (h *Handler) ReplayWebhookDelivery(w http.ResponseWriter, r *http.Request) {
+	actor, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, 401, "unauthorized", false)
+		return
+	}
+	delivery, err := uuid.Parse(chi.URLParam(r, "delivery_uuid"))
+	if err != nil {
+		writeError(w, 404, "not_found", false)
+		return
+	}
+	eventID, err := h.service.ReplayWebhookDelivery(r.Context(), delivery, actor)
+	if err != nil {
+		integrationError(w, err)
+		return
+	}
+	_ = response.WriteJSON(w, 202, map[string]any{"event_id": eventID, "status": "queued"})
+}
 func (h *Handler) TestWebhook(w http.ResponseWriter, r *http.Request) {
 	actor, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
@@ -608,7 +740,7 @@ func queryPage(r *http.Request, defaultLimit, maxLimit int) (int, int) {
 }
 
 func ingestResponse(i models.IngestItem, d bool, e string, version int) map[string]any {
-	return map[string]any{"ingest_item_uuid": i.ID, "status": i.Status, "stage": i.Stage, "deduplicated": d, "status_url": fmt.Sprintf("/api/%s/v%d/ingest/items/%s", e, version, i.ID), "call_uuid": i.CallID, "destination_scope": i.DestinationScope, "destination_folder_uuid": i.DestinationFolderID}
+	return map[string]any{"ingest_item_uuid": i.ID, "source_ref": i.SourceRef, "status": i.Status, "stage": i.Stage, "deduplicated": d, "status_url": fmt.Sprintf("/api/%s/v%d/ingest/items/%s", e, version, i.ID), "call_uuid": i.CallID, "destination_scope": i.DestinationScope, "destination_folder_uuid": i.DestinationFolderID}
 }
 func apiVersion(r *http.Request) int {
 	if strings.Contains(r.URL.Path, "/v2/") {

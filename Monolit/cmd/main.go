@@ -65,6 +65,7 @@ import (
 	analyticsService "verbatrace/monolit/internal/service/analytics"
 	authService "verbatrace/monolit/internal/service/auth"
 	billingService "verbatrace/monolit/internal/service/billing"
+	bitrix24Service "verbatrace/monolit/internal/service/bitrix24"
 	callService "verbatrace/monolit/internal/service/call"
 	callFolderService "verbatrace/monolit/internal/service/call_folder"
 	companyService "verbatrace/monolit/internal/service/company"
@@ -79,6 +80,7 @@ import (
 	reportService "verbatrace/monolit/internal/service/report"
 	retentionService "verbatrace/monolit/internal/service/retention"
 	searchService "verbatrace/monolit/internal/service/search"
+	supportAccessService "verbatrace/monolit/internal/service/supportaccess"
 	transcriptionEditService "verbatrace/monolit/internal/service/transcriptionedit"
 	"verbatrace/monolit/internal/storage/audio"
 	avatarStorage "verbatrace/monolit/internal/storage/avatar"
@@ -340,6 +342,27 @@ func main() {
 	integrationStagingDir := filepath.Join("uploads", "integration-staging")
 	integrationSvc := integrationService.NewService(integrationRepository, billingSvc, integrationCipher, integrationStagingDir)
 	integrationHandler := integrationAPI.NewHandler(integrationSvc)
+	supportAccessSvc := supportAccessService.NewService(sqlDB)
+	integrationHandler.SetSupportAccessService(supportAccessSvc)
+	adminHandler.SetSupportAccessAuthorizer(supportAccessSvc)
+	actionHandler.SetSupportAccessAuthorizer(supportAccessSvc)
+	var supportAccessWorkerDone <-chan struct{}
+	if config.AppConfig().Worker.Enabled() {
+		supportAccessWorkerDone = supportAccessSvc.RunExpiryWorker(ctx)
+	}
+	bitrixSvc := bitrix24Service.NewService(sqlDB, integrationCipher, bitrix24Service.Config{
+		ClientID: os.Getenv("BITRIX24_CLIENT_ID"), ClientSecret: os.Getenv("BITRIX24_CLIENT_SECRET"),
+		RedirectURI: os.Getenv("BITRIX24_REDIRECT_URI"), TokenURL: os.Getenv("BITRIX24_TOKEN_URL"), PublicBaseURL: os.Getenv("PUBLIC_APP_URL"), EventToken: os.Getenv("BITRIX24_APPLICATION_TOKEN"),
+	})
+	integrationHandler.SetBitrix24Service(bitrixSvc)
+	var bitrixWorkerDone <-chan struct{}
+	var bitrixReconcilerDone <-chan struct{}
+	var bitrixBackfillDone <-chan struct{}
+	if config.AppConfig().Worker.Enabled() && integrationCipher != nil {
+		bitrixWorkerDone = bitrixSvc.RunActionSyncWorker(ctx)
+		bitrixReconcilerDone = bitrixSvc.RunReconciler(ctx, integrationSvc)
+		bitrixBackfillDone = bitrixSvc.RunBackfillWorker(ctx, integrationSvc)
+	}
 	var integrationWorkerDone <-chan struct{}
 	var webhookWorkerDone <-chan struct{}
 	if config.AppConfig().Worker.Enabled() && integrationCipher != nil {
@@ -408,6 +431,38 @@ func main() {
 			appLogger.Info(context.Background(), "integration webhook worker shutdown completed")
 		case <-shutdownCtx.Done():
 			appLogger.Warn(context.Background(), "integration webhook worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	if bitrixWorkerDone != nil {
+		select {
+		case <-bitrixWorkerDone:
+			appLogger.Info(context.Background(), "Bitrix24 task sync worker shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), "Bitrix24 task sync worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	if bitrixReconcilerDone != nil {
+		select {
+		case <-bitrixReconcilerDone:
+			appLogger.Info(context.Background(), "Bitrix24 reconciliation worker shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), "Bitrix24 reconciliation worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	if bitrixBackfillDone != nil {
+		select {
+		case <-bitrixBackfillDone:
+			appLogger.Info(context.Background(), "Bitrix24 backfill worker shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), "Bitrix24 backfill worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	if supportAccessWorkerDone != nil {
+		select {
+		case <-supportAccessWorkerDone:
+			appLogger.Info(context.Background(), "support access expiry worker shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), "support access expiry worker shutdown timed out", zap.Error(shutdownCtx.Err()))
 		}
 	}
 	select {

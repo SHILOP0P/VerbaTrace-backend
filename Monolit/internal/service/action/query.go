@@ -144,6 +144,10 @@ func (s *Service) List(ctx context.Context, in ListInput) (ListResult, error) {
 	where := []string{}
 	if in.Admin {
 		where = append(where, `EXISTS(SELECT 1 FROM users au WHERE au.user_uuid=$1 AND au.role IN ('admin','superadmin'))`)
+		if in.SupportCompanyUUIDs != nil {
+			args = append(args, in.SupportCompanyUUIDs)
+			where = append(where, fmt.Sprintf("a.company_uuid=ANY($%d)", len(args)))
+		}
 	} else {
 		where = append(where, `(a.assignee_user_uuid=$1 OR a.created_by_user_uuid=$1 OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$1 AND cm.status='active' AND cm.role='company_manager') OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.user_uuid=$1 AND dm.status='active' AND dm.role='department_leader' AND dm.department_uuid IN (a.source_department_uuid,a.target_department_uuid)))`)
 	}

@@ -105,6 +105,19 @@ type IntegrationCallView struct {
 	DepartmentID    uuid.NullUUID `json:"department_uuid,omitempty"`
 	FolderID        uuid.NullUUID `json:"folder_uuid,omitempty"`
 	CreatedAt       time.Time     `json:"created_at"`
+	UpdatedAt       time.Time     `json:"updated_at"`
+	ExternalCallID  string        `json:"external_call_id"`
+	SourceRef       string        `json:"source_ref"`
+}
+
+type IntegrationCallFilter struct {
+	UpdatedSince    *time.Time
+	From            *time.Time
+	To              *time.Time
+	Status          string
+	Limit           int
+	CursorUpdatedAt *time.Time
+	CursorID        uuid.UUID
 }
 
 type IntegrationTranscriptionView struct {
@@ -128,6 +141,21 @@ type IntegrationAnalysisView struct {
 	UpdatedAt  time.Time       `json:"updated_at"`
 }
 
+type IntegrationUsageView struct {
+	Environment               string     `json:"environment"`
+	AvailableCredits          int64      `json:"available_credits"`
+	KeyCreditsUsed            int64      `json:"key_credits_used"`
+	PermanentCreditLimit      *int64     `json:"permanent_credit_limit,omitempty"`
+	PermanentCreditsRemaining *int64     `json:"permanent_credits_remaining,omitempty"`
+	TemporaryCreditLimit      *int64     `json:"temporary_credit_limit,omitempty"`
+	TemporaryCreditsUsed      *int64     `json:"temporary_credits_used,omitempty"`
+	TemporaryCreditsRemaining *int64     `json:"temporary_credits_remaining,omitempty"`
+	TemporaryLimitStartsAt    *time.Time `json:"temporary_limit_starts_at,omitempty"`
+	TemporaryLimitEndsAt      *time.Time `json:"temporary_limit_ends_at,omitempty"`
+	ActiveIngestItems         int        `json:"active_ingest_items"`
+	MaximumUploadBytes        int64      `json:"maximum_upload_bytes"`
+}
+
 type IngestItem struct {
 	ID                       uuid.UUID       `json:"ingest_item_uuid"`
 	ApplicationID            uuid.UUID       `json:"application_uuid"`
@@ -135,6 +163,8 @@ type IngestItem struct {
 	EventID                  uuid.UUID       `json:"event_uuid"`
 	BillingAccountID         uuid.UUID       `json:"-"`
 	ExternalCallID           string          `json:"external_call_id"`
+	SourceRef                string          `json:"source_ref"`
+	KeyID                    uuid.NullUUID   `json:"-"`
 	IdempotencyKey           string          `json:"-"`
 	SourceKind               string          `json:"source_kind"`
 	Title                    string          `json:"title"`

@@ -88,7 +88,7 @@ func (r *Repository) AuthenticateIntegrationKey(ctx context.Context, plaintext, 
 	var stored []byte
 	var scopesJSON string
 	var revoked, expires sql.NullTime
-	err := r.db.QueryRowContext(ctx, `SELECT a.application_uuid,c.connection_uuid,sa.service_account_uuid,a.billing_account_uuid,a.environment,to_json(k.scopes)::text,k.secret_hash,k.revoked_at,k.expires_at FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) JOIN integration_connections c ON c.connection_uuid=sa.connection_uuid WHERE k.prefix=$1 AND a.status='active' AND sa.status='active' AND c.status='active' AND (k.overlap_until IS NULL OR k.overlap_until>now())`, prefix).Scan(&principal.ApplicationUUID, &principal.ConnectionUUID, &principal.ServiceAccountUUID, &principal.BillingAccountUUID, &principal.Environment, &scopesJSON, &stored, &revoked, &expires)
+	err := r.db.QueryRowContext(ctx, `SELECT k.key_uuid,a.application_uuid,c.connection_uuid,sa.service_account_uuid,a.billing_account_uuid,a.environment,to_json(k.scopes)::text,k.secret_hash,k.revoked_at,k.expires_at FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) JOIN integration_connections c ON c.connection_uuid=sa.connection_uuid WHERE k.prefix=$1 AND a.status='active' AND sa.status='active' AND c.status='active' AND (k.overlap_until IS NULL OR k.overlap_until>now())`, prefix).Scan(&principal.KeyUUID, &principal.ApplicationUUID, &principal.ConnectionUUID, &principal.ServiceAccountUUID, &principal.BillingAccountUUID, &principal.Environment, &scopesJSON, &stored, &revoked, &expires)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.IntegrationPrincipal{}, models.ErrInvalidAPIKey
 	}
@@ -139,7 +139,9 @@ func (r *Repository) RotateIntegrationAPIKey(ctx context.Context, keyID, actorID
 	var name, environment string
 	var scopes []string
 	var scopesJSON string
-	err = tx.QueryRowContext(ctx, `SELECT sa.service_account_uuid,k.name,to_json(k.scopes)::text,a.environment FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) WHERE k.key_uuid=$1 AND k.revoked_at IS NULL AND sa.status='active' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role='company_manager')))) FOR UPDATE OF k,sa,a`, keyID, actorID).Scan(&serviceID, &name, &scopesJSON, &environment)
+	var permanent, temporary sql.NullInt64
+	var temporaryStart, temporaryEnd sql.NullTime
+	err = tx.QueryRowContext(ctx, `SELECT sa.service_account_uuid,k.name,to_json(k.scopes)::text,a.environment,k.permanent_credit_limit,k.temporary_credit_limit,k.temporary_limit_starts_at,k.temporary_limit_ends_at FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) WHERE k.key_uuid=$1 AND k.revoked_at IS NULL AND sa.status='active' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role='company_manager')))) FOR UPDATE OF k,sa,a`, keyID, actorID).Scan(&serviceID, &name, &scopesJSON, &environment, &permanent, &temporary, &temporaryStart, &temporaryEnd)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.IntegrationAPIKey{}, "", models.ErrForbidden
 	}
@@ -166,7 +168,7 @@ func (r *Repository) RotateIntegrationAPIKey(ctx context.Context, keyID, actorID
 	digest := sha256.Sum256([]byte(plaintext))
 	newID, _ := uuid.NewV7()
 	createdAt := time.Now().UTC()
-	_, err = tx.ExecContext(ctx, `INSERT INTO integration_api_keys(key_uuid,service_account_uuid,name,prefix,secret_hash,hash_version,scopes,created_at) VALUES($1,$2,$3,$4,$5,1,$6,$7)`, newID, serviceID, name+" (rotated)", prefix, digest[:], scopes, createdAt)
+	_, err = tx.ExecContext(ctx, `INSERT INTO integration_api_keys(key_uuid,service_account_uuid,name,prefix,secret_hash,hash_version,scopes,permanent_credit_limit,temporary_credit_limit,temporary_limit_starts_at,temporary_limit_ends_at,created_at) VALUES($1,$2,$3,$4,$5,1,$6,$7,$8,$9,$10,$11)`, newID, serviceID, name+" (rotated)", prefix, digest[:], scopes, nullableInt64(permanent), nullableInt64(temporary), nullableTime(temporaryStart), nullableTime(temporaryEnd), createdAt)
 	if err != nil {
 		return models.IntegrationAPIKey{}, "", err
 	}
@@ -177,7 +179,7 @@ func (r *Repository) RotateIntegrationAPIKey(ctx context.Context, keyID, actorID
 	if err = tx.Commit(); err != nil {
 		return models.IntegrationAPIKey{}, "", err
 	}
-	return models.IntegrationAPIKey{ID: newID, ServiceAccountID: serviceID, Name: name + " (rotated)", Prefix: prefix, Scopes: scopes, CreatedAt: createdAt}, plaintext, nil
+	return models.IntegrationAPIKey{ID: newID, ServiceAccountID: serviceID, Name: name + " (rotated)", Prefix: prefix, Scopes: scopes, PermanentCreditLimit: int64Ptr(permanent), TemporaryCreditLimit: int64Ptr(temporary), TemporaryLimitStartsAt: timePtr(temporaryStart), TemporaryLimitEndsAt: timePtr(temporaryEnd), CreatedAt: createdAt}, plaintext, nil
 }
 
 func createSandboxGrant(ctx context.Context, tx *sql.Tx, accountID, appID uuid.UUID, credits int64) error {
@@ -246,6 +248,32 @@ func (r *Repository) UpdateDeveloperApplication(ctx context.Context, input model
 }
 
 func negativeLimit(value *int64) bool { return value != nil && *value < 0 }
+func nullableInt64(value sql.NullInt64) any {
+	if value.Valid {
+		return value.Int64
+	}
+	return nil
+}
+func nullableTime(value sql.NullTime) any {
+	if value.Valid {
+		return value.Time
+	}
+	return nil
+}
+func int64Ptr(value sql.NullInt64) *int64 {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Int64
+	return &result
+}
+func timePtr(value sql.NullTime) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Time
+	return &result
+}
 
 func (r *Repository) GetDeveloperApplication(ctx context.Context, appID, actorID uuid.UUID) (models.DeveloperApplication, error) {
 	return scanDeveloperApplication(r.db.QueryRowContext(ctx, developerApplicationSelect+` WHERE a.application_uuid=$1 AND `+developerApplicationActorACL, appID, actorID))
@@ -371,7 +399,7 @@ func (r *Repository) ListIntegrationServiceAccounts(ctx context.Context, connect
 }
 
 func (r *Repository) ListIntegrationAPIKeys(ctx context.Context, serviceID, actorID uuid.UUID) ([]models.IntegrationAPIKey, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT k.key_uuid,k.service_account_uuid,k.name,k.prefix,to_json(k.scopes)::text,k.expires_at,k.last_used_at,k.revoked_at,k.created_at FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) WHERE k.service_account_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager')))) ORDER BY k.created_at DESC`, serviceID, actorID)
+	rows, err := r.db.QueryContext(ctx, `SELECT k.key_uuid,k.service_account_uuid,k.name,k.prefix,to_json(k.scopes)::text,k.expires_at,k.last_used_at,k.revoked_at,k.created_at,k.permanent_credit_limit,k.temporary_credit_limit,k.temporary_limit_starts_at,k.temporary_limit_ends_at FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) WHERE k.service_account_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager')))) ORDER BY k.created_at DESC`, serviceID, actorID)
 	if err != nil {
 		return nil, err
 	}
@@ -380,8 +408,9 @@ func (r *Repository) ListIntegrationAPIKeys(ctx context.Context, serviceID, acto
 	for rows.Next() {
 		var item models.IntegrationAPIKey
 		var scopesJSON string
-		var expires, lastUsed, revoked sql.NullTime
-		if err = rows.Scan(&item.ID, &item.ServiceAccountID, &item.Name, &item.Prefix, &scopesJSON, &expires, &lastUsed, &revoked, &item.CreatedAt); err != nil {
+		var expires, lastUsed, revoked, temporaryStart, temporaryEnd sql.NullTime
+		var permanent, temporary sql.NullInt64
+		if err = rows.Scan(&item.ID, &item.ServiceAccountID, &item.Name, &item.Prefix, &scopesJSON, &expires, &lastUsed, &revoked, &item.CreatedAt, &permanent, &temporary, &temporaryStart, &temporaryEnd); err != nil {
 			return nil, err
 		}
 		if err = json.Unmarshal([]byte(scopesJSON), &item.Scopes); err != nil {
@@ -395,6 +424,18 @@ func (r *Repository) ListIntegrationAPIKeys(ctx context.Context, serviceID, acto
 		}
 		if revoked.Valid {
 			item.RevokedAt = &revoked.Time
+		}
+		if permanent.Valid {
+			item.PermanentCreditLimit = &permanent.Int64
+		}
+		if temporary.Valid {
+			item.TemporaryCreditLimit = &temporary.Int64
+		}
+		if temporaryStart.Valid {
+			item.TemporaryLimitStartsAt = &temporaryStart.Time
+		}
+		if temporaryEnd.Valid {
+			item.TemporaryLimitEndsAt = &temporaryEnd.Time
 		}
 		result = append(result, item)
 	}
@@ -428,8 +469,8 @@ func (r *Repository) RevokeIntegrationServiceAccount(ctx context.Context, servic
 	return tx.Commit()
 }
 
-func (r *Repository) CreateIntegrationAPIKeyForServiceAccount(ctx context.Context, serviceID, actorID uuid.UUID, name string, scopes []string, expiresAt *time.Time) (models.IntegrationAPIKey, string, error) {
-	if strings.TrimSpace(name) == "" || len(scopes) == 0 {
+func (r *Repository) CreateIntegrationAPIKeyForServiceAccount(ctx context.Context, serviceID, actorID uuid.UUID, input models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error) {
+	if !validKeyCreationInput(input) {
 		return models.IntegrationAPIKey{}, "", models.ErrInvalidBillingInput
 	}
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
@@ -446,7 +487,7 @@ func (r *Repository) CreateIntegrationAPIKeyForServiceAccount(ctx context.Contex
 		return models.IntegrationAPIKey{}, "", err
 	}
 	var serviceScopes []string
-	if err = json.Unmarshal([]byte(serviceScopesJSON), &serviceScopes); err != nil || !subset(scopes, serviceScopes) {
+	if err = json.Unmarshal([]byte(serviceScopesJSON), &serviceScopes); err != nil || !subset(input.Scopes, serviceScopes) {
 		return models.IntegrationAPIKey{}, "", models.ErrAPIKeyScopeDenied
 	}
 	secretBytes := make([]byte, 32)
@@ -463,14 +504,14 @@ func (r *Repository) CreateIntegrationAPIKeyForServiceAccount(ctx context.Contex
 	digest := sha256.Sum256([]byte(plaintext))
 	id, _ := uuid.NewV7()
 	createdAt := time.Now().UTC()
-	_, err = tx.ExecContext(ctx, `INSERT INTO integration_api_keys(key_uuid,service_account_uuid,name,prefix,secret_hash,hash_version,scopes,expires_at,created_at) VALUES($1,$2,$3,$4,$5,1,$6,$7,$8)`, id, serviceID, strings.TrimSpace(name), prefix, digest[:], scopes, expiresAt, createdAt)
+	_, err = tx.ExecContext(ctx, `INSERT INTO integration_api_keys(key_uuid,service_account_uuid,name,prefix,secret_hash,hash_version,scopes,expires_at,permanent_credit_limit,temporary_credit_limit,temporary_limit_starts_at,temporary_limit_ends_at,created_at) VALUES($1,$2,$3,$4,$5,1,$6,$7,$8,$9,$10,$11,$12)`, id, serviceID, strings.TrimSpace(input.Name), prefix, digest[:], input.Scopes, input.ExpiresAt, input.PermanentCreditLimit, input.TemporaryCreditLimit, input.TemporaryLimitStartsAt, input.TemporaryLimitEndsAt, createdAt)
 	if err != nil {
 		return models.IntegrationAPIKey{}, "", err
 	}
 	if err = tx.Commit(); err != nil {
 		return models.IntegrationAPIKey{}, "", err
 	}
-	return models.IntegrationAPIKey{ID: id, ServiceAccountID: serviceID, Name: strings.TrimSpace(name), Prefix: prefix, Scopes: scopes, ExpiresAt: expiresAt, CreatedAt: createdAt}, plaintext, nil
+	return models.IntegrationAPIKey{ID: id, ServiceAccountID: serviceID, Name: strings.TrimSpace(input.Name), Prefix: prefix, Scopes: input.Scopes, ExpiresAt: input.ExpiresAt, PermanentCreditLimit: input.PermanentCreditLimit, TemporaryCreditLimit: input.TemporaryCreditLimit, TemporaryLimitStartsAt: input.TemporaryLimitStartsAt, TemporaryLimitEndsAt: input.TemporaryLimitEndsAt, CreatedAt: createdAt}, plaintext, nil
 }
 
 func subset(requested, allowed []string) bool {
@@ -490,7 +531,10 @@ func subset(requested, allowed []string) bool {
 }
 
 // CreateIntegrationAPIKey returns the plaintext once. Only its SHA-256 digest is persisted.
-func (r *Repository) CreateIntegrationAPIKey(ctx context.Context, applicationID, actorID uuid.UUID, name string, scopes []string, expiresAt *time.Time) (models.IntegrationAPIKey, string, error) {
+func (r *Repository) CreateIntegrationAPIKey(ctx context.Context, applicationID, actorID uuid.UUID, input models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error) {
+	if !validKeyCreationInput(input) {
+		return models.IntegrationAPIKey{}, "", models.ErrInvalidBillingInput
+	}
 	secretBytes := make([]byte, 32)
 	if _, err := rand.Read(secretBytes); err != nil {
 		return models.IntegrationAPIKey{}, "", err
@@ -512,7 +556,7 @@ func (r *Repository) CreateIntegrationAPIKey(ctx context.Context, applicationID,
 	if err = json.Unmarshal([]byte(capabilitiesJSON), &capabilities); err != nil {
 		return models.IntegrationAPIKey{}, "", fmt.Errorf("decode application capabilities: %w", err)
 	}
-	for _, requested := range scopes {
+	for _, requested := range input.Scopes {
 		allowed := false
 		for _, capability := range capabilities {
 			if requested == capability {
@@ -538,9 +582,9 @@ func (r *Repository) CreateIntegrationAPIKey(ctx context.Context, applicationID,
 		return models.IntegrationAPIKey{}, "", err
 	}
 	serviceID, _ := uuid.NewV7()
-	err = tx.QueryRowContext(ctx, `SELECT service_account_uuid FROM integration_service_accounts WHERE application_uuid=$1 AND connection_uuid=$2 AND status='active' AND scopes @> $3::text[] ORDER BY created_at LIMIT 1`, applicationID, connectionID, scopes).Scan(&serviceID)
+	err = tx.QueryRowContext(ctx, `SELECT service_account_uuid FROM integration_service_accounts WHERE application_uuid=$1 AND connection_uuid=$2 AND status='active' AND scopes @> $3::text[] ORDER BY created_at LIMIT 1`, applicationID, connectionID, input.Scopes).Scan(&serviceID)
 	if errors.Is(err, sql.ErrNoRows) {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO integration_service_accounts(service_account_uuid,application_uuid,connection_uuid,name,status,scopes,created_by_user_uuid) VALUES($1,$2,$3,$4,'active',$5,$6)`, serviceID, applicationID, connectionID, "Default application service account", scopes, actorID); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO integration_service_accounts(service_account_uuid,application_uuid,connection_uuid,name,status,scopes,created_by_user_uuid) VALUES($1,$2,$3,$4,'active',$5,$6)`, serviceID, applicationID, connectionID, "Default application service account", input.Scopes, actorID); err != nil {
 			return models.IntegrationAPIKey{}, "", err
 		}
 	} else if err != nil {
@@ -554,12 +598,25 @@ func (r *Repository) CreateIntegrationAPIKey(ctx context.Context, applicationID,
 	plaintext := prefix + "." + randomPart
 	digest := sha256.Sum256([]byte(plaintext))
 	keyID, _ := uuid.NewV7()
-	_, err = tx.ExecContext(ctx, `INSERT INTO integration_api_keys(key_uuid,service_account_uuid,name,prefix,secret_hash,hash_version,scopes,expires_at) VALUES($1,$2,$3,$4,$5,1,$6,$7)`, keyID, serviceID, strings.TrimSpace(name), prefix, digest[:], scopes, expiresAt)
+	createdAt := time.Now().UTC()
+	_, err = tx.ExecContext(ctx, `INSERT INTO integration_api_keys(key_uuid,service_account_uuid,name,prefix,secret_hash,hash_version,scopes,expires_at,permanent_credit_limit,temporary_credit_limit,temporary_limit_starts_at,temporary_limit_ends_at,created_at) VALUES($1,$2,$3,$4,$5,1,$6,$7,$8,$9,$10,$11,$12)`, keyID, serviceID, strings.TrimSpace(input.Name), prefix, digest[:], input.Scopes, input.ExpiresAt, input.PermanentCreditLimit, input.TemporaryCreditLimit, input.TemporaryLimitStartsAt, input.TemporaryLimitEndsAt, createdAt)
 	if err != nil {
 		return models.IntegrationAPIKey{}, "", err
 	}
 	if err = tx.Commit(); err != nil {
 		return models.IntegrationAPIKey{}, "", err
 	}
-	return models.IntegrationAPIKey{ID: keyID, ServiceAccountID: serviceID, Name: strings.TrimSpace(name), Prefix: prefix, Scopes: scopes, ExpiresAt: expiresAt, CreatedAt: time.Now().UTC()}, plaintext, nil
+	return models.IntegrationAPIKey{ID: keyID, ServiceAccountID: serviceID, Name: strings.TrimSpace(input.Name), Prefix: prefix, Scopes: input.Scopes, ExpiresAt: input.ExpiresAt, PermanentCreditLimit: input.PermanentCreditLimit, TemporaryCreditLimit: input.TemporaryCreditLimit, TemporaryLimitStartsAt: input.TemporaryLimitStartsAt, TemporaryLimitEndsAt: input.TemporaryLimitEndsAt, CreatedAt: createdAt}, plaintext, nil
+}
+
+func validKeyCreationInput(input models.CreateIntegrationAPIKeyInput) bool {
+	if input.PermanentCreditLimit != nil && input.TemporaryCreditLimit != nil {
+		return false
+	}
+	if strings.TrimSpace(input.Name) == "" || len(input.Scopes) == 0 || negativeLimit(input.PermanentCreditLimit) || negativeLimit(input.TemporaryCreditLimit) {
+		return false
+	}
+	temporaryEmpty := input.TemporaryCreditLimit == nil && input.TemporaryLimitStartsAt == nil && input.TemporaryLimitEndsAt == nil
+	temporaryComplete := input.TemporaryCreditLimit != nil && input.TemporaryLimitStartsAt != nil && input.TemporaryLimitEndsAt != nil && input.TemporaryLimitEndsAt.After(*input.TemporaryLimitStartsAt)
+	return temporaryEmpty || temporaryComplete
 }

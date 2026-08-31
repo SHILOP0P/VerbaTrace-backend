@@ -8,25 +8,35 @@ import (
 )
 
 type Call struct {
-	ID                     uuid.UUID
-	Title                  string
-	Status                 CallStatus
-	AudioPath              string
-	ASRCachePath           string
-	OriginalFilename       string
-	MimeType               string
-	SizeBytes              int64
-	DurationSeconds        int
-	UploadedByUserUUID     uuid.NullUUID
-	CompanyUUID            uuid.NullUUID
-	DepartmentUUID         uuid.NullUUID
-	VisibilityScope        CallVisibilityScope
-	SkipCustomInstructions bool
-	IsTest                 bool
-	FolderUUID             uuid.NullUUID
-	SpeakerHints           []SpeakerHint
-	DiarizationRoles       []DiarizationRole
-	CreatedAt              time.Time
+	ID                        uuid.UUID
+	Title                     string
+	Status                    CallStatus
+	AudioPath                 string
+	ASRCachePath              string
+	OriginalFilename          string
+	MimeType                  string
+	SizeBytes                 int64
+	DurationSeconds           int
+	UploadedByUserUUID        uuid.NullUUID
+	CompanyUUID               uuid.NullUUID
+	DepartmentUUID            uuid.NullUUID
+	VisibilityScope           CallVisibilityScope
+	SkipCustomInstructions    bool
+	IsTest                    bool
+	FolderUUID                uuid.NullUUID
+	SpeakerHints              []SpeakerHint
+	DiarizationRoles          []DiarizationRole
+	OccurredAt                *time.Time
+	DisplayTime               time.Time
+	TimeSource                string
+	SourceProvider            *string
+	IntegrationConnectionUUID uuid.NullUUID
+	ExternalCallID            *string
+	ImportedAt                *time.Time
+	IngestErrorCode           *string
+	HasAnalysis               bool
+	HasActions                bool
+	CreatedAt                 time.Time
 }
 
 type CallStatus string
@@ -84,25 +94,56 @@ type UpdateCallStatusInput struct {
 }
 
 type ListCallsInput struct {
-	UserID             uuid.UUID
-	Q                  string
-	Status             CallStatus
-	VisibilityScope    CallVisibilityScope
-	CompanyUUID        uuid.NullUUID
-	DepartmentUUID     uuid.NullUUID
-	UploadedByUserUUID uuid.NullUUID
-	From               *time.Time
-	To                 *time.Time
-	FolderUUID         uuid.NullUUID
-	Limit              int
-	Offset             int
+	UserID                uuid.UUID
+	Q                     string
+	Status                CallStatus
+	VisibilityScope       CallVisibilityScope
+	CompanyUUID           uuid.NullUUID
+	DepartmentUUID        uuid.NullUUID
+	UploadedByUserUUID    uuid.NullUUID
+	From                  *time.Time
+	To                    *time.Time
+	FolderUUID            uuid.NullUUID
+	Statuses              []CallStatus
+	VisibilityScopes      []CallVisibilityScope
+	DepartmentUUIDs       []uuid.UUID
+	ParticipantUserUUIDs  []uuid.UUID
+	FolderUUIDs           []uuid.UUID
+	ConnectionUUIDs       []uuid.UUID
+	SourceProvider        string
+	OccurredFrom          *time.Time
+	OccurredTo            *time.Time
+	ImportedFrom          *time.Time
+	ImportedTo            *time.Time
+	DurationMinSeconds    *int
+	DurationMaxSeconds    *int
+	HasAnalysis           *bool
+	HasActions            *bool
+	HasProcessingError    *bool
+	FavoriteOnly          bool
+	IncludeUploadFallback bool
+	Sort                  string
+	Order                 string
+	Cursor                *CallListCursor
+	Limit                 int
+	Offset                int
+}
+
+type CallListCursor struct {
+	SortValue     string     `json:"sort_value"`
+	CallID        uuid.UUID  `json:"call_uuid"`
+	Sort          string     `json:"sort"`
+	Order         string     `json:"order"`
+	TimeValue     *time.Time `json:"-"`
+	DurationValue *int       `json:"-"`
 }
 
 type ListCallsResult struct {
-	Items  []Call
-	Total  int
-	Limit  int
-	Offset int
+	Items      []Call
+	Total      int
+	Limit      int
+	Offset     int
+	NextCursor *CallListCursor
 }
 
 type CallFilterOptionsInput struct {
@@ -112,9 +153,10 @@ type CallFilterOptionsInput struct {
 }
 
 type CallFilterOptions struct {
-	Statuses []CallStatus
-	Scopes   []CallVisibilityScope
-	Managers []CallFilterUser
+	Statuses    []CallStatus
+	Scopes      []CallVisibilityScope
+	Managers    []CallFilterUser
+	Connections []CallFilterConnection
 }
 
 type CallFilterUser struct {
@@ -122,4 +164,10 @@ type CallFilterUser struct {
 	FullName    string
 	FullSurname string
 	Username    string
+}
+
+type CallFilterConnection struct {
+	ID       uuid.UUID
+	Name     string
+	Provider string
 }

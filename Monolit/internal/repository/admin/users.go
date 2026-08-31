@@ -58,6 +58,10 @@ func (r *Repository) ListAdminUsers(ctx context.Context, input models.ListAdminU
 func adminUsersWhere(input models.ListAdminUsersInput) (string, []any) {
 	conditions := []string{"TRUE"}
 	args := []any{}
+	if input.VisibleUserUUIDs != nil {
+		args = append(args, input.VisibleUserUUIDs)
+		conditions = append(conditions, fmt.Sprintf("u.user_uuid=ANY($%d)", len(args)))
+	}
 	if q := strings.TrimSpace(input.Query); q != "" {
 		args = append(args, "%"+strings.ToLower(q)+"%")
 		p := len(args)

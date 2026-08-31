@@ -23,6 +23,9 @@ func (h *Handler) GetCall(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.authorizeCall(w, r, id) {
+		return
+	}
 	call, err := h.service.GetCall(r.Context(), id)
 	if err != nil {
 		writeAdminCallError(w, err)
@@ -36,6 +39,9 @@ func (h *Handler) GetCall(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetCallAudio(w http.ResponseWriter, r *http.Request) {
 	id, ok := adminCallID(w, r)
 	if !ok {
+		return
+	}
+	if !h.authorizeCall(w, r, id) {
 		return
 	}
 	file, err := h.service.GetCallAudio(r.Context(), id)

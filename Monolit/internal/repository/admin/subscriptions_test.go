@@ -64,3 +64,27 @@ func (s *RepositorySuite) TestGrantExtendAndCancelPersonalSubscription() {
 	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT COUNT(*) FROM admin_audit_logs WHERE action IN ('subscription.granted','subscription.extended','subscription.canceled')`).Scan(&count))
 	s.Require().Equal(3, count)
 }
+
+func (s *RepositorySuite) TestGrantExtendsScheduledSubscriptionWithoutDuplicate() {
+	actor := s.createUser(models.UserRoleAdmin)
+	target := s.createUser(models.UserRoleUser)
+	startsAt := time.Now().UTC().Add(time.Minute)
+	firstEnd := startsAt.Add(30 * 24 * time.Hour)
+	first, err := s.repository.GrantAdminSubscription(s.ctx, models.GrantAdminSubscriptionInput{
+		ActorUserUUID: actor.ID, UserUUID: target.ID, PlanCode: models.PlanCodePersonalPlus,
+		StartsAt: startsAt, EndsAt: firstEnd, Metadata: models.AdminMutationMetadata{Reason: "scheduled manual payment"},
+	})
+	s.Require().NoError(err)
+	extendedEnd := startsAt.Add(60 * 24 * time.Hour)
+	second, err := s.repository.GrantAdminSubscription(s.ctx, models.GrantAdminSubscriptionInput{
+		ActorUserUUID: actor.ID, UserUUID: target.ID, PlanCode: models.PlanCodePersonalPlus,
+		StartsAt: startsAt, EndsAt: extendedEnd, Metadata: models.AdminMutationMetadata{Reason: "scheduled manual payment"},
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(first.ID, second.ID)
+	s.Require().NotNil(second.EndsAt)
+	s.Require().True(second.EndsAt.Equal(extendedEnd))
+	var activeSamePlan int
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM subscriptions s JOIN plans p USING(plan_uuid) WHERE s.user_uuid=$1 AND s.status='active' AND p.code=$2`, target.ID, models.PlanCodePersonalPlus).Scan(&activeSamePlan))
+	s.Require().Equal(1, activeSamePlan)
+}

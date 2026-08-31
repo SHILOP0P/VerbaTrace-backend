@@ -30,6 +30,16 @@ type CallResponse struct {
 	IsTest                bool                      `json:"is_test"`
 	SpeakerHints          []SpeakerHintResponse     `json:"speaker_hints,omitempty"`
 	DiarizationRoles      []DiarizationRoleResponse `json:"diarization_roles,omitempty"`
+	OccurredAt            *string                   `json:"occurred_at"`
+	DisplayTime           string                    `json:"display_time"`
+	TimeSource            string                    `json:"time_source"`
+	SourceProvider        *string                   `json:"source_provider"`
+	ConnectionUUID        *string                   `json:"connection_uuid"`
+	ExternalCallID        *string                   `json:"external_call_id"`
+	ImportedAt            *string                   `json:"imported_at"`
+	IngestErrorCode       *string                   `json:"ingest_error_code"`
+	HasAnalysis           bool                      `json:"has_analysis"`
+	HasActions            bool                      `json:"has_actions"`
 	CreatedAt             string                    `json:"created_at"`
 }
 
@@ -47,16 +57,18 @@ type SpeakerHintResponse struct {
 }
 
 type CallsListResponse struct {
-	Items  []CallResponse `json:"items"`
-	Total  int            `json:"total"`
-	Limit  int            `json:"limit"`
-	Offset int            `json:"offset"`
+	Items      []CallResponse `json:"items"`
+	Total      int            `json:"total"`
+	Limit      int            `json:"limit"`
+	Offset     int            `json:"offset"`
+	NextCursor *string        `json:"next_cursor,omitempty"`
 }
 
 type CallFilterOptionsResponse struct {
-	Statuses []string                 `json:"statuses"`
-	Scopes   []string                 `json:"scopes"`
-	Managers []CallFilterUserResponse `json:"managers"`
+	Statuses    []string                       `json:"statuses"`
+	Scopes      []string                       `json:"scopes"`
+	Managers    []CallFilterUserResponse       `json:"managers"`
+	Connections []CallFilterConnectionResponse `json:"connections"`
 }
 
 type CallFilterUserResponse struct {
@@ -64,6 +76,12 @@ type CallFilterUserResponse struct {
 	FullName    string `json:"full_name"`
 	FullSurname string `json:"full_surname"`
 	Username    string `json:"username"`
+}
+
+type CallFilterConnectionResponse struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
 }
 
 type CallStatusEvent struct {

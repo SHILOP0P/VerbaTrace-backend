@@ -54,8 +54,46 @@ func CallModelToAPI(call models.Call) (dto.CallResponse, error) {
 		IsTest:                call.IsTest,
 		SpeakerHints:          speakerHintsToAPI(call.SpeakerHints),
 		DiarizationRoles:      diarizationRolesToAPI(call.DiarizationRoles),
+		OccurredAt:            timePtrToRFC3339(call.OccurredAt),
+		DisplayTime:           callDisplayTime(call).Format(time.RFC3339),
+		TimeSource:            callTimeSource(call),
+		SourceProvider:        call.SourceProvider,
+		ConnectionUUID:        nullUUIDToStringPtr(call.IntegrationConnectionUUID),
+		ExternalCallID:        call.ExternalCallID,
+		ImportedAt:            timePtrToRFC3339(call.ImportedAt),
+		IngestErrorCode:       call.IngestErrorCode,
+		HasAnalysis:           call.HasAnalysis,
+		HasActions:            call.HasActions,
 		CreatedAt:             call.CreatedAt.Format(time.RFC3339),
 	}, nil
+}
+
+func timePtrToRFC3339(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	formatted := value.Format(time.RFC3339)
+	return &formatted
+}
+
+func callDisplayTime(call models.Call) time.Time {
+	if !call.DisplayTime.IsZero() {
+		return call.DisplayTime
+	}
+	if call.OccurredAt != nil {
+		return *call.OccurredAt
+	}
+	return call.CreatedAt
+}
+
+func callTimeSource(call models.Call) string {
+	if call.TimeSource != "" {
+		return call.TimeSource
+	}
+	if call.OccurredAt != nil {
+		return "source"
+	}
+	return "upload_fallback"
 }
 
 func diarizationRolesToAPI(roles []models.DiarizationRole) []dto.DiarizationRoleResponse {

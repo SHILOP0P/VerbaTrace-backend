@@ -48,6 +48,15 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 	router.ServeHTTP(readyRecorder, httptest.NewRequest(http.MethodGet, "/health/ready", nil))
 	require.Equal(t, http.StatusOK, readyRecorder.Code)
 
+	docsRecorder := httptest.NewRecorder()
+	router.ServeHTTP(docsRecorder, httptest.NewRequest(http.MethodGet, "/docs/integrations", nil))
+	require.Equal(t, http.StatusOK, docsRecorder.Code)
+
+	openAPIRecorder := httptest.NewRecorder()
+	router.ServeHTTP(openAPIRecorder, httptest.NewRequest(http.MethodGet, "/docs/integrations/openapi.yaml", nil))
+	require.Equal(t, http.StatusOK, openAPIRecorder.Code)
+	require.Contains(t, openAPIRecorder.Body.String(), "openapi: 3.1.0")
+
 	protectedRecorder := httptest.NewRecorder()
 	router.ServeHTTP(protectedRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/calls", nil))
 	require.Equal(t, http.StatusUnauthorized, protectedRecorder.Code)

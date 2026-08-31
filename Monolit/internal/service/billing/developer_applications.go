@@ -12,14 +12,14 @@ import (
 type developerRepository interface {
 	CreateDeveloperApplication(context.Context, models.CreateDeveloperApplicationInput) (models.DeveloperApplication, error)
 	ListDeveloperApplications(context.Context, string, uuid.UUID) ([]models.DeveloperApplication, error)
-	CreateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, string, []string, *time.Time) (models.IntegrationAPIKey, string, error)
+	CreateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error)
 	MockPurchaseCredits(context.Context, models.MockCreditPurchaseInput) (int64, error)
 	AuthenticateIntegrationKey(context.Context, string, string, string) (models.IntegrationPrincipal, error)
 	RevokeIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID) error
 	RotateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, time.Duration) (models.IntegrationAPIKey, string, error)
 	CreateIntegrationServiceAccount(context.Context, uuid.UUID, uuid.UUID, string, []string) (models.IntegrationServiceAccount, error)
 	ListIntegrationServiceAccounts(context.Context, uuid.UUID, uuid.UUID) ([]models.IntegrationServiceAccount, error)
-	CreateIntegrationAPIKeyForServiceAccount(context.Context, uuid.UUID, uuid.UUID, string, []string, *time.Time) (models.IntegrationAPIKey, string, error)
+	CreateIntegrationAPIKeyForServiceAccount(context.Context, uuid.UUID, uuid.UUID, models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error)
 	GetDeveloperApplication(context.Context, uuid.UUID, uuid.UUID) (models.DeveloperApplication, error)
 	ChangeDeveloperApplicationStatus(context.Context, uuid.UUID, uuid.UUID, string) (models.DeveloperApplication, error)
 	AdjustSandboxWallet(context.Context, uuid.UUID, uuid.UUID, string, int64, string) (int64, error)
@@ -36,7 +36,6 @@ func (s *Service) RevokeIntegrationServiceAccount(ctx context.Context, service, 
 func (s *Service) UpdateDeveloperApplication(ctx context.Context, input models.UpdateDeveloperApplicationInput) (models.DeveloperApplication, error) {
 	return s.creditRepository.(developerRepository).UpdateDeveloperApplication(ctx, input)
 }
-
 func (s *Service) ListIntegrationAPIKeys(ctx context.Context, service, actor uuid.UUID) ([]models.IntegrationAPIKey, error) {
 	return s.creditRepository.(developerRepository).ListIntegrationAPIKeys(ctx, service, actor)
 }
@@ -62,8 +61,8 @@ func (s *Service) CreateIntegrationServiceAccount(ctx context.Context, connectio
 func (s *Service) ListIntegrationServiceAccounts(ctx context.Context, connection, actor uuid.UUID) ([]models.IntegrationServiceAccount, error) {
 	return s.creditRepository.(developerRepository).ListIntegrationServiceAccounts(ctx, connection, actor)
 }
-func (s *Service) CreateIntegrationAPIKeyForServiceAccount(ctx context.Context, serviceAccount, actor uuid.UUID, name string, scopes []string, expiresAt *time.Time) (models.IntegrationAPIKey, string, error) {
-	return s.creditRepository.(developerRepository).CreateIntegrationAPIKeyForServiceAccount(ctx, serviceAccount, actor, name, scopes, expiresAt)
+func (s *Service) CreateIntegrationAPIKeyForServiceAccount(ctx context.Context, serviceAccount, actor uuid.UUID, input models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error) {
+	return s.creditRepository.(developerRepository).CreateIntegrationAPIKeyForServiceAccount(ctx, serviceAccount, actor, input)
 }
 
 func (s *Service) RevokeIntegrationAPIKey(ctx context.Context, id, actor uuid.UUID) error {
@@ -131,6 +130,6 @@ func (s *Service) ListDeveloperApplications(ctx context.Context, ownerType strin
 	return s.creditRepository.(developerRepository).ListDeveloperApplications(ctx, ownerType, ownerID)
 }
 
-func (s *Service) CreateIntegrationAPIKey(ctx context.Context, applicationID, actorID uuid.UUID, name string, scopes []string, expiresAt *time.Time) (models.IntegrationAPIKey, string, error) {
-	return s.creditRepository.(developerRepository).CreateIntegrationAPIKey(ctx, applicationID, actorID, name, scopes, expiresAt)
+func (s *Service) CreateIntegrationAPIKey(ctx context.Context, applicationID, actorID uuid.UUID, input models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error) {
+	return s.creditRepository.(developerRepository).CreateIntegrationAPIKey(ctx, applicationID, actorID, input)
 }

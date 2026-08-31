@@ -34,6 +34,9 @@ func (h *Handler) ListCompanies(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Company name/tag/manager are administrative directory metadata. They are
+	// needed to identify a support-access subject and do not expose calls,
+	// recordings, analyses, or other customer content.
 	res, err := h.service.ListCompanies(r.Context(), models.ListAdminCompaniesInput{Query: q.Get("q"), Limit: limit, Offset: offset})
 	if err != nil {
 		writeAdminError(w, err, response.CodeFailedToListAdminCompanies, "failed to list companies")
@@ -62,6 +65,9 @@ func (h *Handler) GetPersonalSubscription(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	if !h.authorizeUser(w, r, id, "billing_summary") {
+		return
+	}
 	sub, err := h.service.GetPersonalSubscription(r.Context(), id)
 	if err != nil {
 		writeAdminError(w, err, response.CodeFailedToGetAdminSubscription, "failed to get subscription")
@@ -72,6 +78,9 @@ func (h *Handler) GetPersonalSubscription(w http.ResponseWriter, r *http.Request
 func (h *Handler) GetCompanySubscription(w http.ResponseWriter, r *http.Request) {
 	id, ok := adminCompanyID(w, r)
 	if !ok {
+		return
+	}
+	if !h.authorizeCompany(w, r, id, "billing_summary") {
 		return
 	}
 	sub, err := h.service.GetCompanySubscription(r.Context(), id)

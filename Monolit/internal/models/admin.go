@@ -156,6 +156,7 @@ type ListAdminUsersInput struct {
 	CreatedTo          *time.Time
 	Limit              int
 	Offset             int
+	VisibleUserUUIDs   []uuid.UUID
 }
 
 type ListAdminUsersResult struct {
@@ -214,9 +215,10 @@ type AdminCompany struct {
 	CreatedAt       time.Time
 }
 type ListAdminCompaniesInput struct {
-	Query  string
-	Limit  int
-	Offset int
+	Query               string
+	Limit               int
+	Offset              int
+	VisibleCompanyUUIDs []uuid.UUID
 }
 type ListAdminCompaniesResult struct {
 	Companies []AdminCompany

@@ -1,6 +1,7 @@
 package call
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -126,10 +127,71 @@ func (s *APISuite) TestListFilteredRejectsInvalidFilter() {
 	s.requireErrorCode(rec, response.CodeInvalidCallFilter)
 }
 
+func (s *APISuite) TestListFilteredParsesAdvancedRepeatableFilters() {
+	userID := uuid.New()
+	departmentA, departmentB := uuid.New(), uuid.New()
+	participantID, connectionID := uuid.New(), uuid.New()
+	s.service.On("ListFiltered", mock.Anything, mock.MatchedBy(func(input models.ListCallsInput) bool {
+		return input.UserID == userID &&
+			len(input.Statuses) == 2 && input.Statuses[0] == models.CallStatusAnalyzed && input.Statuses[1] == models.CallStatusFailed &&
+			len(input.DepartmentUUIDs) == 2 && input.DepartmentUUIDs[0] == departmentA && input.DepartmentUUIDs[1] == departmentB &&
+			len(input.ParticipantUserUUIDs) == 1 && input.ParticipantUserUUIDs[0] == participantID &&
+			len(input.ConnectionUUIDs) == 1 && input.ConnectionUUIDs[0] == connectionID &&
+			input.SourceProvider == "bitrix24" && input.OccurredFrom != nil && input.OccurredTo != nil &&
+			input.DurationMinSeconds != nil && *input.DurationMinSeconds == 30 && input.DurationMaxSeconds != nil && *input.DurationMaxSeconds == 900 &&
+			input.HasAnalysis != nil && *input.HasAnalysis && input.HasActions != nil && !*input.HasActions && input.HasProcessingError != nil && *input.HasProcessingError &&
+			input.FavoriteOnly && input.Sort == "duration" && input.Order == "asc"
+	})).Return(models.ListCallsResult{Items: []models.Call{}, Limit: 20}, nil).Once()
+
+	values := url.Values{}
+	values.Add("status", "analyzed")
+	values.Add("status", "failed")
+	values.Add("department_uuid", departmentA.String())
+	values.Add("department_uuid", departmentB.String())
+	values.Set("participant_user_uuid", participantID.String())
+	values.Set("connection_uuid", connectionID.String())
+	values.Set("source_provider", "bitrix24")
+	values.Set("occurred_from", "2026-08-01T00:00:00Z")
+	values.Set("occurred_to", "2026-09-01T00:00:00Z")
+	values.Set("duration_min_seconds", "30")
+	values.Set("duration_max_seconds", "900")
+	values.Set("has_analysis", "true")
+	values.Set("has_actions", "false")
+	values.Set("has_processing_error", "true")
+	values.Set("favorite_only", "true")
+	values.Set("sort", "duration")
+	values.Set("order", "asc")
+	rec, req := s.request(http.MethodGet, "/api/v1/calls?"+values.Encode(), "", userID, nil)
+	s.api.List(rec, req)
+	s.Require().Equal(http.StatusOK, rec.Code)
+}
+
+func (s *APISuite) TestListFilteredRejectsInvertedAdvancedRanges() {
+	rec, req := s.request(http.MethodGet, "/api/v1/calls?occurred_from=2026-09-01T00:00:00Z&occurred_to=2026-08-01T00:00:00Z", "", uuid.New(), nil)
+	s.api.List(rec, req)
+	s.Require().Equal(http.StatusBadRequest, rec.Code)
+	s.requireErrorCode(rec, response.CodeInvalidCallFilter)
+}
+
+func (s *APISuite) TestListCursorIsBoundToSortAndOrder() {
+	callID := uuid.New()
+	raw, err := json.Marshal(models.CallListCursor{SortValue: "2026-08-01T00:00:00Z", CallID: callID, Sort: "occurred_at", Order: "desc"})
+	s.Require().NoError(err)
+	cursor := base64.RawURLEncoding.EncodeToString(raw)
+	parsed, err := parseCallCursor(cursor, "occurred_at", "desc")
+	s.Require().NoError(err)
+	s.Require().Equal(callID, parsed.CallID)
+	_, err = parseCallCursor(cursor, "created_at", "desc")
+	s.Require().ErrorIs(err, models.ErrInvalidCallFilter)
+	_, err = parseCallCursor(cursor, "occurred_at", "asc")
+	s.Require().ErrorIs(err, models.ErrInvalidCallFilter)
+}
+
 func (s *APISuite) TestGetFilterOptionsSuccess() {
 	userID := uuid.New()
 	companyID := uuid.New()
 	managerID := uuid.New()
+	connectionID := uuid.New()
 
 	s.service.On("GetFilterOptions", mock.Anything, mock.MatchedBy(func(input models.CallFilterOptionsInput) bool {
 		return input.UserID == userID && input.CompanyUUID.Valid && input.CompanyUUID.UUID == companyID && !input.DepartmentUUID.Valid
@@ -143,6 +205,11 @@ func (s *APISuite) TestGetFilterOptionsSuccess() {
 				FullSurname: "Petrov",
 				Username:    "petrov",
 			}},
+			Connections: []models.CallFilterConnection{{
+				ID:       connectionID,
+				Name:     "Bitrix24 sales",
+				Provider: "bitrix24",
+			}},
 		}, nil).
 		Once()
 
@@ -154,7 +221,8 @@ func (s *APISuite) TestGetFilterOptionsSuccess() {
 	s.Require().JSONEq(`{
 		"statuses":["new","failed"],
 		"scopes":["personal","company"],
-		"managers":[{"id":"`+managerID.String()+`","full_name":"Ivan","full_surname":"Petrov","username":"petrov"}]
+		"managers":[{"id":"`+managerID.String()+`","full_name":"Ivan","full_surname":"Petrov","username":"petrov"}],
+		"connections":[{"id":"`+connectionID.String()+`","name":"Bitrix24 sales","provider":"bitrix24"}]
 	}`, rec.Body.String())
 }
 

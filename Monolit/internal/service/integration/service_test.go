@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"testing"
+	"time"
 
 	"verbatrace/monolit/internal/integrationcrypto"
 	"verbatrace/monolit/internal/models"
@@ -65,6 +66,9 @@ func (*uploadRepository) ListDeliveries(context.Context, uuid.UUID, uuid.UUID) (
 func (*uploadRepository) QueueWebhookTest(context.Context, uuid.UUID, uuid.UUID) (uuid.UUID, error) {
 	return uuid.New(), nil
 }
+func (*uploadRepository) ReplayWebhookDelivery(context.Context, uuid.UUID, uuid.UUID) (uuid.UUID, error) {
+	return uuid.New(), nil
+}
 func (*uploadRepository) ListDestinations(context.Context, models.IntegrationPrincipal) ([]models.IntegrationDestination, error) {
 	return nil, nil
 }
@@ -74,11 +78,20 @@ func (*uploadRepository) ListFolders(context.Context, models.IntegrationPrincipa
 func (*uploadRepository) GetCall(context.Context, models.IntegrationPrincipal, uuid.UUID) (models.IntegrationCallView, error) {
 	return models.IntegrationCallView{}, nil
 }
+func (*uploadRepository) GetCallBySourceRef(context.Context, models.IntegrationPrincipal, string) (models.IntegrationCallView, error) {
+	return models.IntegrationCallView{}, nil
+}
+func (*uploadRepository) ListCalls(context.Context, models.IntegrationPrincipal, models.IntegrationCallFilter) ([]models.IntegrationCallView, error) {
+	return nil, nil
+}
 func (*uploadRepository) GetTranscription(context.Context, models.IntegrationPrincipal, uuid.UUID) (models.IntegrationTranscriptionView, error) {
 	return models.IntegrationTranscriptionView{}, nil
 }
 func (*uploadRepository) GetAnalysis(context.Context, models.IntegrationPrincipal, uuid.UUID) (models.IntegrationAnalysisView, error) {
 	return models.IntegrationAnalysisView{}, nil
+}
+func (*uploadRepository) GetUsage(context.Context, models.IntegrationPrincipal, time.Time) (models.IntegrationUsageView, error) {
+	return models.IntegrationUsageView{}, nil
 }
 
 func (r *uploadRepository) AcceptUploadIngest(_ context.Context, _ models.IntegrationPrincipal, in models.IngestCallInput, _ string, _ [32]byte, locator []byte) (models.IngestItem, bool, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -25,7 +26,7 @@ func NewRepository(db *sql.DB, cipher *integrationcrypto.Cipher) *Repository {
 }
 
 func (r *Repository) CreateConnection(ctx context.Context, in models.CreateIntegrationConnectionInput) (models.IntegrationConnection, error) {
-	if in.ApplicationID == uuid.Nil || in.ActorID == uuid.Nil || strings.TrimSpace(in.Name) == "" || in.Provider != "generic_api" {
+	if in.ApplicationID == uuid.Nil || in.ActorID == uuid.Nil || strings.TrimSpace(in.Name) == "" || (in.Provider != "generic_api" && in.Provider != "bitrix24") {
 		return models.IntegrationConnection{}, models.ErrInvalidBillingInput
 	}
 	if len(in.Settings) == 0 {
@@ -56,6 +57,9 @@ func (r *Repository) CreateConnection(ctx context.Context, in models.CreateInteg
 		return models.IntegrationConnection{}, models.ErrIntegrationDisabled
 	}
 	if ownerType == "user" {
+		if in.Provider == "bitrix24" {
+			return models.IntegrationConnection{}, models.ErrForbidden
+		}
 		if !ownerUser.Valid || ownerUser.UUID != in.ActorID || in.CompanyID.Valid {
 			return models.IntegrationConnection{}, models.ErrForbidden
 		}
@@ -96,7 +100,11 @@ func (r *Repository) CreateConnection(ctx context.Context, in models.CreateInteg
 		}
 	}
 	id, _ := uuid.NewV7()
-	_, err = tx.ExecContext(ctx, `INSERT INTO integration_connections(connection_uuid,application_uuid,company_uuid,department_uuid,folder_uuid,created_by_user_uuid,name,provider,status,disable_policy,allow_folder_override,settings) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$10,$11)`, id, in.ApplicationID, nullUUID(in.CompanyID), nullUUID(in.DepartmentID), nullUUID(in.FolderID), in.ActorID, strings.TrimSpace(in.Name), in.Provider, in.DisablePolicy, in.AllowFolderOverride, in.Settings)
+	connectionStatus := "active"
+	if in.Provider == "bitrix24" {
+		connectionStatus = "draft"
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO integration_connections(connection_uuid,application_uuid,company_uuid,department_uuid,folder_uuid,created_by_user_uuid,name,provider,status,disable_policy,allow_folder_override,settings) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, id, in.ApplicationID, nullUUID(in.CompanyID), nullUUID(in.DepartmentID), nullUUID(in.FolderID), in.ActorID, strings.TrimSpace(in.Name), in.Provider, connectionStatus, in.DisablePolicy, in.AllowFolderOverride, in.Settings)
 	if err != nil {
 		return models.IntegrationConnection{}, err
 	}
@@ -293,7 +301,8 @@ func (r *Repository) acceptIngest(ctx context.Context, p models.IntegrationPrinc
 	if p.Environment == "sandbox" && in.AIMode == "mock" {
 		billingEnvironment = "sandbox"
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO ingest_items(ingest_item_uuid,connection_uuid,event_uuid,application_uuid,billing_account_uuid,external_call_id,idempotency_key,request_sha256,source_kind,recording_locator_ciphertext,recording_locator_key_version,locator_expires_at,title,original_filename,occurred_at,metadata_redacted,status,stage,connection_settings_version,placement_snapshot,instruction_snapshot,ai_mode,billing_environment,destination_scope,destination_user_uuid,destination_company_uuid,destination_department_uuid,destination_folder_uuid,placement_source) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'received','received',$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`, itemID, p.ConnectionUUID, eventID, appID, accountID, in.ExternalCallID, idempotency, requestHash[:], sourceKind, locator, r.cipher.Version(), expires, strings.TrimSpace(in.Title), nullableString(in.OriginalFilename), in.OccurredAt, metadata, settingsVersion, placementSnapshot, instructionSnapshot, in.AIMode, billingEnvironment, placement.Scope, nullUUID(placement.UserID), nullUUID(placement.CompanyID), nullUUID(placement.DepartmentID), nullUUID(placement.FolderID), placement.Source)
+	sourceRef := makeSourceRef(p.ConnectionUUID, in.ExternalCallID)
+	_, err = tx.ExecContext(ctx, `INSERT INTO ingest_items(ingest_item_uuid,connection_uuid,event_uuid,application_uuid,billing_account_uuid,key_uuid,external_call_id,source_ref,idempotency_key,request_sha256,source_kind,recording_locator_ciphertext,recording_locator_key_version,locator_expires_at,title,original_filename,occurred_at,metadata_redacted,status,stage,connection_settings_version,placement_snapshot,instruction_snapshot,ai_mode,billing_environment,destination_scope,destination_user_uuid,destination_company_uuid,destination_department_uuid,destination_folder_uuid,placement_source) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'received','received',$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)`, itemID, p.ConnectionUUID, eventID, appID, accountID, nullUUID(uuid.NullUUID{UUID: p.KeyUUID, Valid: p.KeyUUID != uuid.Nil}), in.ExternalCallID, sourceRef, idempotency, requestHash[:], sourceKind, locator, r.cipher.Version(), expires, strings.TrimSpace(in.Title), nullableString(in.OriginalFilename), in.OccurredAt, metadata, settingsVersion, placementSnapshot, instructionSnapshot, in.AIMode, billingEnvironment, placement.Scope, nullUUID(placement.UserID), nullUUID(placement.CompanyID), nullUUID(placement.DepartmentID), nullUUID(placement.FolderID), placement.Source)
 	if err != nil {
 		return models.IngestItem{}, false, err
 	}
@@ -548,14 +557,51 @@ func (r *Repository) ListFolders(ctx context.Context, p models.IntegrationPrinci
 
 func (r *Repository) GetCall(ctx context.Context, p models.IntegrationPrincipal, id uuid.UUID) (models.IntegrationCallView, error) {
 	var item models.IntegrationCallView
-	err := r.db.QueryRowContext(ctx, `SELECT c.call_uuid,c.title,c.status,c.duration_seconds,c.visibility_scope,c.company_uuid,c.department_uuid,i.destination_folder_uuid,c.created_at
+	err := r.db.QueryRowContext(ctx, `SELECT c.call_uuid,c.title,c.status,c.duration_seconds,c.visibility_scope,c.company_uuid,c.department_uuid,i.destination_folder_uuid,c.created_at,c.updated_at,i.external_call_id,i.source_ref
 		FROM calls c JOIN ingest_items i ON i.call_uuid=c.call_uuid
 		WHERE c.call_uuid=$1 AND i.application_uuid=$2 AND i.connection_uuid=$3`, id, p.ApplicationUUID, p.ConnectionUUID).
-		Scan(&item.ID, &item.Title, &item.Status, &item.DurationSeconds, &item.VisibilityScope, &item.CompanyID, &item.DepartmentID, &item.FolderID, &item.CreatedAt)
+		Scan(&item.ID, &item.Title, &item.Status, &item.DurationSeconds, &item.VisibilityScope, &item.CompanyID, &item.DepartmentID, &item.FolderID, &item.CreatedAt, &item.UpdatedAt, &item.ExternalCallID, &item.SourceRef)
 	if errors.Is(err, sql.ErrNoRows) {
 		return item, models.ErrIngestNotFound
 	}
 	return item, err
+}
+
+func (r *Repository) GetCallBySourceRef(ctx context.Context, p models.IntegrationPrincipal, sourceRef string) (models.IntegrationCallView, error) {
+	var id uuid.UUID
+	err := r.db.QueryRowContext(ctx, `SELECT call_uuid FROM ingest_items WHERE source_ref=$1 AND application_uuid=$2 AND connection_uuid=$3 AND call_uuid IS NOT NULL`, sourceRef, p.ApplicationUUID, p.ConnectionUUID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return models.IntegrationCallView{}, models.ErrIngestNotFound
+	}
+	if err != nil {
+		return models.IntegrationCallView{}, err
+	}
+	return r.GetCall(ctx, p, id)
+}
+
+func (r *Repository) ListCalls(ctx context.Context, p models.IntegrationPrincipal, filter models.IntegrationCallFilter) ([]models.IntegrationCallView, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT c.call_uuid,c.title,c.status,c.duration_seconds,c.visibility_scope,c.company_uuid,c.department_uuid,i.destination_folder_uuid,c.created_at,c.updated_at,i.external_call_id,i.source_ref
+		FROM calls c JOIN ingest_items i ON i.call_uuid=c.call_uuid
+		WHERE i.application_uuid=$1 AND i.connection_uuid=$2
+		AND ($3::timestamptz IS NULL OR c.updated_at >= $3)
+		AND ($4::timestamptz IS NULL OR c.created_at >= $4)
+		AND ($5::timestamptz IS NULL OR c.created_at < $5)
+		AND ($6='' OR c.status=$6)
+		AND ($7::timestamptz IS NULL OR (c.updated_at,c.call_uuid) < ($7,$8))
+		ORDER BY c.updated_at DESC,c.call_uuid DESC LIMIT $9`, p.ApplicationUUID, p.ConnectionUUID, filter.UpdatedSince, filter.From, filter.To, filter.Status, filter.CursorUpdatedAt, filter.CursorID, filter.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	items := make([]models.IntegrationCallView, 0, filter.Limit)
+	for rows.Next() {
+		var item models.IntegrationCallView
+		if err = rows.Scan(&item.ID, &item.Title, &item.Status, &item.DurationSeconds, &item.VisibilityScope, &item.CompanyID, &item.DepartmentID, &item.FolderID, &item.CreatedAt, &item.UpdatedAt, &item.ExternalCallID, &item.SourceRef); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 func (r *Repository) GetTranscription(ctx context.Context, p models.IntegrationPrincipal, id uuid.UUID) (models.IntegrationTranscriptionView, error) {
@@ -597,6 +643,48 @@ func (r *Repository) GetAnalysis(ctx context.Context, p models.IntegrationPrinci
 	item.ResultJSON = resultJSON
 	item.ResultText = stringPtr(resultText)
 	return item, nil
+}
+
+func (r *Repository) GetUsage(ctx context.Context, p models.IntegrationPrincipal, now time.Time) (models.IntegrationUsageView, error) {
+	result := models.IntegrationUsageView{Environment: p.Environment, MaximumUploadBytes: 500 << 20}
+	err := r.db.QueryRowContext(ctx, `SELECT COALESCE(sum(x.balance),0) FROM (
+		SELECT COALESCE(sum(lp.amount_credits),0) AS balance
+		FROM credit_ledger_accounts la JOIN credit_grants g USING(credit_grant_uuid)
+		LEFT JOIN credit_ledger_postings lp USING(credit_ledger_account_uuid)
+		WHERE la.billing_account_uuid=$1 AND la.environment=$2 AND la.account_type='customer_available'
+		AND (g.application_uuid IS NULL OR g.application_uuid=$3) AND (g.expires_at IS NULL OR g.expires_at>$4)
+		GROUP BY la.credit_ledger_account_uuid) x`, p.BillingAccountUUID, p.Environment, p.ApplicationUUID, now).Scan(&result.AvailableCredits)
+	if err != nil {
+		return result, err
+	}
+	var permanent, temporary sql.NullInt64
+	var starts, ends sql.NullTime
+	err = r.db.QueryRowContext(ctx, `SELECT permanent_credit_limit,temporary_credit_limit,temporary_limit_starts_at,temporary_limit_ends_at FROM integration_api_keys WHERE key_uuid=$1`, p.KeyUUID).Scan(&permanent, &temporary, &starts, &ends)
+	if errors.Is(err, sql.ErrNoRows) {
+		return result, models.ErrInvalidAPIKey
+	}
+	if err != nil {
+		return result, err
+	}
+	err = r.db.QueryRowContext(ctx, `SELECT COALESCE(sum(CASE WHEN status='settled' THEN settled_credits ELSE reserved_credits END),0) FROM usage_operations WHERE key_uuid=$1 AND status IN ('reserved','provider_running','settled','reconciling')`, p.KeyUUID).Scan(&result.KeyCreditsUsed)
+	if err != nil {
+		return result, err
+	}
+	if permanent.Valid {
+		value := permanent.Int64
+		remaining := maxInt64(0, value-result.KeyCreditsUsed)
+		result.PermanentCreditLimit, result.PermanentCreditsRemaining = &value, &remaining
+	}
+	if temporary.Valid && starts.Valid && ends.Valid {
+		var used int64
+		if err = r.db.QueryRowContext(ctx, `SELECT COALESCE(sum(CASE WHEN status='settled' THEN settled_credits ELSE reserved_credits END),0) FROM usage_operations WHERE key_uuid=$1 AND started_at >= $2 AND started_at < $3 AND status IN ('reserved','provider_running','settled','reconciling')`, p.KeyUUID, starts.Time, ends.Time).Scan(&used); err != nil {
+			return result, err
+		}
+		limit, remaining, start, end := temporary.Int64, maxInt64(0, temporary.Int64-used), starts.Time, ends.Time
+		result.TemporaryCreditLimit, result.TemporaryCreditsUsed, result.TemporaryCreditsRemaining, result.TemporaryLimitStartsAt, result.TemporaryLimitEndsAt = &limit, &used, &remaining, &start, &end
+	}
+	err = r.db.QueryRowContext(ctx, `SELECT count(*) FROM ingest_items WHERE key_uuid=$1 AND status IN ('received','processing')`, p.KeyUUID).Scan(&result.ActiveIngestItems)
+	return result, err
 }
 
 func (r *Repository) ListIngest(ctx context.Context, connectionID, actorID uuid.UUID, limit, offset int) ([]models.IngestItem, int, error) {
@@ -751,7 +839,7 @@ func (r *Repository) authorizeApplication(ctx context.Context, app, actor uuid.U
 
 const connectionSelect = `SELECT c.connection_uuid,c.application_uuid,c.company_uuid,c.department_uuid,c.folder_uuid,c.created_by_user_uuid,c.name,c.provider,c.status,c.disable_policy,c.allow_folder_override,c.settings_version,c.settings,c.last_event_at,c.last_success_at,c.last_error_code,c.lock_version,c.created_at,c.updated_at FROM integration_connections c JOIN developer_applications a USING(application_uuid)`
 const actorAccessSQL = `(a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager')))`
-const ingestSelect = `SELECT i.ingest_item_uuid,i.application_uuid,i.connection_uuid,i.event_uuid,i.billing_account_uuid,i.external_call_id,i.idempotency_key,i.source_kind,i.title,i.original_filename,i.occurred_at,i.metadata_redacted,i.status,i.stage,i.attempts,i.max_attempts,i.available_at,i.call_uuid,i.error_code,i.error_message_safe,i.created_at,i.updated_at,i.completed_at,i.cancelled_at,i.ai_mode,i.billing_environment,i.destination_scope,i.destination_user_uuid,i.destination_company_uuid,i.destination_department_uuid,i.destination_folder_uuid,i.placement_source,COALESCE((i.instruction_snapshot->>'inherit_scope_instructions')::boolean,false) FROM ingest_items i`
+const ingestSelect = `SELECT i.ingest_item_uuid,i.application_uuid,i.connection_uuid,i.event_uuid,i.billing_account_uuid,i.external_call_id,i.source_ref,i.key_uuid,i.idempotency_key,i.source_kind,i.title,i.original_filename,i.occurred_at,i.metadata_redacted,i.status,i.stage,i.attempts,i.max_attempts,i.available_at,i.call_uuid,i.error_code,i.error_message_safe,i.created_at,i.updated_at,i.completed_at,i.cancelled_at,i.ai_mode,i.billing_environment,i.destination_scope,i.destination_user_uuid,i.destination_company_uuid,i.destination_department_uuid,i.destination_folder_uuid,i.placement_source,COALESCE((i.instruction_snapshot->>'inherit_scope_instructions')::boolean,false) FROM ingest_items i`
 
 type rowScanner interface{ Scan(...any) error }
 
@@ -760,7 +848,7 @@ func getIngestRow(row rowScanner) (models.IngestItem, error) {
 	var original, errorCode, errorMessage sql.NullString
 	var occurred, completed, cancelled sql.NullTime
 	var metadata []byte
-	err := row.Scan(&i.ID, &i.ApplicationID, &i.ConnectionID, &i.EventID, &i.BillingAccountID, &i.ExternalCallID, &i.IdempotencyKey, &i.SourceKind, &i.Title, &original, &occurred, &metadata, &i.Status, &i.Stage, &i.Attempts, &i.MaxAttempts, &i.AvailableAt, &i.CallID, &errorCode, &errorMessage, &i.CreatedAt, &i.UpdatedAt, &completed, &cancelled, &i.AIMode, &i.BillingEnvironment, &i.DestinationScope, &i.DestinationUserID, &i.DestinationCompanyID, &i.DestinationDepartmentID, &i.DestinationFolderID, &i.PlacementSource, &i.InheritScopeInstructions)
+	err := row.Scan(&i.ID, &i.ApplicationID, &i.ConnectionID, &i.EventID, &i.BillingAccountID, &i.ExternalCallID, &i.SourceRef, &i.KeyID, &i.IdempotencyKey, &i.SourceKind, &i.Title, &original, &occurred, &metadata, &i.Status, &i.Stage, &i.Attempts, &i.MaxAttempts, &i.AvailableAt, &i.CallID, &errorCode, &errorMessage, &i.CreatedAt, &i.UpdatedAt, &completed, &cancelled, &i.AIMode, &i.BillingEnvironment, &i.DestinationScope, &i.DestinationUserID, &i.DestinationCompanyID, &i.DestinationDepartmentID, &i.DestinationFolderID, &i.PlacementSource, &i.InheritScopeInstructions)
 	if errors.Is(err, sql.ErrNoRows) {
 		return i, models.ErrIngestNotFound
 	}
@@ -831,6 +919,9 @@ func nullableString(v string) any {
 	}
 	return strings.TrimSpace(v)
 }
+func makeSourceRef(connection uuid.UUID, externalID string) string {
+	return "vtsrc_" + strings.ReplaceAll(connection.String(), "-", "") + "_" + hex.EncodeToString([]byte(strings.TrimSpace(externalID)))
+}
 func timePtr(v sql.NullTime) *time.Time {
 	if !v.Valid {
 		return nil
@@ -846,3 +937,9 @@ func stringPtr(v sql.NullString) *string {
 	return &x
 }
 func equalHash(a, b []byte) bool { return len(a) == len(b) && string(a) == string(b) }
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}

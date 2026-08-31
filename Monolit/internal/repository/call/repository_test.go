@@ -412,6 +412,20 @@ func (s *RepositorySuite) TestGetFilterOptionsReturnsVisibleUploaders() {
 	_, err = s.repository.CreateCall(s.ctx, departmentCall)
 	s.Require().NoError(err)
 
+	billingAccountID := uuid.New()
+	_, err = s.db.ExecContext(s.ctx, `INSERT INTO billing_accounts(billing_account_uuid,owner_type,company_uuid) VALUES($1,'company',$2)`, billingAccountID, company.ID)
+	s.Require().NoError(err)
+	applicationID := uuid.New()
+	connectionID := uuid.New()
+	_, err = s.db.ExecContext(s.ctx, `INSERT INTO developer_applications(application_uuid,owner_type,company_uuid,billing_account_uuid,name,environment,status)
+		VALUES($1,'company',$2,$3,'Filter fixture','sandbox','active')`, applicationID, company.ID, billingAccountID)
+	s.Require().NoError(err)
+	_, err = s.db.ExecContext(s.ctx, `INSERT INTO integration_connections(connection_uuid,application_uuid,company_uuid,created_by_user_uuid,name,provider,status)
+		VALUES($1,$2,$3,$4,'Bitrix24 sales','bitrix24','draft')`, connectionID, applicationID, company.ID, manager.ID)
+	s.Require().NoError(err)
+	_, err = s.db.ExecContext(s.ctx, `UPDATE calls SET integration_connection_uuid=$1 WHERE call_uuid=$2`, connectionID, companyCall.ID)
+	s.Require().NoError(err)
+
 	managerOptions, err := s.repository.GetFilterOptions(s.ctx, models.CallFilterOptionsInput{
 		UserID:      manager.ID,
 		CompanyUUID: uuid.NullUUID{UUID: company.ID, Valid: true},
@@ -420,6 +434,7 @@ func (s *RepositorySuite) TestGetFilterOptionsReturnsVisibleUploaders() {
 	s.Require().Len(managerOptions.Statuses, 5)
 	s.Require().Len(managerOptions.Scopes, 3)
 	s.Require().Len(managerOptions.Managers, 2)
+	s.Require().Equal([]models.CallFilterConnection{{ID: connectionID, Name: "Bitrix24 sales", Provider: "bitrix24"}}, managerOptions.Connections)
 
 	leaderOptions, err := s.repository.GetFilterOptions(s.ctx, models.CallFilterOptionsInput{
 		UserID:         leader.ID,
@@ -429,6 +444,7 @@ func (s *RepositorySuite) TestGetFilterOptionsReturnsVisibleUploaders() {
 	s.Require().NoError(err)
 	s.Require().Len(leaderOptions.Managers, 1)
 	s.Require().Equal(departmentUploader.ID, leaderOptions.Managers[0].ID)
+	s.Require().Empty(leaderOptions.Connections)
 }
 
 func (s *RepositorySuite) TestUpdateCallTitleRequiresVisibility() {

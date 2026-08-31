@@ -1,0 +1,382 @@
+openapi: 3.1.0
+info:
+  title: VerbaTrace Integration API
+  version: 2.0.0
+  description: |
+    Public API for importing calls into VerbaTrace and reading processing results.
+    Use `sandbox` with `vt_test_` keys and `production` with `vt_live_` keys.
+    Ingest is asynchronous: a 202 response means accepted, not completed. Poll the
+    returned `status_url` until `status` is `completed` or `failed`.
+servers:
+  - url: /
+    description: Current VerbaTrace installation
+tags:
+  - name: Authentication
+  - name: Ingest v1
+  - name: Ingest v2
+  - name: Calls v2
+paths:
+  /api/{environment}/v1/auth/validate:
+    get:
+      tags: [Authentication]
+      summary: Validate an API key
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Environment' }]
+      responses:
+        '200': { description: Key is valid }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v1/ingest/calls:
+    post:
+      tags: [Ingest v1]
+      summary: Import a call from an HTTPS recording URL
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngestCallInput' }
+      responses:
+        '202': { $ref: '#/components/responses/IngestAccepted' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v1/ingest/calls/upload:
+    post:
+      tags: [Ingest v1]
+      summary: Upload and import a media file
+      description: Maximum media size is 500 MiB. `metadata` uses IngestCallInput without `recording_url`.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [metadata, media]
+              properties:
+                metadata:
+                  type: string
+                  description: JSON-encoded IngestCallInput without recording_url.
+                media: { type: string, format: binary }
+      responses:
+        '202': { $ref: '#/components/responses/IngestAccepted' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v1/ingest/items/{ingest_item_uuid}:
+    get:
+      tags: [Ingest v1]
+      summary: Get ingest processing status
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/IngestItemUUID'
+      responses:
+        '200': { $ref: '#/components/responses/IngestStatus' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/ingest/calls:
+    post:
+      tags: [Ingest v2]
+      summary: Import a call from an HTTPS recording URL
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngestCallInput' }
+      responses:
+        '202': { $ref: '#/components/responses/IngestAccepted' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/ingest/calls/upload:
+    post:
+      tags: [Ingest v2]
+      summary: Upload and import a media file
+      description: Maximum media size is 500 MiB. `metadata` uses IngestCallInput without `recording_url`.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [metadata, media]
+              properties:
+                metadata: { type: string, description: JSON-encoded IngestCallInput without recording_url. }
+                media: { type: string, format: binary }
+      responses:
+        '202': { $ref: '#/components/responses/IngestAccepted' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/ingest/items/{ingest_item_uuid}:
+    get:
+      tags: [Ingest v2]
+      summary: Get ingest processing status
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/IngestItemUUID'
+      responses:
+        '200': { $ref: '#/components/responses/IngestStatus' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/destinations:
+    get:
+      tags: [Ingest v2]
+      summary: List destinations available to the API key
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Environment' }]
+      responses:
+        '200':
+          description: Available destinations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  destinations: { type: array, items: { $ref: '#/components/schemas/Destination' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/folders:
+    get:
+      tags: [Ingest v2]
+      summary: List folders available in a destination
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - name: scope
+          in: query
+          required: true
+          schema: { type: string, enum: [personal, company, department] }
+        - name: company_uuid
+          in: query
+          schema: { type: string, format: uuid }
+        - name: department_uuid
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Available folders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  folders: { type: array, items: { $ref: '#/components/schemas/Folder' } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/calls/{call_uuid}:
+    get:
+      tags: [Calls v2]
+      summary: Get an imported call
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/CallUUID'
+      responses:
+        '200': { description: Call data, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/calls:
+    get:
+      tags: [Calls v2]
+      summary: List imported calls incrementally
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - { name: updated_since, in: query, schema: { type: string, format: date-time } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: status, in: query, schema: { type: string, enum: [new, processing, transcribed, analyzed, failed] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Cursor-paginated calls }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/calls/by-source-ref/{source_ref}:
+    get:
+      tags: [Calls v2]
+      summary: Get a call by the server-scoped source reference returned by ingest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - { name: source_ref, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Call data }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/calls/{call_uuid}/transcription:
+    get:
+      tags: [Calls v2]
+      summary: Get call transcription
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/CallUUID'
+      responses:
+        '200': { description: Transcription data, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/calls/{call_uuid}/analysis:
+    get:
+      tags: [Calls v2]
+      summary: Get call analysis
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+        - $ref: '#/components/parameters/CallUUID'
+      responses:
+        '200': { description: Analysis data, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/{environment}/v2/usage:
+    get:
+      tags: [Usage v2]
+      summary: Get available credits, current key limits, usage, and active ingest count
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Environment'
+      responses:
+        '200': { description: Usage and effective key limits }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: VerbaTrace API key
+      description: Use a `vt_test_` key for sandbox or `vt_live_` key for production.
+  parameters:
+    Environment:
+      name: environment
+      in: path
+      required: true
+      schema: { type: string, enum: [sandbox, production] }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Unique key for safe retries. Reuse with a different payload returns 409.
+      schema: { type: string, minLength: 1, maxLength: 200 }
+    IngestItemUUID:
+      name: ingest_item_uuid
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CallUUID:
+      name: call_uuid
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    IngestCallInput:
+      type: object
+      required: [schema_version, external_event_id, external_call_id, title]
+      additionalProperties: false
+      properties:
+        schema_version: { type: integer, enum: [1, 2], example: 2 }
+        external_event_id: { type: string, example: crm-event-123 }
+        external_call_id: { type: string, example: crm-call-456 }
+        title: { type: string, example: Customer call }
+        recording_url: { type: string, format: uri, description: Public HTTPS URL for URL ingest only. }
+        original_filename: { type: string, example: call.mp3 }
+        occurred_at: { type: string, format: date-time }
+        participants: { type: array, items: { type: object, additionalProperties: true } }
+        metadata: { type: object, additionalProperties: true }
+        ai_mode: { type: string, enum: [mock, real] }
+        instruction_mode:
+          type: string
+          enum: [folder, scope_and_folder]
+          description: Controls whether analysis instructions are inherited from the folder only or from both scope and folder.
+        destination:
+          type: object
+          additionalProperties: false
+          properties:
+            scope: { type: string, enum: [personal, company, department] }
+            company_uuid: { type: string, format: uuid }
+            department_uuid: { type: string, format: uuid }
+            folder_uuid: { type: string, format: uuid }
+    IngestStatus:
+      type: object
+      required: [ingest_item_uuid, status, stage, deduplicated, status_url]
+      properties:
+        ingest_item_uuid: { type: string, format: uuid }
+        status: { type: string, example: completed }
+        stage: { type: string, example: completed }
+        deduplicated: { type: boolean }
+        status_url: { type: string, example: /api/sandbox/v2/ingest/items/00000000-0000-0000-0000-000000000000 }
+        call_uuid: { type: [string, 'null'], format: uuid }
+        destination_scope: { type: string }
+        destination_folder_uuid: { type: [string, 'null'], format: uuid }
+    Destination:
+      type: object
+      additionalProperties: true
+      properties:
+        scope: { type: string }
+        company_uuid: { type: [string, 'null'], format: uuid }
+        department_uuid: { type: [string, 'null'], format: uuid }
+        name: { type: string }
+    Folder:
+      type: object
+      additionalProperties: true
+      properties:
+        folder_uuid: { type: string, format: uuid }
+        name: { type: string }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code: { type: string, example: invalid_request }
+            message: { type: string }
+            request_id: { type: string }
+            retryable: { type: boolean }
+  responses:
+    IngestAccepted:
+      description: Ingest was accepted for asynchronous processing.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/IngestStatus' }
+    IngestStatus:
+      description: Current ingest status.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/IngestStatus' }
+    Error:
+      description: API error.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }

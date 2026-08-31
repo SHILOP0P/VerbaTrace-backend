@@ -7,6 +7,8 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,6 +70,7 @@ func (s *RepositorySuite) TestConnectionIngestDedupClaimAndOutbox() {
 	s.Require().False(dedup)
 	s.Require().Equal("mock", first.AIMode)
 	s.Require().Equal("sandbox", first.BillingEnvironment)
+	s.Require().Contains(first.SourceRef, strings.ReplaceAll(connection.ID.String(), "-", ""))
 	s.Require().True(first.InheritScopeInstructions)
 	realInput := in
 	realInput.ExternalEventID = "evt-real"
@@ -98,6 +101,15 @@ func (s *RepositorySuite) TestConnectionIngestDedupClaimAndOutbox() {
 	var outbox int
 	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM integration_outbox WHERE aggregate_uuid=$1 AND event_type='ingest.accepted'`, first.ID).Scan(&outbox))
 	s.Require().Equal(1, outbox)
+	otherUser := s.createUser("integration-other-tenant@example.com")
+	otherApp, err := s.billing.CreateDeveloperApplication(s.ctx, models.CreateDeveloperApplicationInput{OwnerType: "user", OwnerUUID: otherUser, CreatedByUserUUID: otherUser, Name: "Other runtime", Environment: "sandbox", Capabilities: []string{"calls:write", "calls:read"}})
+	s.Require().NoError(err)
+	otherConnections, err := s.repo.ListConnections(s.ctx, otherApp.ID, otherUser)
+	s.Require().NoError(err)
+	otherPrincipal := models.IntegrationPrincipal{ApplicationUUID: otherApp.ID, ConnectionUUID: otherConnections[0].ID, BillingAccountUUID: otherApp.BillingAccountUUID, ServiceAccountUUID: uuid.New(), Environment: "sandbox"}
+	otherItem, _, err := s.repo.AcceptURLIngest(s.ctx, otherPrincipal, in, "idem-other-tenant", hash, locator)
+	s.Require().NoError(err)
+	s.Require().NotEqual(first.SourceRef, otherItem.SourceRef)
 }
 
 func (s *RepositorySuite) TestWebhookSecretEncryptedAndDeliveryClaimed() {
@@ -121,6 +133,14 @@ func (s *RepositorySuite) TestWebhookSecretEncryptedAndDeliveryClaimed() {
 	s.Require().Len(claimed.Targets, 1)
 	s.Require().Equal("https://hooks.example.test/verbatrace", claimed.Targets[0].URL)
 	s.Require().Equal(secret, claimed.Targets[0].SigningSecret)
+	status := http.StatusInternalServerError
+	s.Require().NoError(s.repo.RecordWebhookDelivery(s.ctx, claimed, claimed.Targets[0], "retryable_failed", &status, 10, 0, nil, "receiver_5xx", time.Second))
+	deliveries, err := s.repo.ListDeliveries(s.ctx, connections[0].ID, user)
+	s.Require().NoError(err)
+	s.Require().NotEmpty(deliveries)
+	replayEvent, err := s.repo.ReplayWebhookDelivery(s.ctx, deliveries[0].ID, user)
+	s.Require().NoError(err)
+	s.Require().NotEqual(uuid.Nil, replayEvent)
 }
 
 func (s *RepositorySuite) TestSandboxIngestUsesOneReadOnlyTestFolder() {
