@@ -146,7 +146,19 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 	}
 
 	sttStartedAt := time.Now()
-	result, err := transcribeWith(ctx, provider, audioFile, mode)
+	request := models.TranscriptionRequest{File: audioFile, Mode: mode}
+	var privacyState models.CallPrivacyState
+	if s.privacyManager != nil {
+		request, err = s.privacyManager.TranscriptionRequest(ctx, call, audioFile, mode)
+		if err != nil {
+			return fmt.Errorf("prepare privacy transcription: %w", err)
+		}
+		privacyState, err = s.privacyManager.EnsureCallState(ctx, call)
+		if err != nil {
+			return fmt.Errorf("load call privacy state: %w", err)
+		}
+	}
+	result, err := transcribeRequestWith(ctx, provider, request)
 	if err != nil {
 		if s.creditMeter != nil {
 			_ = s.creditMeter.MarkCreditOperationReconciling(context.Background(), creditOperationID, "transcription_provider_error")
@@ -174,12 +186,22 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 		}
 	}
 
-	if _, err = s.transcriptionRepository.MarkTranscribed(ctx, transcription.ID, result.Text, result.Segments, result.Words, result.Language); err != nil {
-		return fmt.Errorf("mark transcription transcribed: %w", err)
+	persistedAtomically := false
+	if repository, ok := s.transcriptionRepository.(interface {
+		MarkTranscribedWithPrivacy(context.Context, uuid.UUID, uuid.UUID, models.TranscriptionResult, models.CallPrivacyState, string) (models.Transcription, error)
+	}); ok && s.privacyManager != nil {
+		if _, err = repository.MarkTranscribedWithPrivacy(ctx, transcription.ID, call.ID, result, privacyState, providerForMode(provider, mode)); err != nil {
+			return fmt.Errorf("mark privacy transcription transcribed: %w", err)
+		}
+		persistedAtomically = true
 	}
-
-	if _, err = s.callRepository.UpdateCallStatus(ctx, call.ID, models.CallStatusTranscribed); err != nil {
-		return fmt.Errorf("mark call transcribed: %w", err)
+	if !persistedAtomically {
+		if _, err = s.transcriptionRepository.MarkTranscribed(ctx, transcription.ID, result.Text, result.Segments, result.Words, result.Language); err != nil {
+			return fmt.Errorf("mark transcription transcribed: %w", err)
+		}
+		if _, err = s.callRepository.UpdateCallStatus(ctx, call.ID, models.CallStatusTranscribed); err != nil {
+			return fmt.Errorf("mark call transcribed: %w", err)
+		}
 	}
 
 	if err = s.enqueueAnalyzeJob(ctx, call.ID); err != nil {
@@ -284,6 +306,17 @@ func transcribeWith(ctx context.Context, provider transcriber.Transcriber, file 
 	return provider.Transcribe(ctx, file)
 }
 
+func transcribeRequestWith(ctx context.Context, provider transcriber.Transcriber, request models.TranscriptionRequest) (models.TranscriptionResult, error) {
+	if request.Privacy != nil {
+		aware, ok := provider.(transcriber.PrivacyAware)
+		if !ok {
+			return models.TranscriptionResult{}, fmt.Errorf("required privacy redaction is unsupported by provider")
+		}
+		return aware.TranscribeRequest(ctx, request)
+	}
+	return transcribeWith(ctx, provider, request.File, request.Mode)
+}
+
 func providerForMode(provider transcriber.Transcriber, mode models.TranscriptionMode) string {
 	if aware, ok := provider.(transcriber.ModeAware); ok {
 		return aware.ProviderForMode(mode)
@@ -330,6 +363,9 @@ func (s *Service) MarkJobFailed(ctx context.Context, job models.ProcessingJob, c
 		}
 
 		_, _ = s.callRepository.UpdateCallStatus(context.Background(), job.EntityUUID, models.CallStatusFailed)
+		if s.privacyManager != nil {
+			_ = s.privacyManager.MarkFailed(context.Background(), job.EntityUUID, "privacy_processing_failed")
+		}
 
 		s.log.Error(ctx, "processing job permanently failed", zap.String("call_id", job.EntityUUID.String()), zap.String("job_id", job.ID.String()), zap.Error(cause))
 

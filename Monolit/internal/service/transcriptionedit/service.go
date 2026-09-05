@@ -101,6 +101,25 @@ func (s *Service) Restore(ctx context.Context, callID, userID uuid.UUID, expecte
 	if activeRevision != expectedRevision {
 		return models.Transcription{}, Revision{}, models.ErrTranscriptionRevisionConflict
 	}
+	// Selecting an old revision must not undo an existing privacy mask.
+	var losesMask bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS (
+        SELECT 1 FROM call_transcription_redaction_spans current_span
+        WHERE current_span.transcription_uuid=$1 AND current_span.revision=$2
+        AND NOT EXISTS (
+            SELECT 1 FROM call_transcription_redaction_spans target_span
+            WHERE target_span.transcription_uuid=$1 AND target_span.revision=$3
+            AND target_span.start_seconds=current_span.start_seconds
+            AND target_span.end_seconds=current_span.end_seconds
+            AND target_span.entity_type=current_span.entity_type
+            AND target_span.marker=current_span.marker
+        ))`, transcriptionID, activeRevision, targetRevision).Scan(&losesMask)
+	if err != nil {
+		return models.Transcription{}, Revision{}, err
+	}
+	if losesMask {
+		return models.Transcription{}, Revision{}, models.ErrRedactedWordEditForbidden
+	}
 	var raw []byte
 	var rev Revision
 	var actor uuid.NullUUID
@@ -128,6 +147,9 @@ func (s *Service) Restore(ctx context.Context, callID, userID uuid.UUID, expecte
 		return models.Transcription{}, Revision{}, err
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO call_transcription_revision_state (transcription_uuid, active_revision, updated_by_user_uuid, updated_at) VALUES ($1,$2,$3,now()) ON CONFLICT (transcription_uuid) DO UPDATE SET active_revision=EXCLUDED.active_revision, updated_by_user_uuid=EXCLUDED.updated_by_user_uuid, updated_at=EXCLUDED.updated_at`, transcriptionID, targetRevision, userID); err != nil {
+		return models.Transcription{}, Revision{}, err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE call_privacy_states SET transcription_revision=$2,detected_spans=(SELECT count(*) FROM call_transcription_redaction_spans WHERE transcription_uuid=$3 AND revision=$2),updated_at=now(),lock_version=lock_version+1 WHERE call_uuid=$1 AND status='ready'`, callID, targetRevision, transcriptionID); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO call_transcription_edit_audit (audit_uuid, transcription_uuid, revision, actor_user_uuid, operation, reason, created_at) VALUES ($1,$2,$3,$4,'select_revision',$5,now())`, uuid.New(), transcriptionID, targetRevision, userID, "Выбрана версия транскрипции"); err != nil {
@@ -198,6 +220,24 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 	if currentRevision != input.ExpectedRevision {
 		return models.Transcription{}, Revision{}, models.ErrTranscriptionRevisionConflict
 	}
+	redactedIndexes := map[int]struct{}{}
+	spanRows, spanErr := tx.QueryContext(ctx, `SELECT word_start_index,word_end_index FROM call_transcription_redaction_spans WHERE transcription_uuid=$1 AND revision=$2`, transcriptionID, currentRevision)
+	if spanErr != nil {
+		return models.Transcription{}, Revision{}, spanErr
+	}
+	for spanRows.Next() {
+		var start, end int
+		if spanErr = spanRows.Scan(&start, &end); spanErr != nil {
+			_ = spanRows.Close()
+			return models.Transcription{}, Revision{}, spanErr
+		}
+		for index := start; index <= end; index++ {
+			redactedIndexes[index] = struct{}{}
+		}
+	}
+	if spanErr = spanRows.Close(); spanErr != nil {
+		return models.Transcription{}, Revision{}, spanErr
+	}
 	transcription, err := s.transcription.GetByCallUUID(ctx, input.CallUUID)
 	if err != nil {
 		return models.Transcription{}, Revision{}, err
@@ -214,6 +254,9 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 		}
 		if _, ok := seen[edit.WordIndex]; ok {
 			return models.Transcription{}, Revision{}, models.ErrInvalidTranscriptionEdit
+		}
+		if _, protected := redactedIndexes[edit.WordIndex]; protected {
+			return models.Transcription{}, Revision{}, models.ErrRedactedWordEditForbidden
 		}
 		seen[edit.WordIndex] = struct{}{}
 		word := &words[edit.WordIndex]
@@ -273,6 +316,16 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 		return models.Transcription{}, Revision{}, err
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO call_transcription_revision_state (transcription_uuid, active_revision, updated_by_user_uuid, updated_at) VALUES ($1,$2,$3,now()) ON CONFLICT (transcription_uuid) DO UPDATE SET active_revision=EXCLUDED.active_revision, updated_by_user_uuid=EXCLUDED.updated_by_user_uuid, updated_at=EXCLUDED.updated_at`, transcriptionID, newRevision, input.UserUUID)
+	if err != nil {
+		return models.Transcription{}, Revision{}, err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO call_transcription_redaction_spans(redaction_span_uuid,transcription_uuid,revision,entity_type,marker,word_start_index,word_end_index,start_seconds,end_seconds,source,provider_policy,created_by_user_uuid,created_at)
+		SELECT gen_random_uuid(),transcription_uuid,$3,entity_type,marker,word_start_index,word_end_index,start_seconds,end_seconds,source,provider_policy,created_by_user_uuid,now()
+		FROM call_transcription_redaction_spans WHERE transcription_uuid=$1 AND revision=$2`, transcriptionID, currentRevision, newRevision)
+	if err != nil {
+		return models.Transcription{}, Revision{}, err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE call_privacy_states SET transcription_revision=$2,updated_at=now(),lock_version=lock_version+1 WHERE call_uuid=$1 AND status='ready'`, input.CallUUID, newRevision)
 	if err != nil {
 		return models.Transcription{}, Revision{}, err
 	}

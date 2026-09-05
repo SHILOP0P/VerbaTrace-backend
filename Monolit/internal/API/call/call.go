@@ -5,6 +5,7 @@ import (
 
 	"verbatrace/monolit/internal/httpserver/middleware"
 	"verbatrace/monolit/internal/service"
+	privacyservice "verbatrace/monolit/internal/service/privacy"
 	"verbatrace/monolit/internal/service/transcriptionedit"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 type CallHandler struct {
 	service service.CallService
 	editor  *transcriptionedit.Service
+	privacy *privacyservice.Service
 }
 
 func NewCallHandler(service service.CallService) *CallHandler {
@@ -20,6 +22,7 @@ func NewCallHandler(service service.CallService) *CallHandler {
 }
 
 func (h *CallHandler) SetTranscriptionEditor(editor *transcriptionedit.Service) { h.editor = editor }
+func (h *CallHandler) SetPrivacyService(service *privacyservice.Service)        { h.privacy = service }
 
 func userIDFromRequest(r *http.Request) (uuid.UUID, bool) {
 	return middleware.UserIDFromContext(r.Context())

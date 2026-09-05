@@ -3,7 +3,9 @@ package call
 import (
 	"errors"
 	"net/http"
+	"sort"
 
+	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
 	"verbatrace/monolit/internal/converter"
 	"verbatrace/monolit/internal/models"
@@ -53,6 +55,26 @@ func (h *CallHandler) GetTranscriptionByCallUUID(w http.ResponseWriter, r *http.
 		} else if errors.Is(revisionErr, models.ErrCallNotFound) {
 			response.WriteError(w, http.StatusNotFound, response.CodeCallNotFound, "call not found")
 			return
+		}
+	}
+	if h.privacy != nil {
+		if state, stateErr := h.privacy.GetCallState(r.Context(), callUUID); stateErr == nil {
+			spans, _ := h.privacy.RedactionSpans(r.Context(), callUUID)
+			counts := map[string]int{}
+			for _, span := range spans {
+				counts[span.EntityType]++
+				for index := span.WordStartIndex; index <= span.WordEndIndex && index < len(resp.Words); index++ {
+					if index >= 0 {
+						resp.Words[index].Redaction = &dto.TranscriptionWordRedactionResponse{SpanUUID: span.ID.String(), EntityType: span.EntityType, Label: privacyEntityLabel(span.EntityType), Marker: span.Marker}
+					}
+				}
+			}
+			entityCounts := make([]dto.TranscriptionRedactionCount, 0, len(counts))
+			for entity, count := range counts {
+				entityCounts = append(entityCounts, dto.TranscriptionRedactionCount{EntityType: entity, Label: privacyEntityLabel(entity), Marker: models.PrivacyMarkersRUv1[entity], Count: count})
+			}
+			sort.Slice(entityCounts, func(i, j int) bool { return entityCounts[i].EntityType < entityCounts[j].EntityType })
+			resp.Redaction = &dto.TranscriptionRedactionResponse{Status: state.Status, MarkerContract: state.MarkerContract, SpansCount: len(spans), EntityCounts: entityCounts}
 		}
 	}
 

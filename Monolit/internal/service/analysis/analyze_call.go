@@ -224,6 +224,12 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		Instructions:    instructions,
 		Personalization: personalization,
 	}
+	if s.privacyContextReader != nil {
+		analysisRequest.Redaction, err = s.privacyContextReader.AnalysisContext(ctx, call.ID)
+		if err != nil {
+			return models.CallAnalysis{}, fmt.Errorf("load privacy analysis context: %w", err)
+		}
+	}
 	var creditOperationID uuid.UUID
 	if s.creditMeter != nil {
 		var billableInput strings.Builder
@@ -613,7 +619,7 @@ func normalizeCriteriaAndScore(payload map[string]any) {
 
 		status := stringField(normalized, "status")
 		pointsMax := numberField(normalized, "points_max")
-		if status == "not_applicable" || pointsMax <= 0 {
+		if status == "not_applicable" || status == "not_evaluable" || pointsMax <= 0 {
 			continue
 		}
 		pointsAwarded += numberField(normalized, "points_awarded")
@@ -680,7 +686,7 @@ func normalizeCriterionResult(item map[string]any) map[string]any {
 			pointsMax = 0
 		}
 	}
-	if status == "not_applicable" {
+	if status == "not_applicable" || status == "not_evaluable" {
 		pointsMax = 0
 	}
 	out["points_max"] = pointsMax
@@ -692,7 +698,7 @@ func normalizeCriterionResult(item map[string]any) map[string]any {
 	if pointsMax > 0 && (pointsAwarded == 0 && statusImpliesPositiveScore(status)) {
 		pointsAwarded = defaultCriterionPointsAwarded(status, pointsMax)
 	}
-	if status == "not_applicable" || pointsMax <= 0 {
+	if status == "not_applicable" || status == "not_evaluable" || pointsMax <= 0 {
 		pointsAwarded = 0
 	} else if pointsAwarded > pointsMax {
 		pointsAwarded = pointsMax
@@ -753,7 +759,7 @@ func looksLikeStructuredAnalysisText(value string) bool {
 func normalizeCriterionStatus(status string, preserveUnknown bool) string {
 	status = strings.TrimSpace(status)
 	switch status {
-	case "met", "partially_met", "missed", "not_applicable", "unclear":
+	case "met", "partially_met", "missed", "not_applicable", "not_evaluable", "unclear":
 		return status
 	default:
 		if status == "" || !preserveUnknown {
@@ -792,13 +798,15 @@ func normalizeCriterionExplanation(out map[string]any, status string) {
 			issue = "Критерий не подтвержден в расшифровке."
 		case "not_applicable":
 			issue = "Критерий не применим к этому звонку."
+		case "not_evaluable":
+			issue = "Точное значение скрыто политикой защиты данных."
 		default:
 			issue = "Данных в расшифровке недостаточно для уверенной оценки."
 		}
 	}
 	if recommendation == "" {
 		switch status {
-		case "met", "not_applicable":
+		case "met", "not_applicable", "not_evaluable":
 			recommendation = "Рекомендация не требуется."
 		case "partially_met":
 			recommendation = "Усилить выполнение этого критерия."

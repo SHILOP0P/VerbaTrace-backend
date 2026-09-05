@@ -115,6 +115,7 @@ const (
 	CodeInvalidTranscriptionEdit         = "invalid_transcription_edit"
 	CodeTranscriptionRevisionConflict    = "transcription_revision_conflict"
 	CodeTranscriptionEditForbidden       = "transcription_edit_forbidden"
+	CodeRedactedWordEditForbidden        = "redacted_word_edit_forbidden"
 	CodeTranscriptionNotEditable         = "transcription_not_editable"
 	CodeFailedToUpdateTranscription      = "failed_to_update_transcription"
 	CodeAnalysisNotFound                 = "analysis_not_found"

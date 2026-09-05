@@ -24,6 +24,12 @@ type CreditMeter interface {
 	IsSandboxMockCall(context.Context, uuid.UUID) (bool, error)
 }
 
+type PrivacyManager interface {
+	TranscriptionRequest(context.Context, models.Call, models.File, models.TranscriptionMode) (models.TranscriptionRequest, error)
+	EnsureCallState(context.Context, models.Call) (models.CallPrivacyState, error)
+	MarkFailed(context.Context, uuid.UUID, string) error
+}
+
 type Service struct {
 	callRepository           repository.CallRepository
 	transcriptionRepository  repository.TranscriptionRepository
@@ -35,9 +41,11 @@ type Service struct {
 	processingJobMaxAttempts int
 	log                      logger.Logger
 	creditMeter              CreditMeter
+	privacyManager           PrivacyManager
 }
 
-func (s *Service) SetCreditMeter(meter CreditMeter) { s.creditMeter = meter }
+func (s *Service) SetCreditMeter(meter CreditMeter)         { s.creditMeter = meter }
+func (s *Service) SetPrivacyManager(manager PrivacyManager) { s.privacyManager = manager }
 func (s *Service) SetSandboxTranscriber(provider transcriber.Transcriber) {
 	s.sandboxTranscriber = provider
 }

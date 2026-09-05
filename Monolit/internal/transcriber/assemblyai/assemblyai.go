@@ -31,11 +31,15 @@ type Transcriber struct {
 }
 
 type transcriptRequest struct {
-	AudioURL            string               `json:"audio_url"`
-	SpeechModels        []string             `json:"speech_models"`
-	LanguageDetection   bool                 `json:"language_detection"`
-	SpeakerLabels       bool                 `json:"speaker_labels"`
-	SpeechUnderstanding *speechUnderstanding `json:"speech_understanding,omitempty"`
+	AudioURL                  string               `json:"audio_url"`
+	SpeechModels              []string             `json:"speech_models"`
+	LanguageDetection         bool                 `json:"language_detection"`
+	SpeakerLabels             bool                 `json:"speaker_labels"`
+	SpeechUnderstanding       *speechUnderstanding `json:"speech_understanding,omitempty"`
+	RedactPII                 *bool                `json:"redact_pii,omitempty"`
+	RedactPIIPolicies         []string             `json:"redact_pii_policies,omitempty"`
+	RedactPIISub              string               `json:"redact_pii_sub,omitempty"`
+	RedactPIIReturnUnredacted *bool                `json:"redact_pii_return_unredacted,omitempty"`
 }
 
 type speechUnderstanding struct {
@@ -103,7 +107,33 @@ func (t *Transcriber) Provider() string {
 	return providerName
 }
 
+func (t *Transcriber) DeleteArtifact(ctx context.Context, providerJobID string) error {
+	providerJobID = strings.TrimSpace(providerJobID)
+	if providerJobID == "" {
+		return errors.New("AssemblyAI transcript id is required")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, t.endpoint("/v2/transcript/"+providerJobID), nil)
+	if err != nil {
+		return fmt.Errorf("build AssemblyAI delete request: %w", err)
+	}
+	req.Header.Set("Authorization", t.apiKey)
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete AssemblyAI transcript: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusNotFound || (resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		return nil
+	}
+	return decodeError(resp)
+}
+
 func (t *Transcriber) Transcribe(ctx context.Context, file models.File) (models.TranscriptionResult, error) {
+	return t.TranscribeRequest(ctx, models.TranscriptionRequest{File: file, Mode: models.TranscriptionModeStandard})
+}
+
+func (t *Transcriber) TranscribeRequest(ctx context.Context, request models.TranscriptionRequest) (models.TranscriptionResult, error) {
+	file := request.File
 	if file.Content == nil {
 		return models.TranscriptionResult{}, fmt.Errorf("%w: empty audio content", models.ErrUnsupportedAudioType)
 	}
@@ -111,15 +141,35 @@ func (t *Transcriber) Transcribe(ctx context.Context, file models.File) (models.
 	if err != nil {
 		return models.TranscriptionResult{}, err
 	}
-	transcriptID, err := t.createTranscript(ctx, uploadURL, file.SpeakerCandidates)
+	transcriptID, err := t.createTranscriptWithPrivacy(ctx, uploadURL, file.SpeakerCandidates, request.Privacy)
 	if err != nil {
 		return models.TranscriptionResult{}, err
 	}
 	result, err := t.waitForTranscript(ctx, transcriptID)
 	if err != nil {
+		t.cleanupFailedTranscript(transcriptID)
 		return models.TranscriptionResult{}, err
 	}
-	return normalizeTranscript(result)
+	normalized, err := normalizeTranscript(result)
+	if err != nil {
+		t.cleanupFailedTranscript(transcriptID)
+		return models.TranscriptionResult{}, err
+	}
+	normalized.ProviderJobID = transcriptID
+	if request.Privacy != nil {
+		normalized, err = normalizePrivacyResult(normalized, request.Privacy)
+		if err != nil {
+			t.cleanupFailedTranscript(transcriptID)
+			return models.TranscriptionResult{}, err
+		}
+	}
+	return normalized, nil
+}
+
+func (t *Transcriber) cleanupFailedTranscript(providerJobID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_ = t.DeleteArtifact(ctx, providerJobID)
 }
 
 func (t *Transcriber) upload(ctx context.Context, content io.Reader) (string, error) {
@@ -150,6 +200,10 @@ func (t *Transcriber) upload(ctx context.Context, content io.Reader) (string, er
 }
 
 func (t *Transcriber) createTranscript(ctx context.Context, audioURL string, candidates []models.SpeakerCandidate) (string, error) {
+	return t.createTranscriptWithPrivacy(ctx, audioURL, candidates, nil)
+}
+
+func (t *Transcriber) createTranscriptWithPrivacy(ctx context.Context, audioURL string, candidates []models.SpeakerCandidate, privacy *models.TranscriptionPrivacyRequest) (string, error) {
 	payload := transcriptRequest{
 		AudioURL:          audioURL,
 		SpeechModels:      []string{"universal-2"},
@@ -159,8 +213,19 @@ func (t *Transcriber) createTranscript(ctx context.Context, audioURL string, can
 	// Identification needs a closed list of people or roles. With no candidates
 	// we still request speaker labels, but omit the impossible identification
 	// step so the provider returns ordinary diarized utterances.
-	if t.identifyRoles && len(candidates) > 0 {
+	if t.identifyRoles && len(candidates) > 0 && privacy == nil {
 		payload.SpeechUnderstanding = speakerIdentificationRequest(candidates)
+	}
+	if privacy != nil {
+		policies, policyErr := providerPolicies(privacy.EntityTypes)
+		if policyErr != nil {
+			return "", policyErr
+		}
+		enabled, returnUnredacted := true, false
+		payload.RedactPII = &enabled
+		payload.RedactPIIPolicies = policies
+		payload.RedactPIISub = "entity_name"
+		payload.RedactPIIReturnUnredacted = &returnUnredacted
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

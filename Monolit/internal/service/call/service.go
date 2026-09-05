@@ -28,6 +28,10 @@ type TranscriptionModeResolver interface {
 	ResolveTranscriptionMode(ctx context.Context, userID uuid.UUID, companyID uuid.NullUUID) (models.TranscriptionMode, error)
 }
 
+type PrivacyAdmissionResolver interface {
+	ResolveCallPrivacy(context.Context, models.Call) (models.CallPrivacyState, error)
+}
+
 type Service struct {
 	repository                repo.CallRepository
 	transcriptionRepository   repo.TranscriptionRepository
@@ -39,6 +43,7 @@ type Service struct {
 	durationDetector          DurationDetector
 	billingLimiter            BillingLimiter
 	transcriptionModeResolver TranscriptionModeResolver
+	privacyAdmissionResolver  PrivacyAdmissionResolver
 	processingJobMaxAttempts  int
 	log                       logger.Logger
 }
@@ -94,4 +99,8 @@ func (s *Service) SetBillingLimiter(limiter BillingLimiter) {
 
 func (s *Service) SetTranscriptionModeResolver(resolver TranscriptionModeResolver) {
 	s.transcriptionModeResolver = resolver
+}
+
+func (s *Service) SetPrivacyAdmissionResolver(resolver PrivacyAdmissionResolver) {
+	s.privacyAdmissionResolver = resolver
 }

@@ -1,6 +1,10 @@
 package dto
 
-import "mime/multipart"
+import (
+	"mime/multipart"
+
+	"verbatrace/monolit/internal/models"
+)
 
 type CreateCallRequest struct {
 	Title                  string
@@ -41,6 +45,19 @@ type CallResponse struct {
 	HasAnalysis           bool                      `json:"has_analysis"`
 	HasActions            bool                      `json:"has_actions"`
 	CreatedAt             string                    `json:"created_at"`
+	Privacy               *CallPrivacyResponse      `json:"privacy,omitempty"`
+}
+
+type CallPrivacyResponse struct {
+	Status                  string                     `json:"status"`
+	Protected               bool                       `json:"protected"`
+	MarkerContract          string                     `json:"marker_contract"`
+	PolicyVersion           int                        `json:"policy_version,omitempty"`
+	PolicySourceLabel       string                     `json:"policy_source_label"`
+	DetectedSpans           int                        `json:"detected_spans"`
+	RecommendedMediaVariant string                     `json:"recommended_media_variant"`
+	SanitizedMediaStatus    string                     `json:"sanitized_media_status"`
+	Capabilities            models.PrivacyCapabilities `json:"capabilities"`
 }
 
 type DiarizationRoleResponse struct {

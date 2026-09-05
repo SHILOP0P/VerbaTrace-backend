@@ -75,6 +75,7 @@ import (
 	invitationService "verbatrace/monolit/internal/service/invitation"
 	monitoringService "verbatrace/monolit/internal/service/monitoring"
 	notificationService "verbatrace/monolit/internal/service/notification"
+	privacyService "verbatrace/monolit/internal/service/privacy"
 	processingService "verbatrace/monolit/internal/service/processing"
 	qualityReviewService "verbatrace/monolit/internal/service/qualityreview"
 	reportService "verbatrace/monolit/internal/service/report"
@@ -201,11 +202,15 @@ func main() {
 	reportRepository := reportRepo.NewRepository(sqlDB)
 	searchRepository := searchRepo.NewRepository(sqlDB)
 	notificationRepository := notificationRepo.NewRepository(sqlDB)
+	privacySvc := privacyService.NewService(sqlDB, audioStorage, privacyService.Config{AudioBaseDir: audioUploadPath, FFmpegPath: config.AppConfig().Upload.FFmpegPath(), FFProbePath: config.AppConfig().Upload.FFProbePath()}, appLogger)
 
 	transcriberProvider, err := transcriber.NewFromConfig(config.AppConfig().Transcriber)
 	if err != nil {
 		appLogger.Error(ctx, "failed to configure transcriber", zap.Error(err))
 		return
+	}
+	if cleaner, ok := transcriberProvider.(transcriber.ArtifactCleaner); ok {
+		privacySvc.SetArtifactCleaner(cleaner)
 	}
 
 	analyzerProvider, err := analyzer.NewFromConfig(config.AppConfig().Analyzer)
@@ -220,10 +225,12 @@ func main() {
 	analysisSvc.SetProcessingJobMaxAttempts(config.AppConfig().Worker.MaxAttempts())
 	analysisSvc.SetPersonalizationReader(analysisContextRepository)
 	analysisSvc.SetFolderInstructionReader(callFolderRepository)
+	analysisSvc.SetPrivacyContextReader(privacySvc)
 	processingSvc := processingService.NewService(callRepository, transcriptionRepository, processingJobRepository, audioStorage, transcriberProvider, appLogger)
 	processingSvc.SetSandboxTranscriber(transcriberMock.New())
 	processingSvc.SetProcessingJobMaxAttempts(config.AppConfig().Worker.MaxAttempts())
 	processingSvc.SetAnalysisProcessor(analysisSvc)
+	processingSvc.SetPrivacyManager(privacySvc)
 
 	var workerDone <-chan struct{}
 	if config.AppConfig().Worker.Enabled() {
@@ -250,6 +257,7 @@ func main() {
 	callSvc.SetProcessingJobRepository(processingJobRepository)
 	callSvc.SetProcessingJobMaxAttempts(config.AppConfig().Worker.MaxAttempts())
 	callSvc.SetDurationDetector(audio.NewFFProbeDurationDetector(audioUploadPath, config.AppConfig().Upload.FFProbePath()))
+	callSvc.SetPrivacyAdmissionResolver(privacySvc)
 	authSvc := authService.NewService(
 		userRepository,
 		refreshRepository,
@@ -305,6 +313,7 @@ func main() {
 	adminHandler := adminAPI.NewHandler(adminSvc)
 	callHandler := call.NewCallHandler(callSvc)
 	callHandler.SetTranscriptionEditor(transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository))
+	callHandler.SetPrivacyService(privacySvc)
 	callFolderHandler := callFolderAPI.NewHandler(callFolderSvc)
 	contactHandler := contactAPI.NewHandler(contactSvc)
 	authHandler := authAPI.NewAuthHandler(authSvc, config.AppConfig().Auth.AccessTokenTTL(), config.AppConfig().Auth.RefreshTokenTTL())
@@ -369,6 +378,12 @@ func main() {
 		integrationWorkerDone = integrationService.NewWorker(integrationRepository, callSvc, integrationCipher, appLogger, integrationStagingDir).Run(ctx)
 		webhookWorkerDone = integrationService.NewWebhookWorker(integrationRepository, appLogger).Run(ctx)
 	}
+	var privacyMediaWorkerDone <-chan struct{}
+	var privacyCleanupWorkerDone <-chan struct{}
+	if config.AppConfig().Worker.Enabled() {
+		privacyMediaWorkerDone = privacySvc.RunMediaWorker(ctx)
+		privacyCleanupWorkerDone = privacySvc.RunProviderCleanupWorker(ctx)
+	}
 
 	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, actionHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, integrationHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
 
@@ -415,6 +430,22 @@ func main() {
 			appLogger.Info(context.Background(), "processing worker shutdown completed")
 		case <-shutdownCtx.Done():
 			appLogger.Warn(context.Background(), "processing worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	if privacyMediaWorkerDone != nil {
+		select {
+		case <-privacyMediaWorkerDone:
+			appLogger.Info(context.Background(), "privacy media worker shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), "privacy media worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	if privacyCleanupWorkerDone != nil {
+		select {
+		case <-privacyCleanupWorkerDone:
+			appLogger.Info(context.Background(), "privacy provider cleanup worker shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), "privacy provider cleanup worker shutdown timed out", zap.Error(shutdownCtx.Err()))
 		}
 	}
 	if integrationWorkerDone != nil {

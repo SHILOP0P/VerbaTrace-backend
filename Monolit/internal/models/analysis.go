@@ -27,6 +27,7 @@ const (
 	CallAnalysisStatusProcessing CallAnalysisStatus = "processing"
 	CallAnalysisStatusDone       CallAnalysisStatus = "done"
 	CallAnalysisStatusFailed     CallAnalysisStatus = "failed"
+	CallAnalysisStatusStale      CallAnalysisStatus = "stale"
 )
 
 type AnalyzeCallInput struct {
@@ -47,6 +48,7 @@ type AnalysisRequest struct {
 	Transcription   string
 	Instructions    []AnalysisInstructionContent
 	Personalization []string
+	Redaction       *AnalysisRedactionContext
 }
 
 type AnalysisResult struct {

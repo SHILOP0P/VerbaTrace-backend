@@ -143,7 +143,7 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 			},
 			{
 				Role:    "user",
-				Content: userPrompt(request.CallUUID.String(), transcription, request.Instructions, request.Personalization),
+				Content: userPromptWithPrivacy(request.CallUUID.String(), transcription, request.Instructions, request.Personalization, request.Redaction),
 			},
 		},
 		ResponseFormat: callAnalysisResponseFormat(),
@@ -417,6 +417,14 @@ func aggregateUserPrompt(sourceJSON string) string {
 }
 
 func userPrompt(callID string, transcription string, instructions []models.AnalysisInstructionContent, personalization ...[]string) string {
+	var values []string
+	if len(personalization) > 0 {
+		values = personalization[0]
+	}
+	return userPromptWithPrivacy(callID, transcription, instructions, values, nil)
+}
+
+func userPromptWithPrivacy(callID string, transcription string, instructions []models.AnalysisInstructionContent, personalization []string, redaction *models.AnalysisRedactionContext) string {
 	var builder strings.Builder
 
 	builder.WriteString("Call UUID:\n")
@@ -434,11 +442,21 @@ func userPrompt(callID string, transcription string, instructions []models.Analy
 	builder.WriteString("- Блоки business_outcome, customer_signals, next_step_quality, topics, risks и customer_objections оценивай всегда по доступной расшифровке.\n")
 	builder.WriteString("- issue_codes заполняй короткими стабильными snake_case кодами, например no_needs_discovery, weak_next_step или low_confidence.\n")
 	builder.WriteString("\nПерсонализация анализа:\n")
-	if len(personalization) == 0 || len(personalization[0]) == 0 {
+	if len(personalization) == 0 {
 		builder.WriteString("Персонализация не задана. Анализируй разговор универсально и не выдумывай отсутствующий контекст.\n")
 	} else {
-		for _, context := range personalization[0] {
+		for _, context := range personalization {
 			_, _ = fmt.Fprintf(&builder, "- %s\n", strings.TrimSpace(context))
+		}
+	}
+	if redaction != nil {
+		builder.WriteString("\nПравила скрытых данных:\n")
+		builder.WriteString("- Маркер подтверждает, что значение было произнесено, но точное значение модели недоступно.\n")
+		builder.WriteString("- Не считай маркер пропуском распознавания и не пытайся восстановить значение.\n")
+		builder.WriteString("- Если критерий проверяет факт упоминания, маркер является подтверждением.\n")
+		builder.WriteString("- Если критерий требует точного скрытого значения, используй status not_evaluable, points_awarded 0, points_max 0 и объяснение «Точное значение скрыто политикой защиты данных».\n")
+		for _, marker := range redaction.PresentMarkers {
+			_, _ = fmt.Fprintf(&builder, "- %s: значение категории %s было скрыто, упоминаний: %d.\n", marker.Marker, marker.EntityType, marker.Count)
 		}
 	}
 	builder.WriteString("\nAnalysis instructions selected by backend:\n")
@@ -567,7 +585,7 @@ func callAnalysisResponseFormat() responseFormat {
 								"code":           map[string]any{"type": "string"},
 								"title":          map[string]any{"type": "string"},
 								"topic":          map[string]any{"type": "string"},
-								"status":         map[string]any{"type": "string", "enum": []string{"met", "partially_met", "missed", "not_applicable", "unclear"}},
+								"status":         map[string]any{"type": "string", "enum": []string{"met", "partially_met", "missed", "not_applicable", "not_evaluable", "unclear"}},
 								"points_awarded": map[string]any{"type": "number"},
 								"points_max":     map[string]any{"type": "number"},
 								"score":          map[string]any{"type": "number", "description": "Оценка критерия от 0 до 100."},

@@ -32,6 +32,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidRequestBody, "invalid request body")
 		return
 	}
+	if req.PrivacyVariant != "" && req.PrivacyVariant != "redacted" {
+		response.WriteError(w, http.StatusUnprocessableEntity, "privacy_policy_invalid", "Отчёт доступен только с защищённой транскрипцией")
+		return
+	}
 
 	report, err := h.service.Create(r.Context(), models.CreateReportInput{
 		CallUUID: callUUID,

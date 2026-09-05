@@ -36,6 +36,32 @@ func (t *tieredTranscriber) Transcribe(ctx context.Context, file models.File) (m
 	return t.standard.Transcribe(ctx, file)
 }
 
+func (t *tieredTranscriber) TranscribeRequest(ctx context.Context, request models.TranscriptionRequest) (models.TranscriptionResult, error) {
+	provider := t.standard
+	switch request.Mode {
+	case models.TranscriptionModeDiarized:
+		provider = t.diarized
+	case models.TranscriptionModeIdentified:
+		provider = t.identified
+	case "", models.TranscriptionModeStandard:
+	default:
+		return models.TranscriptionResult{}, fmt.Errorf("unsupported transcription mode: %s", request.Mode)
+	}
+	aware, ok := provider.(PrivacyAware)
+	if !ok {
+		return models.TranscriptionResult{}, fmt.Errorf("provider does not implement privacy transcription")
+	}
+	return aware.TranscribeRequest(ctx, request)
+}
+
+func (t *tieredTranscriber) DeleteArtifact(ctx context.Context, providerJobID string) error {
+	cleaner, ok := t.standard.(ArtifactCleaner)
+	if !ok {
+		return fmt.Errorf("provider does not implement artifact cleanup")
+	}
+	return cleaner.DeleteArtifact(ctx, providerJobID)
+}
+
 func (t *tieredTranscriber) ProviderForMode(mode models.TranscriptionMode) string {
 	if mode == models.TranscriptionModeDiarized {
 		return t.diarized.Provider()

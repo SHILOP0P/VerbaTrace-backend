@@ -214,6 +214,18 @@ func (w *Worker) deleteCall(ctx context.Context, run, callID uuid.UUID) error {
 	if cachePath != "" {
 		files = append(files, fileRef{Kind: "audio", Path: cachePath})
 	}
+	variantRows, err := tx.QueryContext(ctx, `SELECT storage_path,COALESCE(size_bytes,0) FROM call_media_variants WHERE call_uuid=$1 AND storage_path IS NOT NULL`, callID)
+	if err != nil {
+		return err
+	}
+	for variantRows.Next() {
+		var p string
+		var size int64
+		if variantRows.Scan(&p, &size) == nil && p != "" {
+			files = append(files, fileRef{Kind: "privacy_media", Path: p, Size: size})
+		}
+	}
+	_ = variantRows.Close()
 	reportRows, err := tx.QueryContext(ctx, `SELECT storage_path,size_bytes FROM call_report_exports WHERE call_uuid=$1 AND storage_path IS NOT NULL`, callID)
 	if err != nil {
 		return err

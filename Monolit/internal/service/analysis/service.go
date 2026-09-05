@@ -20,6 +20,10 @@ type FolderInstructionReader interface {
 	ListInstructionsForCall(ctx context.Context, callID uuid.UUID) ([]models.AnalysisInstruction, error)
 }
 
+type PrivacyContextReader interface {
+	AnalysisContext(context.Context, uuid.UUID) (*models.AnalysisRedactionContext, error)
+}
+
 type CreditMeter interface {
 	ReserveAnalysis(context.Context, models.Call, uuid.UUID, string, int64) (uuid.UUID, error)
 	SettleAnalysis(context.Context, uuid.UUID, *models.ProviderUsage) error
@@ -55,6 +59,7 @@ type Service struct {
 	personalizationReader    PersonalizationReader
 	folderInstructionReader  FolderInstructionReader
 	creditMeter              CreditMeter
+	privacyContextReader     PrivacyContextReader
 }
 
 func (s *Service) SetCreditMeter(meter CreditMeter)              { s.creditMeter = meter }
@@ -65,6 +70,9 @@ func (s *Service) SetPersonalizationReader(reader PersonalizationReader) {
 }
 func (s *Service) SetFolderInstructionReader(reader FolderInstructionReader) {
 	s.folderInstructionReader = reader
+}
+func (s *Service) SetPrivacyContextReader(reader PrivacyContextReader) {
+	s.privacyContextReader = reader
 }
 
 func NewService(

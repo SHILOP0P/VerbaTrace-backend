@@ -3,6 +3,7 @@ package call
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -122,6 +123,14 @@ func (r *Repository) CreateCall(ctx context.Context, call model.Call) (model.Cal
 }
 
 func (r *Repository) CreateCallWithProcessingJob(ctx context.Context, call model.Call, job model.ProcessingJob) (model.Call, error) {
+	return r.createCallWithProcessingJob(ctx, call, job, nil)
+}
+
+func (r *Repository) CreateCallWithProcessingJobAndPrivacy(ctx context.Context, call model.Call, job model.ProcessingJob, state model.CallPrivacyState) (model.Call, error) {
+	return r.createCallWithProcessingJob(ctx, call, job, &state)
+}
+
+func (r *Repository) createCallWithProcessingJob(ctx context.Context, call model.Call, job model.ProcessingJob, privacyState *model.CallPrivacyState) (model.Call, error) {
 	repoCall, err := converter.ModelCallToRepoCall(call)
 	if err != nil {
 		return model.Call{}, model.ErrCallConvert
@@ -248,6 +257,16 @@ func (r *Repository) CreateCallWithProcessingJob(ctx context.Context, call model
 	}
 	if err = insertDiarizationRoles(ctx, tx, call.ID, call.DiarizationRoles); err != nil {
 		return model.Call{}, fmt.Errorf("create call with processing job: %w", err)
+	}
+	if privacyState != nil {
+		snapshot, marshalErr := json.Marshal(privacyState.PolicySnapshot)
+		if marshalErr != nil {
+			return model.Call{}, fmt.Errorf("create call with processing job: marshal privacy snapshot: %w", marshalErr)
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO call_privacy_states(call_uuid,privacy_policy_version_uuid,policy_source,policy_snapshot,marker_contract,status)
+			VALUES($1,$2,$3,$4,$5,$6)`, call.ID, privacyState.PolicyVersionID, privacyState.PolicySource, snapshot, privacyState.MarkerContract, privacyState.Status); err != nil {
+			return model.Call{}, fmt.Errorf("create call with processing job: create privacy state: %w", err)
+		}
 	}
 
 	if err = tx.Commit(); err != nil {

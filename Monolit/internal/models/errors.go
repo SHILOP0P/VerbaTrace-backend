@@ -72,6 +72,7 @@ var ErrInvalidTranscriptionEdit = errors.New("invalid transcription edit")
 var ErrNoTranscriptionChanges = errors.New("no transcription changes")
 var ErrTranscriptionRevisionConflict = errors.New("transcription revision conflict")
 var ErrTranscriptionEditForbidden = errors.New("transcription edit forbidden")
+var ErrRedactedWordEditForbidden = errors.New("redacted word edit forbidden")
 var ErrTranscriptionNotEditable = errors.New("transcription not editable")
 var ErrNoCallsForProcessing = errors.New("no calls for processing")
 

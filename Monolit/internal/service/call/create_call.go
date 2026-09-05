@@ -153,5 +153,16 @@ func (s *Service) createCallRecord(ctx context.Context, call models.Call, now ti
 		UpdatedAt:         now,
 	}
 
+	if s.privacyAdmissionResolver != nil {
+		state, err := s.privacyAdmissionResolver.ResolveCallPrivacy(ctx, call)
+		if err != nil {
+			return models.Call{}, err
+		}
+		if repository, ok := s.repository.(interface {
+			CreateCallWithProcessingJobAndPrivacy(context.Context, models.Call, models.ProcessingJob, models.CallPrivacyState) (models.Call, error)
+		}); ok {
+			return repository.CreateCallWithProcessingJobAndPrivacy(ctx, call, job, state)
+		}
+	}
 	return s.repository.CreateCallWithProcessingJob(ctx, call, job)
 }

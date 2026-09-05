@@ -1,7 +1,8 @@
 package dto
 
 type CreateReportRequest struct {
-	Format string `json:"format"`
+	Format         string `json:"format"`
+	PrivacyVariant string `json:"privacy_variant,omitempty"`
 }
 
 type CreateGlobalReportRequest struct {

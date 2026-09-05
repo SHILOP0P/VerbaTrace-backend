@@ -31,3 +31,7 @@ func (t *Transcriber) Transcribe(ctx context.Context, file models.File) (models.
 		Language: &language,
 	}, nil
 }
+
+func (t *Transcriber) TranscribeRequest(ctx context.Context, request models.TranscriptionRequest) (models.TranscriptionResult, error) {
+	return t.Transcribe(ctx, request.File)
+}
