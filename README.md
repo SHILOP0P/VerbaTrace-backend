@@ -348,9 +348,8 @@ health-check: для него нужна сохранённая приёмка �
 импорта и task-flow. Аренда номера и телефонный трафик в Bitrix24 могут быть
 платными и не входят в локальные автоматические тесты.
 
-Операционные детали: [runbook](docs/runbooks/bitrix24-connector.md), полный
-контракт и Definition of Done:
-[спецификация](docs/specs/bitrix24-connector-call-filters-and-task-writeback.md).
+Операционные детали и порядок приёмки описаны в
+[runbook](docs/runbooks/bitrix24-connector.md).
 
 ## API
 
@@ -1433,5 +1432,4 @@ internal/storage/instruction/ Локальное хранение файлов �
 internal/transcriber/       Абстракция и mock-провайдер транскрибации
 migrations/                 SQL-миграции goose
 docs/runbooks/              Операционные инструкции и real-portal checklist
-docs/specs/                 Контракты, ограничения и Definition of Done
 ```

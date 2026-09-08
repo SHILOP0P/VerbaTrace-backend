@@ -53,6 +53,7 @@ Monolit/logs/
 
 # Local product notes and sketches
 Sketches and ideas/
+docs/specs/
 
 # Docker/local database data
 postgres-data/
