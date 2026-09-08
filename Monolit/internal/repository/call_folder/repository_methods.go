@@ -265,6 +265,7 @@ SELECT c.call_uuid,
        c.department_uuid,
        c.visibility_scope,
        c.skip_custom_instructions,
+       c.transcription_only,
        c.created_at,
        COUNT(*) OVER() AS total
 FROM calls c
@@ -299,6 +300,7 @@ LIMIT $2 OFFSET $3`
 			&call.DepartmentUUID,
 			&call.VisibilityScope,
 			&call.SkipCustomInstructions,
+			&call.TranscriptionOnly,
 			&call.CreatedAt,
 			&total,
 		)

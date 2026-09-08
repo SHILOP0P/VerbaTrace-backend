@@ -25,21 +25,24 @@ func generateReport(format models.ReportFormat, data ReportData) ([]byte, error)
 func generateMarkdownReport(data ReportData) []byte {
 	var b bytes.Buffer
 
-	fmt.Fprintf(&b, "# Отчет по звонку: %s\n\n", data.Call.Title)
+	fmt.Fprintf(&b, "# %s\n\n", data.Title())
 	fmt.Fprintf(&b, "- ID звонка: `%s`\n", data.Call.ID.String())
 	fmt.Fprintf(&b, "- Статус звонка: `%s`\n", data.Call.Status)
 	fmt.Fprintf(&b, "- Длительность: %d сек.\n", data.Call.DurationSeconds)
 	fmt.Fprintf(&b, "- Создан: %s\n", data.Call.CreatedAt.Format(timeLayout))
 	fmt.Fprintf(&b, "- Отчет создан: %s\n\n", data.GeneratedAt.Format(timeLayout))
 
-	fmt.Fprintf(&b, "## Анализ\n\n")
-	fmt.Fprintf(&b, "- ID анализа: `%s`\n", data.Analysis.ID.String())
-	fmt.Fprintf(&b, "- Статус анализа: `%s`\n", data.Analysis.Status)
-	fmt.Fprintf(&b, "- Провайдер: `%s`\n", data.Analysis.Provider)
-	if data.Analysis.Model != nil {
-		fmt.Fprintf(&b, "- Модель: `%s`\n", *data.Analysis.Model)
+	if !data.TranscriptionOnly {
+		fmt.Fprintf(&b, "## Анализ\n\n")
+		fmt.Fprintf(&b, "- ID анализа: `%s`\n", data.Analysis.ID.String())
+		fmt.Fprintf(&b, "- Статус анализа: `%s`\n", data.Analysis.Status)
+		fmt.Fprintf(&b, "- Провайдер: `%s`\n", data.Analysis.Provider)
+		if data.Analysis.Model != nil {
+			fmt.Fprintf(&b, "- Модель: `%s`\n", *data.Analysis.Model)
+		}
+		fmt.Fprintln(&b)
+
 	}
-	fmt.Fprintln(&b)
 
 	for _, section := range data.Sections() {
 		fmt.Fprintf(&b, "## %s\n\n", section.Title)

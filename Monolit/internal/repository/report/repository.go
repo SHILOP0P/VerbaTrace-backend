@@ -24,5 +24,7 @@ const reportColumns = `
 	error_message,
 	created_at,
 	updated_at,
-	expires_at
+	expires_at,
+ content,
+ transcription_revision
 `

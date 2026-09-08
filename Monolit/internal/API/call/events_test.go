@@ -70,3 +70,23 @@ func (s *APISuite) TestEventsStreamsStatusChangesUntilTerminalStatus() {
 	s.Require().Contains(body, `"terminal":false`)
 	s.Require().Contains(body, `"terminal":true`)
 }
+
+func (s *APISuite) TestEventsEndsWhenTranscriptionOnlyCompletes() {
+	callID := uuid.New()
+	userID := uuid.New()
+
+	s.service.On("GetByUUID", mock.Anything, callID, userID).
+		Return(models.Call{ID: callID, TranscriptionOnly: true, Status: models.CallStatusTranscribed, CreatedAt: time.Now().UTC()}, nil).
+		Once()
+
+	rec, req := s.request(http.MethodGet, "/api/v1/calls/"+callID.String()+"/events", "", userID, map[string]string{"uuid": callID.String()})
+
+	s.api.Events(rec, req)
+
+	s.Require().Equal(http.StatusOK, rec.Code)
+	s.Require().Equal("text/event-stream", rec.Header().Get("Content-Type"))
+	s.Require().Contains(rec.Body.String(), "event: status")
+	s.Require().Contains(rec.Body.String(), `"status":"transcribed"`)
+	s.Require().Contains(rec.Body.String(), `"terminal":true`)
+	s.Require().True(rec.Flushed)
+}

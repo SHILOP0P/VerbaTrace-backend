@@ -10,10 +10,12 @@ import (
 )
 
 type ReportData struct {
-	Call              models.Call
-	Analysis          models.CallAnalysis
-	TranscriptionText string
-	GeneratedAt       time.Time
+	TranscriptionOnly     bool
+	TranscriptionRevision int
+	Call                  models.Call
+	Analysis              models.CallAnalysis
+	TranscriptionText     string
+	GeneratedAt           time.Time
 }
 
 func (d ReportData) AnalysisJSONText() string {
@@ -35,4 +37,11 @@ func (d ReportData) AnalysisText() string {
 	}
 
 	return d.AnalysisJSONText()
+}
+
+func (d ReportData) Title() string {
+	if d.TranscriptionOnly {
+		return "Транскрипция звонка: " + d.Call.Title
+	}
+	return "Отчет по звонку: " + d.Call.Title
 }

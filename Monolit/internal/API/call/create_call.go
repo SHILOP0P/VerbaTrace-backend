@@ -100,6 +100,11 @@ func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	processingMode := strings.TrimSpace(r.FormValue("processing_mode"))
+	if processingMode != "" && processingMode != "analyze" && processingMode != "transcribe" {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidRequestBody, "invalid processing mode")
+		return
+	}
 	ext := filepath.Ext(fileHeader.Filename)
 	if ext == "" {
 		response.WriteError(w, http.StatusBadRequest, response.CodeAudioFileExtensionRequired, "audio file extension is required")
@@ -111,6 +116,7 @@ func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 	sizeBytes := req.Media.Size
 
 	input := model.CreateCallInput{
+		TranscriptionOnly:      processingMode == "transcribe",
 		Title:                  title,
 		OriginalFilename:       originalFilename,
 		MimeType:               detectedMimeType,

@@ -438,3 +438,44 @@ func (s *APISuite) TestParseCallPlacementRejectsInvalidUUID() {
 
 	s.Require().ErrorIs(err, models.ErrInvalidCallPlacement)
 }
+
+func (s *APISuite) TestCreateTranscriptionOnlyCall() {
+	userID := uuid.New()
+	callID := uuid.New()
+
+	body, contentType := multipartBody(s.T(), map[string]string{
+		"title":           "Test call",
+		"processing_mode": "transcribe",
+	}, "audio", "call.wav", []byte("RIFF----WAVEfmt "))
+
+	s.service.On("CreateCall", mock.Anything, mock.MatchedBy(func(input models.CreateCallInput) bool {
+		return input.TranscriptionOnly && input.Title == "Test call" &&
+			input.OriginalFilename == "call.wav" &&
+			input.UploadedByUserUUID == userID &&
+			input.VisibilityScope == models.CallVisibilityScopePersonal &&
+			!input.CompanyUUID.Valid &&
+			!input.DepartmentUUID.Valid &&
+			!input.SkipCustomInstructions &&
+			input.Content != nil
+	})).
+		Return(models.Call{
+			ID:                 callID,
+			Title:              "Test call",
+			TranscriptionOnly:  true,
+			Status:             models.CallStatusNew,
+			OriginalFilename:   "call.wav",
+			MimeType:           "audio/wave",
+			SizeBytes:          16,
+			UploadedByUserUUID: uuid.NullUUID{UUID: userID, Valid: true},
+			VisibilityScope:    models.CallVisibilityScopePersonal,
+			CreatedAt:          time.Now().UTC(),
+		}, nil).
+		Once()
+
+	rec, req := s.request(http.MethodPost, "/api/v1/calls", body.String(), userID, nil)
+	req.Header.Set("Content-Type", contentType)
+
+	s.api.Create(rec, req)
+
+	s.Require().Equal(http.StatusCreated, rec.Code)
+}

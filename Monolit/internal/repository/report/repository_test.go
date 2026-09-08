@@ -4,8 +4,12 @@ package report
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"testing"
 	"time"
+
+	transcriptionRepo "verbatrace/monolit/internal/repository/transcription"
 
 	"verbatrace/monolit/internal/models"
 	analysisRepo "verbatrace/monolit/internal/repository/analysis"
@@ -138,4 +142,66 @@ func createReportDependencies(
 	})
 	require.NoError(t, err)
 	return userID, call, analysis
+}
+
+func TestTranscriptionReportsPersistModeAndSeparateVersions(t *testing.T) {
+	db := repositorytest.OpenTestDB(t)
+	repositorytest.RunMigrations(t, db)
+	repositorytest.TruncateTables(t, db)
+	ctx := context.Background()
+	calls := callRepo.NewRepository(db)
+	userID, existing, _ := createReportDependencies(t, ctx, userRepo.NewUserRepository(db), calls, analysisRepo.NewRepository(db))
+	original := existing
+	original.ID = uuid.New()
+	original.Status = models.CallStatusTranscribed
+	original.TranscriptionOnly = true
+	created, err := calls.CreateCall(ctx, original)
+	require.NoError(t, err)
+	require.True(t, created.TranscriptionOnly)
+	loaded, err := calls.GetByUUIDForProcessing(ctx, created.ID)
+	require.NoError(t, err)
+	require.True(t, loaded.TranscriptionOnly)
+	text := "Первоначальный текст"
+	transcripts := transcriptionRepo.NewRepository(db)
+	transcript, err := transcripts.Create(ctx, models.Transcription{ID: uuid.New(), CallUUID: created.ID, Status: models.TranscriptionStatusTranscribed, Text: &text, Provider: "test", CreatedAt: time.Now(), UpdatedAt: time.Now()})
+	require.NoError(t, err)
+	legacy, revision, err := transcripts.GetReportTranscription(ctx, created.ID, 0)
+	require.NoError(t, err)
+	require.Equal(t, 1, revision)
+	require.Equal(t, text, *legacy.Text)
+	for number := 1; number <= 2; number++ {
+		payload, _ := json.Marshal(map[string]any{"text": []string{"", "Версия один", "Версия два"}[number], "segments": []any{}, "words": []any{}})
+		hash := sha256.Sum256(payload)
+		contentID := uuid.New()
+		_, err = db.ExecContext(ctx, `INSERT INTO call_transcription_contents(transcription_content_uuid,transcription_uuid,content_sha256,canonical_size_bytes,payload,created_at) VALUES($1,$2,$3,$4,$5,now())`, contentID, transcript.ID, hash[:], len(payload), payload)
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx, `INSERT INTO call_transcription_revisions(transcription_revision_uuid,transcription_uuid,transcription_content_uuid,revision,reason,changed_word_indexes,created_at) VALUES($1,$2,$3,$4,'test','[]',now())`, uuid.New(), transcript.ID, contentID, number)
+		require.NoError(t, err)
+	}
+	_, err = db.ExecContext(ctx, `INSERT INTO call_transcription_revision_state(transcription_uuid,active_revision,updated_at) VALUES($1,2,now())`, transcript.ID)
+	require.NoError(t, err)
+	active, revision, err := transcripts.GetReportTranscription(ctx, created.ID, 0)
+	require.NoError(t, err)
+	require.Equal(t, 2, revision)
+	require.Equal(t, "Версия два", *active.Text)
+	first, revision, err := transcripts.GetReportTranscription(ctx, created.ID, 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, revision)
+	require.Equal(t, "Версия один", *first.Text)
+	_, _, err = transcripts.GetReportTranscription(ctx, created.ID, 99)
+	require.ErrorIs(t, err, models.ErrTranscriptionNotFound)
+	reports := NewRepository(db)
+	in := models.ReportExport{ID: uuid.New(), CallUUID: created.ID, RequestedByUserUUID: userID, Format: models.ReportFormatMD, Content: "transcription", TranscriptionRevision: 1, Status: models.ReportStatusPending, FileName: "transcript.md", ContentType: "text/markdown", CreatedAt: time.Now(), UpdatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour)}
+	saved, err := reports.Create(ctx, in)
+	require.NoError(t, err)
+	require.Equal(t, uuid.Nil, saved.AnalysisUUID)
+	in.ID = uuid.New()
+	_, err = reports.Create(ctx, in)
+	require.ErrorIs(t, err, models.ErrReportAlreadyExists)
+	in.TranscriptionRevision = 2
+	_, err = reports.Create(ctx, in)
+	require.NoError(t, err)
+	list, err := reports.ListByCallUUID(ctx, created.ID, time.Now())
+	require.NoError(t, err)
+	require.Len(t, list, 2)
 }

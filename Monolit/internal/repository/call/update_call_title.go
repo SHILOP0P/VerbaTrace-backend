@@ -36,6 +36,7 @@ func (r *Repository) UpdateCallTitle(ctx context.Context, id uuid.UUID, userID u
 	          department_uuid,
 	          visibility_scope,
 	          skip_custom_instructions,
+	          transcription_only,
 	          EXISTS (SELECT 1 FROM ingest_items i JOIN developer_applications a USING(application_uuid) WHERE i.ingest_item_uuid=c.ingest_item_uuid AND a.environment='sandbox') AS is_test,
 	          created_at
 	`, visibleToUserCondition("c", "$2"))

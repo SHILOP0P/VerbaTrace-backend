@@ -21,6 +21,7 @@ type Call struct {
 	DepartmentUUID         uuid.NullUUID
 	VisibilityScope        string
 	SkipCustomInstructions bool
+	TranscriptionOnly      bool
 	IsTest                 bool
 	CreatedAt              time.Time
 }

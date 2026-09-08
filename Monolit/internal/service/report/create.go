@@ -26,33 +26,72 @@ func (s *Service) Create(ctx context.Context, input models.CreateReportInput) (m
 		return models.ReportExport{}, err
 	}
 
-	if err := s.requireExportAccess(ctx, call, input.UserUUID); err != nil {
-		return models.ReportExport{}, err
+	if input.Content == "" {
+		input.Content = "full"
 	}
+	if (input.Content != "full" && input.Content != "transcription") || input.TranscriptionRevision < 0 {
+		return models.ReportExport{}, models.ErrInvalidReportInput
+	}
+	if input.Content == "full" {
+		if err := s.requireExportAccess(ctx, call, input.UserUUID); err != nil {
+			return models.ReportExport{}, err
+		}
+	}
+	var analysis models.CallAnalysis
+	if input.Content == "full" {
+		analysis, err = s.analysisRepository.GetByCallUUID(ctx, input.CallUUID)
+		if err != nil {
+			return models.ReportExport{}, err
+		}
+		if analysis.Status != models.CallAnalysisStatusDone {
+			return models.ReportExport{}, models.ErrInvalidAnalysisStatus
+		}
+	}
+	transcriptText := ""
+	revision := 0
 
-	analysis, err := s.analysisRepository.GetByCallUUID(ctx, input.CallUUID)
-	if err != nil {
-		return models.ReportExport{}, err
-	}
-	if analysis.Status != models.CallAnalysisStatusDone {
-		return models.ReportExport{}, models.ErrInvalidAnalysisStatus
+	loader, supportsVersions := s.transcriptionRepository.(interface {
+		GetReportTranscription(context.Context, uuid.UUID, int) (models.Transcription, int, error)
+	})
+	if supportsVersions {
+		transcript, selectedRevision, loadErr := loader.GetReportTranscription(ctx, input.CallUUID, input.TranscriptionRevision)
+		if loadErr != nil {
+			return models.ReportExport{}, loadErr
+		}
+		var names map[string]string
+		if speakers, ok := s.transcriptionRepository.(interface {
+			GetReportSpeakerNames(context.Context, uuid.UUID) (map[string]string, error)
+		}); ok {
+			names, err = speakers.GetReportSpeakerNames(ctx, input.CallUUID)
+			if err != nil {
+				return models.ReportExport{}, err
+			}
+		}
+		transcriptText = formatTranscriptWithSpeakers(transcript, names)
+		revision = selectedRevision
+	} else if input.Content == "transcription" || input.TranscriptionRevision > 0 {
+		return models.ReportExport{}, models.ErrInvalidReportInput
+	} else {
+		transcriptText = s.transcriptionText(ctx, input.CallUUID)
 	}
 
 	now := s.now()
 	reportID := uuid.New()
 	fileName := reportFileName(call.Title, reportID, format)
 	report := models.ReportExport{
-		ID:                  reportID,
-		CallUUID:            input.CallUUID,
-		AnalysisUUID:        analysis.ID,
-		RequestedByUserUUID: input.UserUUID,
-		Format:              format,
-		Status:              models.ReportStatusPending,
-		FileName:            fileName,
-		ContentType:         contentType(format),
-		CreatedAt:           now,
-		UpdatedAt:           now,
-		ExpiresAt:           now.Add(s.retention),
+		Content:               input.Content,
+		TranscriptionRevision: revision,
+		ID:                    reportID,
+		CallUUID:              input.CallUUID,
+		AnalysisUUID:          analysis.ID,
+		RequestedByUserUUID:   input.UserUUID,
+		Format:                format,
+		Status:                models.ReportStatusPending,
+		FileName:              fileName,
+		ContentType:           contentType(format),
+		CreatedAt:             now,
+		UpdatedAt:             now,
+		ExpiresAt:             now.Add(s.retention),
 	}
 
 	report, err = s.reportRepository.Create(ctx, report)
@@ -61,10 +100,12 @@ func (s *Service) Create(ctx context.Context, input models.CreateReportInput) (m
 	}
 
 	data := ReportData{
-		Call:              call,
-		Analysis:          analysis,
-		TranscriptionText: s.transcriptionText(ctx, input.CallUUID),
-		GeneratedAt:       now,
+		TranscriptionOnly:     input.Content == "transcription",
+		TranscriptionRevision: revision,
+		Call:                  call,
+		Analysis:              analysis,
+		TranscriptionText:     transcriptText,
+		GeneratedAt:           now,
 	}
 
 	content, err := generateReport(format, data)

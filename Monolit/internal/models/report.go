@@ -45,26 +45,30 @@ const (
 )
 
 type ReportExport struct {
-	ID                  uuid.UUID
-	CallUUID            uuid.UUID
-	AnalysisUUID        uuid.UUID
-	RequestedByUserUUID uuid.UUID
-	Format              ReportFormat
-	Status              ReportStatus
-	StoragePath         *string
-	FileName            string
-	ContentType         string
-	SizeBytes           int64
-	ErrorMessage        *string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	ExpiresAt           time.Time
+	Content               string
+	TranscriptionRevision int
+	ID                    uuid.UUID
+	CallUUID              uuid.UUID
+	AnalysisUUID          uuid.UUID
+	RequestedByUserUUID   uuid.UUID
+	Format                ReportFormat
+	Status                ReportStatus
+	StoragePath           *string
+	FileName              string
+	ContentType           string
+	SizeBytes             int64
+	ErrorMessage          *string
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	ExpiresAt             time.Time
 }
 
 type CreateReportInput struct {
-	CallUUID uuid.UUID
-	UserUUID uuid.UUID
-	Format   ReportFormat
+	Content               string
+	TranscriptionRevision int
+	CallUUID              uuid.UUID
+	UserUUID              uuid.UUID
+	Format                ReportFormat
 }
 
 type CreateGlobalReportInput struct {

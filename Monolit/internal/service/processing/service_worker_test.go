@@ -270,3 +270,53 @@ func TestWorkerRunBatchProcessesJobs(t *testing.T) {
 		t.Fatalf("mark done error = %v", err)
 	}
 }
+
+func TestTranscriptionOnlyDoesNotEnqueueAnalysis(t *testing.T) {
+	ctx := context.Background()
+	callID := uuid.New()
+	transcriptionID := uuid.New()
+	callRepo := repositoryMocks.NewCallRepository(t)
+	transcriptionRepo := repositoryMocks.NewTranscriptionRepository(t)
+	jobRepo := repositoryMocks.NewProcessingJobRepository(t)
+	audioStorage := storageMocks.NewAudioStorage(t)
+	transcriber := transcriberMocks.NewTranscriber(t)
+	service := NewService(callRepo, transcriptionRepo, jobRepo, audioStorage, transcriber, nil)
+
+	callRepo.EXPECT().GetByUUIDForProcessing(mock.Anything, callID).Return(models.Call{
+		TranscriptionOnly: true, ID: callID, Status: models.CallStatusNew, AudioPath: "call.wav",
+		OriginalFilename: "call.wav", MimeType: "audio/wav",
+	}, nil).Once()
+	callRepo.EXPECT().UpdateCallStatus(mock.Anything, callID, models.CallStatusProcessing).
+		Return(models.Call{TranscriptionOnly: true, ID: callID, Status: models.CallStatusProcessing, AudioPath: "call.wav", OriginalFilename: "call.wav", MimeType: "audio/wav"}, nil).Once()
+	transcriber.EXPECT().Provider().Return("test").Times(2)
+	transcriptionRepo.EXPECT().Create(mock.Anything, mock.MatchedBy(func(value models.Transcription) bool {
+		return value.CallUUID == callID && value.Status == models.TranscriptionStatusProcessing && value.Provider == "test"
+	})).Return(models.Transcription{ID: transcriptionID, CallUUID: callID}, nil).Once()
+	audioStorage.EXPECT().Open(mock.Anything, "call.wav").Return(io.NopCloser(strings.NewReader("audio")), nil).Once()
+	transcriber.EXPECT().Transcribe(mock.Anything, mock.Anything).
+		Return(models.TranscriptionResult{Text: "transcribed", Segments: []models.TranscriptionSegment{{Speaker: "speaker_0", Text: "transcribed"}}}, nil).Once()
+	transcriptionRepo.EXPECT().MarkTranscribed(mock.Anything, transcriptionID, "transcribed", mock.MatchedBy(func(segments []models.TranscriptionSegment) bool {
+		return len(segments) == 0
+	}), mock.MatchedBy(func(words []models.TranscriptionWord) bool {
+		return len(words) == 0
+	}), mock.Anything).
+		Return(models.Transcription{ID: transcriptionID}, nil).Once()
+	callRepo.EXPECT().UpdateCallStatus(mock.Anything, callID, models.CallStatusTranscribed).
+		Return(models.Call{ID: callID, Status: models.CallStatusTranscribed}, nil).Once()
+
+	if err := service.ProcessTranscribeCall(ctx, callID); err != nil {
+		t.Fatalf("ProcessTranscribeCall: %v", err)
+	}
+}
+
+func TestTranscriptionOnlyRetryDoesNotEnqueueAnalysis(t *testing.T) {
+	callRepo := repositoryMocks.NewCallRepository(t)
+	transcriptRepo := repositoryMocks.NewTranscriptionRepository(t)
+	jobRepo := repositoryMocks.NewProcessingJobRepository(t)
+	provider := transcriberMocks.NewTranscriber(t)
+	service := NewService(callRepo, transcriptRepo, jobRepo, nil, provider, nil)
+	err := service.processTranscribeCall(context.Background(), models.Call{ID: uuid.New(), Status: models.CallStatusTranscribed, TranscriptionOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

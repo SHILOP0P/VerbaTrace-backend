@@ -92,6 +92,9 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 	}
 
 	if call.Status == models.CallStatusTranscribed {
+		if call.TranscriptionOnly {
+			return nil
+		}
 		if err := s.enqueueAnalyzeJob(ctx, call.ID); err != nil {
 			return fmt.Errorf("enqueue analysis job: %w", err)
 		}
@@ -204,10 +207,11 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 		}
 	}
 
-	if err = s.enqueueAnalyzeJob(ctx, call.ID); err != nil {
-		return fmt.Errorf("enqueue analysis job: %w", err)
+	if !call.TranscriptionOnly {
+		if err = s.enqueueAnalyzeJob(ctx, call.ID); err != nil {
+			return fmt.Errorf("enqueue analysis job: %w", err)
+		}
 	}
-
 	s.log.Info(ctx, "call transcribed", zap.String("call_id", call.ID.String()), zap.String("provider", providerForMode(provider, mode)), zap.String("transcription_mode", string(mode)), zap.Duration("stt_duration", time.Since(sttStartedAt)), zap.Duration("transcription_end_to_end_duration", time.Since(startedAt)))
 
 	return nil

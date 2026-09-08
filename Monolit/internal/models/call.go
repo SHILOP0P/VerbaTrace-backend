@@ -22,6 +22,7 @@ type Call struct {
 	DepartmentUUID            uuid.NullUUID
 	VisibilityScope           CallVisibilityScope
 	SkipCustomInstructions    bool
+	TranscriptionOnly         bool
 	IsTest                    bool
 	FolderUUID                uuid.NullUUID
 	SpeakerHints              []SpeakerHint
@@ -67,6 +68,7 @@ type CreateCallInput struct {
 	DepartmentUUID         uuid.NullUUID
 	VisibilityScope        CallVisibilityScope
 	SkipCustomInstructions bool
+	TranscriptionOnly      bool
 	FolderUUID             uuid.NullUUID
 	SpeakerHints           []SpeakerHint
 	DiarizationRoles       []DiarizationRole

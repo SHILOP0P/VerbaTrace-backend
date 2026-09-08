@@ -31,45 +31,56 @@ func generateXLSXReport(data ReportData) ([]byte, error) {
 		{"Модель", optionalString(data.Analysis.Model)},
 	})
 
-	analysisSheet := "Анализ"
-	if _, err := file.NewSheet(analysisSheet); err != nil {
-		return nil, fmt.Errorf("create analysis sheet: %w", err)
+	if data.TranscriptionOnly {
+		for row := 12; row >= 8; row-- {
+			if err := file.RemoveRow(metaSheet, row); err != nil {
+				return nil, err
+			}
+		}
+		_ = file.SetCellValue(metaSheet, "A8", "Версия транскрипции")
+		_ = file.SetCellValue(metaSheet, "B8", data.TranscriptionRevision)
 	}
-	setRows(file, analysisSheet, sectionRows(data.Sections()))
+	if !data.TranscriptionOnly {
+		analysisSheet := "Анализ"
+		if _, err := file.NewSheet(analysisSheet); err != nil {
+			return nil, fmt.Errorf("create analysis sheet: %w", err)
+		}
+		setRows(file, analysisSheet, sectionRows(data.Sections()))
 
-	if len(analysis.ClientQuestions) > 0 {
-		questionsSheet := "Вопросы"
-		if _, err := file.NewSheet(questionsSheet); err != nil {
-			return nil, fmt.Errorf("create questions sheet: %w", err)
+		if len(analysis.ClientQuestions) > 0 {
+			questionsSheet := "Вопросы"
+			if _, err := file.NewSheet(questionsSheet); err != nil {
+				return nil, fmt.Errorf("create questions sheet: %w", err)
+			}
+			rows := [][]any{{"Вопрос", "Ответ менеджера", "Статус", "Цитаты"}}
+			for _, question := range analysis.ClientQuestions {
+				rows = append(rows, []any{
+					question.Question,
+					question.ManagerAnswer,
+					answerStatusLabel(question.AnswerStatus),
+					strings.Join(question.EvidenceQuotes, "\n"),
+				})
+			}
+			setRows(file, questionsSheet, rows)
 		}
-		rows := [][]any{{"Вопрос", "Ответ менеджера", "Статус", "Цитаты"}}
-		for _, question := range analysis.ClientQuestions {
-			rows = append(rows, []any{
-				question.Question,
-				question.ManagerAnswer,
-				answerStatusLabel(question.AnswerStatus),
-				strings.Join(question.EvidenceQuotes, "\n"),
-			})
+
+		if len(analysis.CriteriaResults) > 0 {
+			criteriaSheet := "Критерии"
+			if _, err := file.NewSheet(criteriaSheet); err != nil {
+				return nil, fmt.Errorf("create criteria sheet: %w", err)
+			}
+			rows := [][]any{{"Критерий", "Результат", "Цитаты"}}
+			for _, criterion := range analysis.CriteriaResults {
+				rows = append(rows, []any{
+					criterion.InstructionTitle,
+					criterion.Result,
+					strings.Join(criterion.EvidenceQuotes, "\n"),
+				})
+			}
+			setRows(file, criteriaSheet, rows)
 		}
-		setRows(file, questionsSheet, rows)
+
 	}
-
-	if len(analysis.CriteriaResults) > 0 {
-		criteriaSheet := "Критерии"
-		if _, err := file.NewSheet(criteriaSheet); err != nil {
-			return nil, fmt.Errorf("create criteria sheet: %w", err)
-		}
-		rows := [][]any{{"Критерий", "Результат", "Цитаты"}}
-		for _, criterion := range analysis.CriteriaResults {
-			rows = append(rows, []any{
-				criterion.InstructionTitle,
-				criterion.Result,
-				strings.Join(criterion.EvidenceQuotes, "\n"),
-			})
-		}
-		setRows(file, criteriaSheet, rows)
-	}
-
 	if data.TranscriptionText != "" {
 		transcriptionSheet := "Транскрипция"
 		if _, err := file.NewSheet(transcriptionSheet); err != nil {
@@ -95,6 +106,25 @@ func setRows(file *excelize.File, sheet string, rows [][]any) {
 		cell, _ := excelize.CoordinatesToCellName(1, rowIndex+1)
 		_ = file.SetSheetRow(sheet, cell, &row)
 	}
+	headerStyle, _ := file.NewStyle(&excelize.Style{Font: &excelize.Font{Bold: true, Color: "FFFFFF"}, Fill: excelize.Fill{Type: "pattern", Color: []string{"263449"}, Pattern: 1}, Alignment: &excelize.Alignment{Vertical: "center", WrapText: true}})
+	bodyStyle, _ := file.NewStyle(&excelize.Style{Font: &excelize.Font{Color: "263449"}, Alignment: &excelize.Alignment{Vertical: "top", WrapText: true}})
+	stripeStyle, _ := file.NewStyle(&excelize.Style{Font: &excelize.Font{Color: "263449"}, Fill: excelize.Fill{Type: "pattern", Color: []string{"FFF0E7"}, Pattern: 1}, Alignment: &excelize.Alignment{Vertical: "top", WrapText: true}})
+	for i, row := range rows {
+		if len(row) == 0 {
+			continue
+		}
+		end, _ := excelize.CoordinatesToCellName(len(row), i+1)
+		start, _ := excelize.CoordinatesToCellName(1, i+1)
+		style := bodyStyle
+		if i == 0 {
+			style = headerStyle
+		} else if i%2 == 0 {
+			style = stripeStyle
+		}
+		_ = file.SetCellStyle(sheet, start, end, style)
+	}
+	_ = file.SetRowHeight(sheet, 1, 28)
+	_ = file.SetPanes(sheet, &excelize.Panes{Freeze: true, YSplit: 1, TopLeftCell: "A2", ActivePane: "bottomLeft"})
 	_ = file.SetColWidth(sheet, "A", "A", 24)
 	_ = file.SetColWidth(sheet, "B", "B", 100)
 	_ = file.SetColWidth(sheet, "C", "D", 60)

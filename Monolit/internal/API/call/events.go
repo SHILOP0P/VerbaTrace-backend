@@ -58,7 +58,7 @@ func (h *CallHandler) Events(w http.ResponseWriter, r *http.Request) {
 	if err := writeCallStatusEvent(w, flusher, call); err != nil {
 		return
 	}
-	if isTerminalCallStatus(lastStatus) {
+	if isTerminalCallStatus(lastStatus) || (call.TranscriptionOnly && lastStatus == models.CallStatusTranscribed) {
 		return
 	}
 
@@ -84,7 +84,7 @@ func (h *CallHandler) Events(w http.ResponseWriter, r *http.Request) {
 			if err := writeCallStatusEvent(w, flusher, call); err != nil {
 				return
 			}
-			if isTerminalCallStatus(lastStatus) {
+			if isTerminalCallStatus(lastStatus) || (call.TranscriptionOnly && lastStatus == models.CallStatusTranscribed) {
 				return
 			}
 		}
@@ -95,7 +95,7 @@ func writeCallStatusEvent(w http.ResponseWriter, flusher http.Flusher, call mode
 	event := dto.CallStatusEvent{
 		CallID:    call.ID.String(),
 		Status:    string(call.Status),
-		Terminal:  isTerminalCallStatus(call.Status),
+		Terminal:  isTerminalCallStatus(call.Status) || (call.TranscriptionOnly && call.Status == models.CallStatusTranscribed),
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}
 

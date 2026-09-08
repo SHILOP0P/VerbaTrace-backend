@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -39,30 +40,37 @@ func documentXML(data ReportData) string {
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`)
 	b.WriteString(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>`)
-	docxParagraph(&b, "Отчет по звонку: "+data.Call.Title)
+	docxHeading(&b, data.Title(), 36)
 	docxParagraph(&b, "ID звонка: "+data.Call.ID.String())
 	docxParagraph(&b, "Статус звонка: "+string(data.Call.Status))
 	docxParagraph(&b, fmt.Sprintf("Длительность: %d сек.", data.Call.DurationSeconds))
 	docxParagraph(&b, "Создан: "+data.Call.CreatedAt.Format(timeLayout))
 	docxParagraph(&b, "Отчет создан: "+data.GeneratedAt.Format(timeLayout))
 	docxParagraph(&b, "")
-	docxParagraph(&b, "Анализ")
-	docxParagraph(&b, "ID анализа: "+data.Analysis.ID.String())
-	docxParagraph(&b, "Статус анализа: "+string(data.Analysis.Status))
-	docxParagraph(&b, "Провайдер: "+data.Analysis.Provider)
-	if data.Analysis.Model != nil {
-		docxParagraph(&b, "Модель: "+*data.Analysis.Model)
+	if !data.TranscriptionOnly {
+		docxParagraph(&b, "Анализ")
+		docxParagraph(&b, "ID анализа: "+data.Analysis.ID.String())
+		docxParagraph(&b, "Статус анализа: "+string(data.Analysis.Status))
+		docxParagraph(&b, "Провайдер: "+data.Analysis.Provider)
+		if data.Analysis.Model != nil {
+			docxParagraph(&b, "Модель: "+*data.Analysis.Model)
+		}
+
 	}
 
 	for _, section := range data.Sections() {
 		docxParagraph(&b, "")
-		docxParagraph(&b, section.Title)
+		docxHeading(&b, section.Title, 26)
 		for _, row := range section.Rows {
 			if row.Label != "" && row.Value != "" {
 				docxParagraph(&b, row.Label+": "+row.Value)
 			} else if row.Value != "" {
 				for _, paragraph := range splitParagraphs(row.Value) {
-					docxParagraph(&b, paragraph)
+					if strings.HasPrefix(section.Title, "Транскрипция") {
+						docxTranscriptParagraph(&b, paragraph)
+					} else {
+						docxParagraph(&b, paragraph)
+					}
 				}
 			} else if row.Label != "" {
 				docxParagraph(&b, row.Label+":")
@@ -79,7 +87,7 @@ func documentXML(data ReportData) string {
 }
 
 func docxParagraph(b *strings.Builder, text string) {
-	b.WriteString(`<w:p><w:r><w:t xml:space="preserve">`)
+	b.WriteString(`<w:p><w:pPr><w:spacing w:after="120" w:line="300" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="22"/></w:rPr><w:t xml:space="preserve">`)
 	b.WriteString(xmlEscape(text))
 	b.WriteString(`</w:t></w:r></w:p>`)
 }
@@ -105,3 +113,22 @@ const relsXML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`
+
+func docxHeading(b *strings.Builder, text string, size int) {
+	fmt.Fprintf(b, `<w:p><w:pPr><w:keepNext/><w:shd w:fill="FFF0E7"/><w:pBdr><w:left w:val="single" w:sz="18" w:space="8" w:color="E56536"/></w:pBdr><w:spacing w:before="240" w:after="180"/></w:pPr><w:r><w:rPr><w:b/><w:color w:val="263449"/><w:sz w:val="%d"/></w:rPr><w:t xml:space="preserve">%s</w:t></w:r></w:p>`, size, xmlEscape(text))
+}
+
+var transcriptHeading = regexp.MustCompile(`^.+ · \d{2,}:\d{2}(?::\d{2})? – \d{2,}:\d{2}(?::\d{2})?$`)
+
+func docxTranscriptParagraph(b *strings.Builder, text string) {
+	if strings.TrimSpace(text) == "" {
+		docxParagraph(b, "")
+		return
+	}
+	fill, color, emphasis := "F6F8FB", "263449", ""
+	keepNext := ""
+	if transcriptHeading.MatchString(text) {
+		fill, color, emphasis, keepNext = "FFF0E7", "9D3A19", "<w:b/>", "<w:keepNext/>"
+	}
+	fmt.Fprintf(b, `<w:p><w:pPr>%s<w:shd w:fill="%s"/><w:pBdr><w:left w:val="single" w:sz="12" w:space="8" w:color="E56536"/></w:pBdr><w:spacing w:after="100" w:line="300" w:lineRule="auto"/><w:ind w:left="160" w:right="160"/></w:pPr><w:r><w:rPr>%s<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:color w:val="%s"/><w:sz w:val="22"/></w:rPr><w:t xml:space="preserve">%s</w:t></w:r></w:p>`, keepNext, fill, emphasis, color, xmlEscape(text))
+}

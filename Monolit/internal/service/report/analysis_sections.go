@@ -98,6 +98,9 @@ func (a *analysisReport) normalize(fallback string) {
 }
 
 func (d ReportData) Sections() []reportSection {
+	if d.TranscriptionOnly {
+		return []reportSection{{Title: fmt.Sprintf("Транскрипция · версия %d", d.TranscriptionRevision), Rows: []reportRow{{Value: d.TranscriptionText}}}}
+	}
 	analysis := d.StructuredAnalysis()
 	sections := []reportSection{
 		{

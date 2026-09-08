@@ -16,6 +16,7 @@ type CreateCallRequest struct {
 }
 
 type CallResponse struct {
+	TranscriptionOnly     bool                      `json:"transcription_only"`
 	ID                    string                    `json:"id"`
 	Title                 string                    `json:"title"`
 	Status                string                    `json:"status"`

@@ -172,6 +172,8 @@ func prefixedReportColumns(alias string) string {
 		"created_at",
 		"updated_at",
 		"expires_at",
+		"content",
+		"transcription_revision",
 	}
 
 	for i, column := range columns {

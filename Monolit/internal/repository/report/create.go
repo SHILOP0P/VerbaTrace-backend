@@ -7,10 +7,18 @@ import (
 
 	"verbatrace/monolit/internal/models"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func (r *Repository) Create(ctx context.Context, report models.ReportExport) (models.ReportExport, error) {
+	if report.Content == "" {
+		report.Content = "full"
+	}
+	var analysisID any
+	if report.AnalysisUUID != uuid.Nil {
+		analysisID = report.AnalysisUUID
+	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return models.ReportExport{}, fmt.Errorf("begin create report export: %w", err)
@@ -20,7 +28,7 @@ func (r *Repository) Create(ctx context.Context, report models.ReportExport) (mo
 		return models.ReportExport{}, fmt.Errorf("lock create report export: %w", err)
 	}
 	var exists bool
-	if err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM call_report_exports WHERE call_uuid=$1 AND format=$2 AND status IN ('pending','ready') AND expires_at>now())", report.CallUUID, report.Format).Scan(&exists); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM call_report_exports WHERE call_uuid=$1 AND format=$2 AND content=$3 AND transcription_revision=$4 AND analysis_uuid IS NOT DISTINCT FROM $5::uuid AND status IN ('pending','ready') AND expires_at>now())", report.CallUUID, report.Format, report.Content, report.TranscriptionRevision, analysisID).Scan(&exists); err != nil {
 		return models.ReportExport{}, fmt.Errorf("check duplicate report export: %w", err)
 	}
 	if exists {
@@ -41,9 +49,9 @@ func (r *Repository) Create(ctx context.Context, report models.ReportExport) (mo
 		error_message,
 		created_at,
 		updated_at,
-		expires_at
+		expires_at, content, transcription_revision
 	) VALUES (
-		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 	)
 	RETURNING ` + reportColumns
 
@@ -52,7 +60,7 @@ func (r *Repository) Create(ctx context.Context, report models.ReportExport) (mo
 		query,
 		report.ID,
 		report.CallUUID,
-		report.AnalysisUUID,
+		analysisID,
 		report.RequestedByUserUUID,
 		report.Format,
 		report.Status,
@@ -63,7 +71,7 @@ func (r *Repository) Create(ctx context.Context, report models.ReportExport) (mo
 		report.ErrorMessage,
 		report.CreatedAt,
 		report.UpdatedAt,
-		report.ExpiresAt,
+		report.ExpiresAt, report.Content, report.TranscriptionRevision,
 	)
 
 	created, err := scanReport(row)

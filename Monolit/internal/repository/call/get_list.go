@@ -34,6 +34,7 @@ func (r *Repository) List(ctx context.Context, userID uuid.UUID) ([]model.Call, 
 	       department_uuid,
 	       visibility_scope,
 	       skip_custom_instructions,
+	       transcription_only,
 	       EXISTS (SELECT 1 FROM ingest_items i JOIN developer_applications a USING(application_uuid) WHERE i.ingest_item_uuid=c.ingest_item_uuid AND a.environment='sandbox') AS is_test,
 	       created_at
 	FROM calls c
@@ -84,6 +85,7 @@ func (r *Repository) ListFiltered(ctx context.Context, input model.ListCallsInpu
 	       c.department_uuid,
 	       c.visibility_scope,
 	       c.skip_custom_instructions,
+	       c.transcription_only,
 	       EXISTS (SELECT 1 FROM ingest_items i JOIN developer_applications a USING(application_uuid) WHERE i.ingest_item_uuid=c.ingest_item_uuid AND a.environment='sandbox') AS is_test,
 	       c.created_at,
 	       c.occurred_at,
@@ -137,6 +139,7 @@ func (r *Repository) ListFiltered(ctx context.Context, input model.ListCallsInpu
 			&call.DepartmentUUID,
 			&call.VisibilityScope,
 			&call.SkipCustomInstructions,
+			&call.TranscriptionOnly,
 			&call.IsTest,
 			&call.CreatedAt,
 			&occurredAt,

@@ -5,30 +5,39 @@ import (
 
 	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/models"
+
+	"github.com/google/uuid"
 )
 
 func ReportModelToAPI(report models.ReportExport) (dto.ReportResponse, error) {
 	var downloadURL *string
+	var analysisID *string
+	if report.AnalysisUUID != uuid.Nil {
+		value := report.AnalysisUUID.String()
+		analysisID = &value
+	}
 	if report.Status == models.ReportStatusReady {
 		value := "/api/v1/reports/" + report.ID.String() + "/download"
 		downloadURL = &value
 	}
 
 	return dto.ReportResponse{
-		ID:                  report.ID.String(),
-		CallUUID:            report.CallUUID.String(),
-		AnalysisUUID:        report.AnalysisUUID.String(),
-		RequestedByUserUUID: report.RequestedByUserUUID.String(),
-		Format:              string(report.Format),
-		Status:              string(report.Status),
-		FileName:            report.FileName,
-		ContentType:         report.ContentType,
-		SizeBytes:           report.SizeBytes,
-		ErrorMessage:        report.ErrorMessage,
-		DownloadURL:         downloadURL,
-		CreatedAt:           report.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:           report.UpdatedAt.Format(time.RFC3339),
-		ExpiresAt:           report.ExpiresAt.Format(time.RFC3339),
+		Content:               report.Content,
+		TranscriptionRevision: report.TranscriptionRevision,
+		ID:                    report.ID.String(),
+		CallUUID:              report.CallUUID.String(),
+		AnalysisUUID:          analysisID,
+		RequestedByUserUUID:   report.RequestedByUserUUID.String(),
+		Format:                string(report.Format),
+		Status:                string(report.Status),
+		FileName:              report.FileName,
+		ContentType:           report.ContentType,
+		SizeBytes:             report.SizeBytes,
+		ErrorMessage:          report.ErrorMessage,
+		DownloadURL:           downloadURL,
+		CreatedAt:             report.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:             report.UpdatedAt.Format(time.RFC3339),
+		ExpiresAt:             report.ExpiresAt.Format(time.RFC3339),
 	}, nil
 }
 

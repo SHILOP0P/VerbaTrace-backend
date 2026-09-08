@@ -38,9 +38,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	report, err := h.service.Create(r.Context(), models.CreateReportInput{
-		CallUUID: callUUID,
-		UserUUID: userID,
-		Format:   models.ReportFormat(req.Format),
+		Content:               req.Content,
+		TranscriptionRevision: req.TranscriptionRevision,
+		CallUUID:              callUUID,
+		UserUUID:              userID,
+		Format:                models.ReportFormat(req.Format),
 	})
 	if err != nil {
 		writeReportError(w, err, response.CodeFailedToCreateReport)
@@ -59,6 +61,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 func writeReportError(w http.ResponseWriter, err error, fallbackCode string) {
 	if errors.Is(err, models.ErrCallNotFound) {
 		response.WriteError(w, http.StatusNotFound, response.CodeCallNotFound, "call not found")
+		return
+	}
+	if errors.Is(err, models.ErrTranscriptionNotFound) {
+		response.WriteError(w, http.StatusConflict, response.CodeReportNotReady, "transcription version is not ready")
 		return
 	}
 	if errors.Is(err, models.ErrAnalysisNotFound) {

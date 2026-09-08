@@ -32,6 +32,8 @@ func scanReport(row rowScanner) (models.ReportExport, error) {
 		&report.CreatedAt,
 		&report.UpdatedAt,
 		&report.ExpiresAt,
+		&report.Content,
+		&report.TranscriptionRevision,
 	); err != nil {
 		return models.ReportExport{}, err
 	}
@@ -92,6 +94,8 @@ func scanReportWithSuffix(row rowScanner, suffix ...any) (models.ReportExport, e
 		&report.CreatedAt,
 		&report.UpdatedAt,
 		&report.ExpiresAt,
+		&report.Content,
+		&report.TranscriptionRevision,
 	}
 	dest = append(dest, suffix...)
 
