@@ -41,6 +41,7 @@ VerbaTrace — платформа анализа аудио- и видеозво
 - Logout и logout-all через отзыв refresh session.
 - Ручка текущего пользователя.
 - Загрузка звонка с аудио- или видеофайлом.
+- Выбор обработки при одиночной и пакетной загрузке: только транскрибация либо транскрибация с последующим анализом.
 - Проверка типа медиафайла.
 - Определение длительности медиа через `ffprobe`.
 - Локальное сохранение исходного медиа и отдельный внутренний ASR-кэш `asr.ogg` (mono 16 kHz, Opus 24 kbit/s) для облачной транскрибации; оригинал сохраняется для воспроизведения и используется только как fallback.
@@ -48,6 +49,7 @@ VerbaTrace — платформа анализа аудио- и видеозво
 - Очередь `processing_jobs` и worker для фоновой транскрибации и анализа.
 - Абстракция transcriber с mock- и AssemblyAI-провайдерами; штатный production-путь транскрибации — AssemblyAI.
 - Сохранение транскрипций звонков в `call_transcriptions`.
+- Неизменяемые версии транскрипции, исправление текста и спикеров, сравнение версий и безопасный повторный анализ.
 - Управление инструкциями анализа в форматах MD, PDF, DOCX и XLSX для личного, корпоративного и отделского scope.
 - Неизменяемая история версий файлов инструкций, скачивание конкретной версии и снимки инструкций, фактически применённых при анализе звонка.
 - Мягкое удаление инструкций с исключением из рабочих списков; окончательная очистка выполняется retention worker только после исчезновения исторических ссылок.
@@ -61,8 +63,10 @@ VerbaTrace — платформа анализа аудио- и видеозво
 - Разделение учётных данных (`users`) и редактируемого профиля (`user_profiles`).
 - Приглашения в компанию и отдел с подтверждением пользователем.
 - Глобальный поиск по видимым звонкам, компаниям, отчетам и инструкциям.
-- Уведомления для bell с read/unread API; автоматическое создание подключено для invitation-событий.
+- Уведомления для bell с read/unread и SSE API; автоматическое создание подключено для приглашений, действий, Bitrix24-синхронизации и support-доступа.
 - Human QA с очередью проверок, черновиком, публикацией неизменяемой ревизии, апелляциями и журналом событий.
+- Политики защиты данных для личного, корпоративного и отделского scope: смысловая маскировка, предпросмотр, версии, аудит, контроль доступа к оригиналу и очищенная медиаверсия.
+- Экспорт полного отчёта или только выбранной версии транскрипции в PDF, DOCX, Markdown и XLSX; транскрипционный экспорт доступен без анализа.
 - Действия по итогам звонка со сроком, ответственным, evidence, сменой статуса, переносом и аудитом изменений.
 - Credit ledger с reserve/settle/release/reconciliation, sandbox-балансами, тарифными лимитами и dashboard расхода.
 - Developer applications, scoped API keys, URL/multipart ingest, idempotency/dedup, retry/cancel, audit и подписанные webhooks.
@@ -100,7 +104,7 @@ flowchart LR
     department_members["department_members<br/>department_uuid FK<br/>user_uuid FK<br/>role<br/>status<br/>created_at"]
     membership_invitations["membership_invitations<br/>invitation_uuid PK<br/>company_uuid FK<br/>department_uuid FK nullable<br/>invited_user_uuid FK<br/>invited_by_user_uuid FK<br/>company_role<br/>department_role nullable<br/>status<br/>expires_at<br/>responded_at nullable<br/>created_at<br/>updated_at"]
     notifications["notifications<br/>notification_uuid PK<br/>user_uuid FK<br/>type<br/>title<br/>body<br/>entity_type nullable<br/>entity_uuid nullable<br/>read_at nullable<br/>created_at"]
-    calls["calls<br/>call_uuid PK<br/>title<br/>status<br/>audio_path<br/>original_filename<br/>mime_type<br/>size_bytes<br/>duration_seconds<br/>uploaded_by_user_uuid FK<br/>company_uuid FK nullable<br/>department_uuid FK nullable<br/>visibility_scope<br/>created_at"]
+    calls["calls<br/>call_uuid PK<br/>title<br/>status<br/>audio_path<br/>original_filename<br/>mime_type<br/>size_bytes<br/>duration_seconds<br/>uploaded_by_user_uuid FK<br/>company_uuid FK nullable<br/>department_uuid FK nullable<br/>visibility_scope<br/>transcription_only<br/>created_at"]
     processing_jobs["processing_jobs<br/>job_uuid PK<br/>type<br/>entity_uuid<br/>status<br/>attempts<br/>available_at<br/>created_at<br/>updated_at"]
     call_transcriptions["call_transcriptions<br/>transcription_uuid PK<br/>call_uuid FK unique<br/>status<br/>text<br/>language<br/>provider<br/>error_message<br/>created_at<br/>updated_at"]
     analysis_instructions["analysis_instructions<br/>instruction_uuid PK<br/>scope<br/>user_uuid nullable<br/>company_uuid nullable<br/>department_uuid nullable<br/>file_path<br/>is_active<br/>created_at<br/>updated_at"]
@@ -176,7 +180,7 @@ flowchart LR
 - `analyzed` - по транскрипту построен анализ.
 - `failed` - обработка завершилась ошибкой.
 
-`new` используется как состояние очереди. Worker забирает задания `transcribe_call`, переводит звонок в `processing`, сохраняет транскрипцию, переводит звонок в `transcribed` и ставит в очередь задание `analyze_call`. Задание анализа загружает готовую транскрипцию, выбирает подходящие инструкции, сохраняет результат в `call_analyses` и при успехе переводит звонок в `analyzed`. HTTP-ручка анализа ставит `analyze_call` job для ручного запуска по готовой транскрипции.
+`new` используется как состояние очереди. Worker забирает задания `transcribe_call`, переводит звонок в `processing`, сохраняет транскрипцию и переводит звонок в `transcribed`. В обычном режиме после этого ставится `analyze_call`; при `transcription_only=true` обработка завершается без автоматического анализа. Задание анализа загружает готовую транскрипцию, выбирает подходящие инструкции, сохраняет результат в `call_analyses` и при успехе переводит звонок в `analyzed`. HTTP-ручка анализа позволяет позже запустить анализ готовой транскрипции вручную.
 
 Статусы транскрипции:
 
@@ -446,6 +450,11 @@ Calls:
 | GET | `/api/v1/calls/{uuid}/audio` | Да | Получить аудиофайл звонка |
 | GET | `/api/v1/calls/{uuid}/media` | Да | Получить исходное аудио или видео звонка |
 | GET | `/api/v1/calls/{uuid}/transcription` | Да | Получить сохраненную транскрипцию звонка |
+| PATCH | `/api/v1/calls/{uuid}/transcription` | Да | Сохранить исправление транскрипции новой версией |
+| GET | `/api/v1/calls/{uuid}/transcription/revisions` | Да | Получить историю версий транскрипции |
+| GET | `/api/v1/calls/{uuid}/transcription/revisions/{revision}` | Да | Получить конкретную версию транскрипции |
+| POST | `/api/v1/calls/{uuid}/transcription/revisions/{revision}/restore` | Да | Восстановить версию как новую активную |
+| GET/PUT | `/api/v1/calls/{uuid}/transcription/speakers` | Да | Получить или заменить назначения спикеров |
 | POST | `/api/v1/calls/{uuid}/analysis` | Да | Поставить `analyze_call` job по готовой транскрипции |
 | GET | `/api/v1/calls/{uuid}/analysis` | Да | Получить сохраненный анализ звонка |
 | POST | `/api/v1/calls/{uuid}/reports` | Да | Создать отчет по одному видимому звонку |
@@ -456,6 +465,13 @@ Calls:
 | DELETE | `/api/v1/reports/{report_uuid}` | Да | Удалить отчет |
 | PATCH | `/api/v1/calls/{uuid}` | Да | Обновить title звонка |
 | DELETE | `/api/v1/calls/{uuid}` | Да | Удалить звонок и аудиофайл |
+
+`POST /api/v1/calls` принимает multipart-поле `processing_mode`: `transcribe`
+завершает обработку после транскрипции, `analyze` запускает последующий анализ.
+Отсутствие поля сохраняет прежнее поведение `analyze`. Неизвестное значение
+возвращает `400 invalid_request_body`. Режим только транскрибации доступен на
+всех тарифах; обычные правила доступа, хранения и списания за транскрибацию
+сохраняются.
 
 Ответ `GET /api/v1/calls/{uuid}/transcription` содержит `words` — упорядоченный
 массив слов с `start_seconds`, `end_seconds`, необязательными `confidence` и
@@ -472,9 +488,15 @@ Calls:
   "id": "call_uuid",
   "audio_url": "/api/v1/calls/{uuid}/audio",
   "media_url": "/api/v1/calls/{uuid}/media",
-  "media_kind": "audio | video"
+  "media_kind": "audio | video",
+  "transcription_only": true
 }
 ```
+
+Для транскрипции доступны история неизменяемых версий, получение конкретной
+версии, исправление текста и назначений спикеров, сравнение версий и установка
+активной версии. Повторный анализ явно запускается для выбранной версии и не
+перезаписывает историю транскрипции.
 
 `GET /api/v1/calls/{uuid}/audio`:
 
@@ -579,9 +601,35 @@ Call folders:
 
 Назначение звонка проверяет совпадение scope: personal-папка принимает только personal-звонок владельца, company-папка только звонки этой компании, department-папка только звонки этой компании и отдела. Несовпадение возвращает `400 call_folder_scope_mismatch`. Удаленная папка не возвращается в списках и не принимает новые назначения. `GET /api/v1/calls/filters` пока не возвращает список папок.
 
+Privacy and protected media:
+
+| Method | Path | Описание |
+| --- | --- | --- |
+| GET; PUT draft; POST preview/publish | `/api/v1/privacy-policies/personal[...]` | Личная политика: чтение, черновик, предпросмотр и публикация |
+| GET; PUT draft; POST preview/publish | `/api/v1/companies/{company_uuid}/privacy-policy[...]` | Политика компании |
+| GET; PUT draft; POST preview/publish | `/api/v1/companies/{company_uuid}/departments/{department_uuid}/privacy-policy[...]` | Политика отдела |
+| GET | `/api/v1/calls/{uuid}/privacy` | Состояние защиты конкретного звонка |
+| POST/GET | `/api/v1/calls/{uuid}/media-variants/redacted` | Создать или получить очищенную медиаверсию |
+| POST | `/api/v1/calls/{uuid}/media-access-sessions` | Получить ограниченную сессию доступа к оригиналу |
+| POST | `/api/v1/calls/{uuid}/privacy-corrections[/preview]` | Предпросмотреть или применить исправление маскировки |
+| GET | `/api/v1/calls/{uuid}/privacy-audit` | Получить журнал защиты звонка |
+
+Политика выбирается по scope звонка и сохраняется снимком. Анализ использует
+защищённое представление транскрипции. Для видео очищается только звуковая
+дорожка; видеоряд не размывается. Доступ к оригиналу проверяется отдельно и
+аудируется.
+
 Reports:
 
 `POST /api/v1/calls/{uuid}/reports` и `POST /api/v1/reports` с `scope=call` используют один и тот же генератор отчета по звонку. Поддерживаемые форматы: `pdf`, `docx`, `md`, `xlsx`. Для `scope=company`, `department`, `manager`, `period` API возвращает `501 not_implemented`, пока в backend нет реального агрегированного генератора.
+
+Call-report принимает `content=full|transcription` и
+`transcription_revision`. `full` требует готового анализа и сохраняет тарифные
+ограничения аналитического экспорта. `transcription` формирует отчёт только по
+выбранному неизменяемому снимку транскрипции, не требует анализа и доступен на
+всех тарифах. В таком отчёте `analysis_uuid=null`; имена спикеров и таймкоды
+выводятся при наличии этих данных в выбранной версии. Разные форматы, варианты
+содержимого и версии дедуплицируются независимо.
 
 Deep-analysis reports:
 
@@ -894,6 +942,8 @@ Deep analysis использует сохраненные `call_analyses.result_
   "format": "pdf",
   "scope": "call",
   "call_uuid": "call_uuid",
+  "content": "full",
+  "transcription_revision": 2,
   "company_uuid": null,
   "department_uuid": null,
   "manager_user_uuid": null,
@@ -927,6 +977,8 @@ Deep analysis использует сохраненные `call_analyses.result_
       "id": "report_uuid",
       "call_uuid": "call_uuid",
       "format": "pdf",
+      "content": "full",
+      "transcription_revision": 2,
       "status": "ready",
       "download_url": "/api/v1/reports/report_uuid/download",
       "call": {
@@ -1292,7 +1344,7 @@ Backend всё равно нормализует результат анализ
 
 Основные поля v2: `score_breakdown`, `criteria_results`, `business_outcome`, `customer_signals`, `next_step_quality`, `issue_codes`, `evidence_quotes`. Базовые критерии включают приветствие, выявление потребности, качество вопросов и ответов, релевантность решения, работу с возражениями, ясность цены/условий, профессиональный тон, качество следующего шага, ясность итога и выполнение дополнительных инструкций. `criteria_results` и короткие snake_case `issue_codes` используются для бесплатной аналитики и как основа для будущего deep analysis.
 
-Deep analysis, subscription-tier глубина анализа, выбор разных AI-моделей по тарифу и экспорт агрегированных отчетов этим контрактом не реализуются. Папки звонков реализованы как ручная группировка и фильтр, а не как deep AI analysis.
+Контракт анализа одного звонка не запускает deep analysis и не экспортирует агрегированные отчёты: для этого используются отдельные `/api/v1/analytics/deep-analyses` routes, описанные выше. Subscription-tier глубина анализа и выбор разных AI-моделей по тарифу в этом endpoint не реализованы. Папки звонков остаются ручной группировкой и фильтром.
 
 ## Формат ошибок API
 
@@ -1431,5 +1483,6 @@ internal/storage/audio/     Локальное хранение аудио
 internal/storage/instruction/ Локальное хранение файлов инструкций
 internal/transcriber/       Абстракция и mock-провайдер транскрибации
 migrations/                 SQL-миграции goose
+docs/api/                   Справочная документация integration API
 docs/runbooks/              Операционные инструкции и real-portal checklist
 ```
