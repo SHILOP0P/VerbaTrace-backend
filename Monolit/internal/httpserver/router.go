@@ -369,6 +369,33 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				}
 			}
 			r.With(authGuard).Get("/search", searchAPI.Search)
+			if assistantAPI, ok := searchAPI.(interface {
+				AssistantCapabilities(http.ResponseWriter, *http.Request)
+				ContentSearch(http.ResponseWriter, *http.Request)
+				ListAssistantChats(http.ResponseWriter, *http.Request)
+				CreateAssistantChat(http.ResponseWriter, *http.Request)
+				DeleteAssistantChat(http.ResponseWriter, *http.Request)
+				ExportAssistantChat(http.ResponseWriter, *http.Request)
+				GetAssistantDraft(http.ResponseWriter, *http.Request)
+				SaveAssistantDraft(http.ResponseWriter, *http.Request)
+				DeleteAssistantDraft(http.ResponseWriter, *http.Request)
+				GetAssistantRun(http.ResponseWriter, *http.Request)
+				ListAssistantMessages(http.ResponseWriter, *http.Request)
+				CreateAssistantMessage(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/assistant/capabilities", assistantAPI.AssistantCapabilities)
+				r.With(authGuard).Get("/calls/content-search", assistantAPI.ContentSearch)
+				r.With(authGuard).Get("/assistant/chats", assistantAPI.ListAssistantChats)
+				r.With(authGuard).Post("/assistant/chats", assistantAPI.CreateAssistantChat)
+				r.With(authGuard).Delete("/assistant/chats/{chat_uuid}", assistantAPI.DeleteAssistantChat)
+				r.With(authGuard).Get("/assistant/chats/{chat_uuid}/export", assistantAPI.ExportAssistantChat)
+				r.With(authGuard).Get("/assistant/draft", assistantAPI.GetAssistantDraft)
+				r.With(authGuard).Patch("/assistant/draft", assistantAPI.SaveAssistantDraft)
+				r.With(authGuard).Delete("/assistant/draft", assistantAPI.DeleteAssistantDraft)
+				r.With(authGuard).Get("/assistant/runs/{run_uuid}", assistantAPI.GetAssistantRun)
+				r.With(authGuard).Get("/assistant/chats/{chat_uuid}/messages", assistantAPI.ListAssistantMessages)
+				r.With(authGuard).Post("/assistant/chats/{chat_uuid}/messages", assistantAPI.CreateAssistantMessage)
+			}
 
 			//NOTIFICATIONS
 			r.With(authGuard).Get("/notifications", notificationAPI.List)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	searchAPI "verbatrace/monolit/internal/API/search"
 	"verbatrace/monolit/internal/analyzer"
 	analyzerMock "verbatrace/monolit/internal/analyzer/mock"
+	"verbatrace/monolit/internal/assistant"
 	"verbatrace/monolit/internal/config"
 	"verbatrace/monolit/internal/httpserver"
 	"verbatrace/monolit/internal/integrationcrypto"
@@ -336,6 +338,19 @@ func main() {
 	analyticsHandler := analyticsAPI.NewHandler(analyticsSvc)
 	monitoringHandler := monitoringAPI.NewHandler(monitoringSvc)
 	searchHandler := searchAPI.NewHandler(searchSvc)
+	embeddingKey := firstConfigured(os.Getenv("EMBEDDING_API_KEY"), os.Getenv("ANALYZER_API_KEY"))
+	assistantKey := firstConfigured(os.Getenv("ASSISTANT_API_KEY"), os.Getenv("ANALYZER_API_KEY"))
+	embeddingModel := firstConfigured(os.Getenv("EMBEDDING_MODEL"), "openai/text-embedding-3-small")
+	assistantModel := firstConfigured(os.Getenv("ASSISTANT_MODEL"), os.Getenv("ANALYZER_MODEL"))
+	assistantProvider := assistant.NewOpenRouterProvider(embeddingKey, assistantKey, embeddingModel, assistantModel, 1536)
+	assistantSvc := assistant.NewService(sqlDB, assistantProvider, assistant.GeneratorFor(assistantProvider))
+	assistantSvc.SetCreditMeter(billingSvc)
+	searchHandler.SetAssistant(assistantSvc)
+	assistantRecoveryWorkerDone := assistantSvc.RunRecoveryWorker(ctx)
+	var assistantIndexWorkerDone <-chan struct{}
+	if config.AppConfig().Worker.Enabled() {
+		assistantIndexWorkerDone = assistantSvc.RunIndexWorker(ctx)
+	}
 	notificationHandler := notificationAPI.NewHandler(notificationSvc)
 	var integrationCipher *integrationcrypto.Cipher
 	if rawKey := os.Getenv("INTEGRATION_MASTER_KEY_BASE64"); rawKey != "" {
@@ -496,6 +511,20 @@ func main() {
 			appLogger.Warn(context.Background(), "support access expiry worker shutdown timed out", zap.Error(shutdownCtx.Err()))
 		}
 	}
+	if assistantIndexWorkerDone != nil {
+		select {
+		case <-assistantIndexWorkerDone:
+			appLogger.Info(context.Background(), "assistant index worker shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), "assistant index worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	select {
+	case <-assistantRecoveryWorkerDone:
+		appLogger.Info(context.Background(), "assistant recovery worker shutdown completed")
+	case <-shutdownCtx.Done():
+		appLogger.Warn(context.Background(), "assistant recovery worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+	}
 	select {
 	case <-creditReconciliationDone:
 		appLogger.Info(context.Background(), "credit reconciliation worker shutdown completed")
@@ -526,4 +555,13 @@ func main() {
 	case <-shutdownCtx.Done():
 		appLogger.Warn(context.Background(), "instruction retention worker shutdown timed out", zap.Error(shutdownCtx.Err()))
 	}
+}
+
+func firstConfigured(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }

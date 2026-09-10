@@ -36,6 +36,7 @@ func (r *Repository) UpdateDepartmentMemberStatus(ctx context.Context, companyID
 	var repoMember repoModel.DepartmentMember
 	repoMember, err := scaner.ScanDepartmentMember(row)
 	if err != nil {
+		err = membershipWriteError(err)
 		if errors.Is(err, sql.ErrNoRows) {
 			return model.DepartmentMember{}, model.ErrDepartmentNotFound
 		}

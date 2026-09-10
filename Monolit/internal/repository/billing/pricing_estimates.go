@@ -29,10 +29,14 @@ func (r *Repository) TranscriptionProviderCostNanoUSD(ctx context.Context, opera
 }
 
 func (r *Repository) MaximumAnalysisCredits(ctx context.Context, inputTokens, outputTokens int64, at time.Time) (int64, error) {
+	return r.MaximumGenerationCredits(ctx, inputTokens, outputTokens, "openrouter", "openai/gpt-5-mini", at)
+}
+
+func (r *Repository) MaximumGenerationCredits(ctx context.Context, inputTokens, outputTokens int64, provider, model string, at time.Time) (int64, error) {
 	var inputRate, outputRate, credit, numerator, denominator int64
-	err := r.db.QueryRowContext(ctx, `SELECT r.input_cost_nano_usd_per_token,r.output_cost_nano_usd_per_token,c.credit_micro_usd,c.multiplier_numerator,c.multiplier_denominator FROM pricing_rates r JOIN pricing_catalog_versions c USING(pricing_catalog_version_uuid) WHERE c.status='active' AND c.effective_from<=$1 AND (c.effective_until IS NULL OR c.effective_until>$1) AND r.operation_type='analysis' AND r.provider='openrouter' AND r.model='openai/gpt-5-mini'`, at.UTC()).Scan(&inputRate, &outputRate, &credit, &numerator, &denominator)
+	err := r.db.QueryRowContext(ctx, `SELECT r.input_cost_nano_usd_per_token,r.output_cost_nano_usd_per_token,c.credit_micro_usd,c.multiplier_numerator,c.multiplier_denominator FROM pricing_rates r JOIN pricing_catalog_versions c USING(pricing_catalog_version_uuid) WHERE c.status='active' AND c.effective_from<=$1 AND (c.effective_until IS NULL OR c.effective_until>$1) AND r.operation_type='analysis' AND r.provider=$2 AND r.model=$3`, at.UTC(), provider, model).Scan(&inputRate, &outputRate, &credit, &numerator, &denominator)
 	if err != nil {
-		return 0, fmt.Errorf("get analysis pricing rate: %w", err)
+		return 0, fmt.Errorf("get generation pricing rate for %s/%s: %w", provider, model, err)
 	}
 	return billingcredits.CreditsFromProviderCostNanoUSDWithPolicy(inputTokens*inputRate+outputTokens*outputRate, credit, numerator, denominator)
 }

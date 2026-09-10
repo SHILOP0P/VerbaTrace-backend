@@ -113,7 +113,7 @@ func upsertCompanyMember(ctx context.Context, tx *sql.Tx, invitation repoModel.M
 	)
 	VALUES ($1, $2, $3, 'active', now())
 	ON CONFLICT (company_uuid, user_uuid)
-	DO UPDATE SET role = EXCLUDED.role,
+	DO UPDATE SET role = company_members.role,
 	              status = EXCLUDED.status
 	`
 

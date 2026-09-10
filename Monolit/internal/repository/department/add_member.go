@@ -60,6 +60,7 @@ func (r *Repository) AddDepartmentMember(ctx context.Context, companyID uuid.UUI
 	var createdMember repoModel.DepartmentMember
 	createdMember, err = scaner.ScanDepartmentMember(row)
 	if err != nil {
+		err = membershipWriteError(err)
 		if errors.Is(err, sql.ErrNoRows) {
 			return model.DepartmentMember{}, model.ErrDepartmentNotFound
 		}

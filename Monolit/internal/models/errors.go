@@ -155,3 +155,4 @@ var ErrInvalidSearchInput = errors.New("invalid search input")
 // NOTIFICATION
 var ErrNotificationNotFound = errors.New("notification not found")
 var ErrInvalidNotificationInput = errors.New("invalid notification input")
+var ErrDepartmentMembershipConflict = errors.New("user already has an active department; explicit transfer required")

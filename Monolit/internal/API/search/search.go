@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"verbatrace/monolit/internal/API/response"
+	assistantservice "verbatrace/monolit/internal/assistant"
 	"verbatrace/monolit/internal/converter"
 	"verbatrace/monolit/internal/httpserver/middleware"
 	"verbatrace/monolit/internal/models"
@@ -16,8 +17,11 @@ import (
 )
 
 type Handler struct {
-	service service.SearchService
+	service   service.SearchService
+	assistant *assistantservice.Service
 }
+
+func (h *Handler) SetAssistant(service *assistantservice.Service) { h.assistant = service }
 
 func NewHandler(service service.SearchService) *Handler {
 	return &Handler{service: service}

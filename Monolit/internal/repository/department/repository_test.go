@@ -273,3 +273,53 @@ func (s *RepositorySuite) TestUpdateDepartmentMemberStatusRejectsWrongCompany() 
 
 	s.Require().ErrorIs(err, models.ErrDepartmentNotFound)
 }
+
+func (s *RepositorySuite) TestSingleActiveDepartmentRejectsAddAndReactivation() {
+	first, company, _ := s.createDepartmentWithCompany()
+	second, err := s.repository.CreateDepartment(s.ctx, testDepartment(company.ID))
+	s.Require().NoError(err)
+	employee := s.addCompanyEmployee(company.ID)
+	_, err = s.repository.AddDepartmentMember(s.ctx, company.ID, testDepartmentMember(first.ID, employee.ID, models.DepartmentMemberRoleEmployee))
+	s.Require().NoError(err)
+	_, err = s.repository.AddDepartmentMember(s.ctx, company.ID, testDepartmentMember(second.ID, employee.ID, models.DepartmentMemberRoleEmployee))
+	s.Require().ErrorIs(err, models.ErrDepartmentMembershipConflict)
+	_, err = s.repository.UpdateDepartmentMemberStatus(s.ctx, company.ID, first.ID, employee.ID, models.MembershipStatusLeft)
+	s.Require().NoError(err)
+	_, err = s.repository.AddDepartmentMember(s.ctx, company.ID, testDepartmentMember(second.ID, employee.ID, models.DepartmentMemberRoleEmployee))
+	s.Require().NoError(err)
+	_, err = s.repository.UpdateDepartmentMemberStatus(s.ctx, company.ID, first.ID, employee.ID, models.MembershipStatusActive)
+	s.Require().ErrorIs(err, models.ErrDepartmentMembershipConflict)
+	var active int
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM department_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active'`, company.ID, employee.ID).Scan(&active))
+	s.Require().Equal(1, active)
+}
+
+func (s *RepositorySuite) TestConcurrentDepartmentAddsAllowOnlyOne() {
+	first, company, _ := s.createDepartmentWithCompany()
+	second, err := s.repository.CreateDepartment(s.ctx, testDepartment(company.ID))
+	s.Require().NoError(err)
+	employee := s.addCompanyEmployee(company.ID)
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for _, id := range []uuid.UUID{first.ID, second.ID} {
+		go func(departmentID uuid.UUID) {
+			<-start
+			_, addErr := s.repository.AddDepartmentMember(s.ctx, company.ID, testDepartmentMember(departmentID, employee.ID, models.DepartmentMemberRoleEmployee))
+			results <- addErr
+		}(id)
+	}
+	close(start)
+	successes := 0
+	conflicts := 0
+	for i := 0; i < 2; i++ {
+		err := <-results
+		if err == nil {
+			successes++
+		} else {
+			s.Require().ErrorIs(err, models.ErrDepartmentMembershipConflict)
+			conflicts++
+		}
+	}
+	s.Require().Equal(1, successes)
+	s.Require().Equal(1, conflicts)
+}

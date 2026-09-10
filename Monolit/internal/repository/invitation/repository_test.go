@@ -288,3 +288,20 @@ func (s *RepositorySuite) TestAcceptRejectsNonPendingAndAddsDepartmentUserToComp
 	s.Require().NoError(err)
 	s.Require().Equal(models.DepartmentMemberRoleEmployee, departmentMember.Role)
 }
+
+func (s *RepositorySuite) TestDepartmentInvitationPreservesCompanyManagerRole() {
+	company, manager := s.createCompanyWithManager()
+	department := s.createDepartment(company.ID)
+	role := models.DepartmentMemberRoleEmployee
+	invitation := testInvitation(company.ID, manager.ID, manager.ID)
+	invitation.DepartmentUUID = uuid.NullUUID{UUID: department.ID, Valid: true}
+	invitation.DepartmentRole = &role
+	invitation.CompanyRole = models.CompanyMemberRoleEmployee
+	created, err := s.repository.CreateInvitation(s.ctx, invitation)
+	s.Require().NoError(err)
+	_, err = s.repository.AcceptInvitation(s.ctx, created.ID, time.Now().UTC())
+	s.Require().NoError(err)
+	var actual string
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT role FROM company_members WHERE company_uuid=$1 AND user_uuid=$2`, company.ID, manager.ID).Scan(&actual))
+	s.Require().Equal(string(models.CompanyMemberRoleManager), actual)
+}

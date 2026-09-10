@@ -53,6 +53,10 @@ func (h *Handler) AddDepartmentMember(w http.ResponseWriter, r *http.Request) {
 		Role:           models.DepartmentMemberRole(req.Role),
 	})
 	if err != nil {
+		if errors.Is(err, models.ErrDepartmentMembershipConflict) {
+			response.WriteError(w, http.StatusConflict, "department_membership_conflict", "Сотрудник уже состоит в другом отделе. Используйте перевод.")
+			return
+		}
 		if errors.Is(err, models.ErrInvalidDepartmentInput) {
 			response.WriteError(w, http.StatusBadRequest, response.CodeInvalidDepartmentInput, "invalid department input")
 			return

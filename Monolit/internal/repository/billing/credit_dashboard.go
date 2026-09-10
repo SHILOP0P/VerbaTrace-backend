@@ -71,9 +71,10 @@ func (r *Repository) GetCreditDashboard(ctx context.Context, subscription models
 
 func (r *Repository) walletEntries(ctx context.Context, accountID uuid.UUID, limit int) ([]models.CreditWalletEntry, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT DISTINCT t.credit_ledger_transaction_uuid,t.transaction_type,
-		       COALESCE(sum(p.amount_credits) FILTER (WHERE a.account_type='customer_available'),0),
-		       COALESCE(t.reason,''),t.created_at
+		SELECT entry_uuid,entry_type,credits,reason,created_at FROM (
+		SELECT DISTINCT t.credit_ledger_transaction_uuid AS entry_uuid,t.transaction_type AS entry_type,
+		       COALESCE(sum(p.amount_credits) FILTER (WHERE a.account_type='customer_available'),0) AS credits,
+		       COALESCE(t.reason,'') AS reason,t.created_at
 		FROM credit_ledger_transactions t
 		JOIN credit_ledger_postings p ON p.credit_ledger_transaction_uuid=t.credit_ledger_transaction_uuid
 		JOIN credit_ledger_accounts a ON a.credit_ledger_account_uuid=p.credit_ledger_account_uuid
@@ -81,7 +82,15 @@ func (r *Repository) walletEntries(ctx context.Context, accountID uuid.UUID, lim
 		WHERE (a.billing_account_uuid=$1 OR g.billing_account_uuid=$1)
 		  AND t.transaction_type IN ('purchase','adjustment','refund','expire','reversal')
 		GROUP BY t.credit_ledger_transaction_uuid,t.transaction_type,t.reason,t.created_at
-		ORDER BY t.created_at DESC LIMIT $2
+		UNION ALL
+		SELECT o.usage_operation_uuid,'usage',
+		       -CASE WHEN o.status='settled' THEN o.settled_credits ELSE o.reserved_credits END,
+		       o.operation_type,o.started_at
+		FROM usage_operations o
+		WHERE o.billing_account_uuid=$1 AND o.environment='production'
+		  AND o.status IN ('reserved','provider_running','settled','reconciling')
+		) history
+		ORDER BY created_at DESC LIMIT $2
 	`, accountID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list wallet entries: %w", err)
