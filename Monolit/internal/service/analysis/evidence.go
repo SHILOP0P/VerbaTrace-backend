@@ -40,6 +40,30 @@ func enrichEvidenceNode(node any, words []models.TranscriptionWord) {
 			enrichEvidenceNode(child, words)
 		}
 	case map[string]any:
+		// V3 provider output contains compact evidence items with quote/speaker.
+		// Resolve those items in place instead of nesting another evidence array.
+		_, compactEvidence := value["speaker"]
+		if quote, ok := value["quote"].(string); ok && compactEvidence && len(value) <= 2 {
+			matched := matchEvidence(quote, words)
+			value["quote"] = matched.Quote
+			value["match_status"] = matched.MatchStatus
+			if matched.StartSeconds != nil {
+				value["start_seconds"] = *matched.StartSeconds
+			}
+			if matched.EndSeconds != nil {
+				value["end_seconds"] = *matched.EndSeconds
+			}
+			if matched.WordStartIndex != nil {
+				value["word_start_index"] = *matched.WordStartIndex
+			}
+			if matched.WordEndIndex != nil {
+				value["word_end_index"] = *matched.WordEndIndex
+			}
+			if matched.Speaker != "" {
+				value["speaker"] = matched.Speaker
+			}
+			return
+		}
 		if _, exists := value["evidence"]; !exists {
 			quotes := make([]string, 0)
 			if quote, ok := value["quote"].(string); ok && strings.TrimSpace(quote) != "" {

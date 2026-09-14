@@ -65,6 +65,30 @@ func TestNarrativeBudgetScalesAndCaps(t *testing.T) {
 	}
 }
 
+func TestRequestsFullConversationReview(t *testing.T) {
+	for _, query := range []string{"Сделай полный анализ звонка", "Разбери весь разговор", "Проанализируй каждый вопрос", "Найди нарушения во всех репликах", "Review every answer"} {
+		if !requestsFullConversationReview(query) {
+			t.Fatalf("full review intent not detected: %q", query)
+		}
+	}
+	if requestsFullConversationReview("Что Леонид сказал про PostgreSQL?") {
+		t.Fatal("targeted question detected as full review")
+	}
+}
+
+func TestAnalysisSearchTextSupportsUniversalAndLegacyResults(t *testing.T) {
+	universal := analysisSearchText([]byte(`{"schema_version":3,"summary":"Интервью","outcome":"Следующий этап","items":[{"title":"Опыт","answer_summary":"Три года","explanation":"Ответ полный","improvement":"Добавить пример"}]}`))
+	for _, expected := range []string{"Интервью", "Следующий этап", "Опыт", "Три года", "Добавить пример"} {
+		if !strings.Contains(universal, expected) {
+			t.Fatalf("universal index text misses %q: %s", expected, universal)
+		}
+	}
+	legacy := analysisSearchText([]byte(`{"summary":"Продажа","criteria_results":[{"title":"Приветствие","explanation":"Выполнено","recommendation":"Не требуется"}]}`))
+	if !strings.Contains(legacy, "Приветствие") || !strings.Contains(legacy, "Не требуется") {
+		t.Fatalf("legacy index text = %s", legacy)
+	}
+}
+
 func TestLongSegmentChunkingIsBounded(t *testing.T) {
 	text := strings.Repeat("я", 5000)
 	chunks := chunkPayload(revisionPayload{Segments: []models.TranscriptionSegment{{Text: text, Speaker: "A"}}})

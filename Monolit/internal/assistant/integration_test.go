@@ -40,6 +40,10 @@ func TestPersonalAssistantScopeAndMultipleReplies(t *testing.T) {
 		in := models.CreateAssistantMessageInput{UserUUID: id, ChatUUID: chat.ID, Text: "нет подтверждений", ClientMessageID: uuid.NewString(), IdempotencyKey: uuid.NewString(), ResponseDetail: "auto"}
 		run, err := s.CreateMessage(ctx, in)
 		require.NoError(t, err)
+		require.Equal(t, "queued", run.State)
+		require.NoError(t, s.recoverRuns(ctx, 5))
+		run, err = s.GetRun(ctx, id, run.ID)
+		require.NoError(t, err)
 		require.Equal(t, "completed", run.State)
 		repeated, err := s.CreateMessage(ctx, in)
 		require.NoError(t, err)

@@ -49,13 +49,26 @@ type AnalysisRequest struct {
 	Instructions    []AnalysisInstructionContent
 	Personalization []string
 	Redaction       *AnalysisRedactionContext
+	Task            *AnalysisTask
+}
+
+// AnalysisTask is a bounded, structured step of the server-owned analysis flow.
+type AnalysisTask struct {
+	Name      string
+	System    string
+	Input     string
+	Schema    map[string]any
+	MaxTokens int
 }
 
 type AnalysisResult struct {
-	ResultJSON json.RawMessage
-	ResultText *string
-	Model      *string
-	Usage      *ProviderUsage
+	CreditOperationID     uuid.UUID
+	PipelineRunKey        string
+	TranscriptionRevision int
+	ResultJSON            json.RawMessage
+	ResultText            *string
+	Model                 *string
+	Usage                 *ProviderUsage
 }
 
 type ProviderUsage struct {

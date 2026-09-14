@@ -37,9 +37,11 @@ func (r *Repository) MarkDone(ctx context.Context, id uuid.UUID, result model.An
 	    error_message = NULL,
 	    updated_at = now()
 	WHERE analysis_uuid = $1
+	AND ($6 = '' OR (pipeline_run_key=$6 AND $7=(SELECT COALESCE(s.active_revision,(SELECT max(rr.revision) FROM call_transcription_revisions rr WHERE rr.transcription_uuid=t.transcription_uuid),1)
+	FROM call_transcriptions t LEFT JOIN call_transcription_revision_state s ON s.transcription_uuid=t.transcription_uuid WHERE t.call_uuid=call_analyses.call_uuid)))
 	RETURNING ` + analysisReturningColumns
 
-	row := r.db.QueryRowContext(ctx, query, id, string(model.CallAnalysisStatusDone), result.Model, []byte(result.ResultJSON), result.ResultText)
+	row := r.db.QueryRowContext(ctx, query, id, string(model.CallAnalysisStatusDone), result.Model, []byte(result.ResultJSON), result.ResultText, result.PipelineRunKey, result.TranscriptionRevision)
 
 	return scanUpdatedAnalysis(row, "mark analysis done")
 }

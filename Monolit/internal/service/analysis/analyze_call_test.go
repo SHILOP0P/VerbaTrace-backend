@@ -78,6 +78,27 @@ func TestAnalyzeCallEnqueuesAnalysisJob(t *testing.T) {
 	}
 }
 
+func TestAnalyzeCallRestoresTranscribedStatusAfterPreviousAnalysisFailure(t *testing.T) {
+	ctx := context.Background()
+	userID, callID := uuid.New(), uuid.New()
+	text := "Готовая транскрипция"
+	callRepo := &analysisCallRepository{call: models.Call{ID: callID, Status: models.CallStatusFailed}}
+	transcriptionRepo := &analysisTranscriptionRepository{transcription: models.Transcription{
+		ID: uuid.New(), CallUUID: callID, Status: models.TranscriptionStatusTranscribed, Text: &text,
+	}}
+	analysisRepo := &analysisRepository{analysisID: uuid.New(), callID: callID}
+	jobRepo := &analysisProcessingJobRepository{}
+	service := NewService(callRepo, transcriptionRepo, &analysisInstructionRepository{}, analysisRepo, &analysisInstructionStorage{}, &recordingAnalyzer{}, nil)
+	service.SetProcessingJobRepository(jobRepo)
+
+	if _, err := service.AnalyzeCall(ctx, models.AnalyzeCallInput{CallUUID: callID, UserUUID: userID}); err != nil {
+		t.Fatalf("AnalyzeCall: %v", err)
+	}
+	if !callRepo.updatedStatus || callRepo.lastStatus != models.CallStatusTranscribed {
+		t.Fatalf("call status = %s, want %s", callRepo.lastStatus, models.CallStatusTranscribed)
+	}
+}
+
 func TestAnalyzeCallRejectsTestCallWithoutCreatingJob(t *testing.T) {
 	callID, userID := uuid.New(), uuid.New()
 	callRepo := &analysisCallRepository{call: models.Call{ID: callID, Status: models.CallStatusTranscribed, IsTest: true}}

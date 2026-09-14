@@ -7,7 +7,16 @@ import (
 )
 
 type analysisReport struct {
+	SchemaVersion      int              `json:"schema_version"`
+	PromptVersion      string           `json:"prompt_version"`
 	Summary            string           `json:"summary"`
+	Outcome            string           `json:"outcome"`
+	Strengths          []string         `json:"strengths"`
+	WorkOn             []string         `json:"work_on"`
+	OverallScore       *float64         `json:"overall_score"`
+	OverallScoreLabel  string           `json:"overall_score_label"`
+	Items              []universalItem  `json:"items"`
+	Recommendations    []recommendation `json:"recommendations"`
 	Topics             []string         `json:"topics"`
 	DialogueTone       dialogueTone     `json:"dialogue_tone"`
 	ClientQuestions    []clientQuestion `json:"client_questions"`
@@ -23,6 +32,37 @@ type analysisReport struct {
 	EvidenceQuotes     []string         `json:"evidence_quotes"`
 	Confidence         string           `json:"confidence"`
 	RawFallback        string           `json:"-"`
+}
+
+type universalItem struct {
+	Title              string              `json:"title"`
+	Topic              string              `json:"topic"`
+	AnswerSummary      *string             `json:"answer_summary"`
+	Status             string              `json:"status"`
+	Score              *float64            `json:"score"`
+	Explanation        string              `json:"explanation"`
+	Strengths          []string            `json:"strengths"`
+	Gaps               []universalGap      `json:"gaps"`
+	Improvement        *string             `json:"improvement"`
+	InstructionSources []string            `json:"instruction_sources"`
+	Evidence           []universalEvidence `json:"evidence"`
+}
+
+type universalGap struct {
+	Text        string `json:"text"`
+	Explanation string `json:"explanation"`
+}
+type universalEvidence struct {
+	Quote   string `json:"quote"`
+	Speaker string `json:"speaker"`
+}
+type recommendation struct {
+	Title          string   `json:"title"`
+	Action         string   `json:"action"`
+	Reason         string   `json:"reason"`
+	ExpectedResult string   `json:"expected_result"`
+	Priority       string   `json:"priority"`
+	PriorityScore  *float64 `json:"priority_score"`
 }
 
 type dialogueTone struct {
@@ -102,6 +142,9 @@ func (d ReportData) Sections() []reportSection {
 		return []reportSection{{Title: fmt.Sprintf("Транскрипция · версия %d", d.TranscriptionRevision), Rows: []reportRow{{Value: d.TranscriptionText}}}}
 	}
 	analysis := d.StructuredAnalysis()
+	if analysis.SchemaVersion == 3 {
+		return universalSections(analysis, d.TranscriptionText)
+	}
 	sections := []reportSection{
 		{
 			Title: "Резюме",
@@ -164,6 +207,66 @@ func (d ReportData) Sections() []reportSection {
 		})
 	}
 
+	return sections
+}
+
+func universalSections(analysis analysisReport, transcription string) []reportSection {
+	score := analysis.OverallScoreLabel
+	if score == "" && analysis.OverallScore != nil {
+		score = scoreLabel(*analysis.OverallScore)
+	}
+	sections := []reportSection{
+		{Title: "Общий вывод", Rows: []reportRow{{Value: analysis.Summary}, {Label: "Результат разговора", Value: withFallback(analysis.Outcome)}, {Label: "Оценка", Value: withFallback(score)}, {Label: "Сильные стороны", List: withFallbackList(analysis.Strengths)}, {Label: "Над чем работать", List: withFallbackList(analysis.WorkOn)}}},
+	}
+	for index, item := range analysis.Items {
+		title := item.Title
+		if title == "" {
+			title = item.Topic
+		}
+		if title == "" {
+			title = fmt.Sprintf("Пункт %d", index+1)
+		}
+		answer := ""
+		if item.AnswerSummary != nil {
+			answer = *item.AnswerSummary
+		}
+		improvement := ""
+		if item.Improvement != nil {
+			improvement = *item.Improvement
+		}
+		itemScore := "Не оценивается"
+		if item.Score != nil {
+			itemScore = scoreLabel(*item.Score)
+		}
+		gaps, evidence := make([]string, 0, len(item.Gaps)), make([]string, 0, len(item.Evidence))
+		for _, gap := range item.Gaps {
+			text := gap.Text
+			if gap.Explanation != "" {
+				text += ": " + gap.Explanation
+			}
+			gaps = append(gaps, text)
+		}
+		for _, proof := range item.Evidence {
+			text := proof.Quote
+			if proof.Speaker != "" {
+				text = proof.Speaker + ": " + text
+			}
+			evidence = append(evidence, text)
+		}
+		sections = append(sections, reportSection{Title: title, Rows: []reportRow{{Label: "Статус", Value: criterionStatusLabel(item.Status)}, {Label: "Оценка", Value: itemScore}, {Label: "Ответ или действие", Value: withFallback(answer)}, {Label: "Разбор", Value: withFallback(item.Explanation)}, {Label: "Сильные стороны", List: withFallbackList(item.Strengths)}, {Label: "Что не раскрыто", List: withFallbackList(gaps)}, {Label: "Эталонный ответ или совет", Value: withFallback(improvement)}, {Label: "Основания инструкции", List: withFallbackList(item.InstructionSources)}, {Label: "Цитаты", List: withFallbackList(evidence)}}})
+	}
+	rows := make([]reportRow, 0, len(analysis.Recommendations))
+	for _, rec := range analysis.Recommendations {
+		priority := rec.Priority
+		if rec.PriorityScore != nil {
+			priority = fmt.Sprintf("%s · %.0f/100", priority, *rec.PriorityScore)
+		}
+		rows = append(rows, reportRow{Label: rec.Title, Value: strings.TrimSpace(rec.Action + " " + rec.Reason + " " + rec.ExpectedResult + " [приоритет: " + priority + "]")})
+	}
+	sections = append(sections, reportSection{Title: "Приоритетные рекомендации", Rows: rows})
+	if transcription != "" {
+		sections = append(sections, reportSection{Title: "Транскрипция", Rows: []reportRow{{Value: transcription}}})
+	}
 	return sections
 }
 

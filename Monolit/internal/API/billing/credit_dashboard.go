@@ -120,7 +120,15 @@ func dashboardResponse(value models.CreditDashboard) map[string]any {
 	}
 	entries := make([]map[string]any, 0, len(value.WalletEntries))
 	for _, item := range value.WalletEntries {
-		entries = append(entries, map[string]any{"transaction_uuid": item.TransactionUUID, "type": item.Type, "credits": item.Credits, "reason": item.Reason, "created_at": item.CreatedAt})
+		entry := map[string]any{"transaction_uuid": item.TransactionUUID, "type": item.Type, "credits": item.Credits, "reason": item.Reason, "created_at": item.CreatedAt}
+		if len(item.Details) > 0 {
+			details := make([]map[string]any, 0, len(item.Details))
+			for _, detail := range item.Details {
+				details = append(details, map[string]any{"transaction_uuid": detail.TransactionUUID, "type": detail.Type, "credits": detail.Credits, "reason": detail.Reason, "created_at": detail.CreatedAt})
+			}
+			entry["details"] = details
+		}
+		entries = append(entries, entry)
 	}
 	return map[string]any{"allowance_credits": value.AllowanceCredits, "allowance_remaining": value.AllowanceRemaining, "allowance_remaining_percent": value.RemainingPercent, "days_until_reset": value.DaysUntilReset, "resets_at": value.ResetsAt, "allowance_exhausted": value.AllowanceExhausted, "wallet_credits": value.WalletCredits, "activity": activity, "wallet_entries": entries, "visible_to_members": value.VisibleToMembers, "can_manage_visibility": value.CanManageVisibility}
 }

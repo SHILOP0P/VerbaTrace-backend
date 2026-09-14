@@ -784,6 +784,9 @@ func parseSourceCriteria(raw []byte) ([]sourceCriterion, error) {
 		return nil, ErrInvalidInput
 	}
 	items, ok := payload["criteria_results"].([]any)
+	if !ok && numberValue(payload["schema_version"], 0) == 3 {
+		items, ok = payload["items"].([]any)
+	}
 	if !ok || len(items) == 0 {
 		return nil, ErrInvalidInput
 	}
@@ -795,6 +798,9 @@ func parseSourceCriteria(raw []byte) ([]sourceCriterion, error) {
 			continue
 		}
 		key := stringValue(m["code"])
+		if key == "" {
+			key = stringValue(m["id"])
+		}
 		if key == "" {
 			key = fmt.Sprintf("criterion_%d", i+1)
 		}

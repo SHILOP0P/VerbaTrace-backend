@@ -177,6 +177,43 @@ func TestNormalizeAnalysisResultRewritesKnownEnglishFallbacks(t *testing.T) {
 	}
 }
 
+func TestNormalizeUniversalAnalysisComputesScoreAndRecommendationPriority(t *testing.T) {
+	result, err := normalizeAnalysisResult(models.AnalysisResult{ResultJSON: []byte(`{
+		"schema_version":3,"prompt_version":"universal-v3.1","summary":"Разобраны все вопросы.",
+		"coverage":{"status":"complete","actual_question_count":2,"analyzed_actual_question_count":2,"required_question_count":1,"complete_without_separate_question":1,"limitations":[]},
+		"overall_score":1,"overall_score_label":"wrong",
+		"items":[{"id":"q1","kind":"question","status":"met","score":100},{"id":"q2","kind":"question","status":"partially_met","score":50},{"id":"rule1","kind":"requirement","status":"not_applicable","score":70}],
+		"recommendations":[{"id":"r1","item_ids":["q2"],"affects_score":true,"importance":3,"impact":3,"repetition":2,"priority_score":0,"priority":"low"}],"priority_recommendation_ids":[]
+	}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := decodeAnalysisPayload(t, result)
+	if payload["overall_score"] != float64(75) {
+		t.Fatalf("overall_score = %#v", payload["overall_score"])
+	}
+	items := payload["items"].([]any)
+	if items[2].(map[string]any)["score"] != nil {
+		t.Fatalf("not-applicable score was not cleared: %#v", items[2])
+	}
+	recommendation := payload["recommendations"].([]any)[0].(map[string]any)
+	if recommendation["priority"] != "high" || recommendation["priority_score"] != float64(88) {
+		t.Fatalf("priority = %#v", recommendation)
+	}
+}
+
+func TestNormalizeUniversalAnalysisDowngradesInconsistentCoverage(t *testing.T) {
+	result, err := normalizeAnalysisResult(models.AnalysisResult{ResultJSON: []byte(`{"schema_version":3,"prompt_version":"universal-v3.1","summary":"Итог.","coverage":{"status":"complete","actual_question_count":2,"analyzed_actual_question_count":1,"limitations":[]},"items":[{"id":"q1","kind":"question","status":"met","score":100}],"recommendations":[]}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := decodeAnalysisPayload(t, result)
+	coverage := payload["coverage"].(map[string]any)
+	if coverage["status"] != "partial" || payload["overall_score"] != nil {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
 func TestNormalizeAnalysisResultV2ContractAndScoreScaling(t *testing.T) {
 	for name, tc := range map[string]struct {
 		json      string

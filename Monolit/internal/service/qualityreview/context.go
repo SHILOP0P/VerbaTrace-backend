@@ -165,6 +165,9 @@ func buildEffectiveAnalysis(raw []byte, revisions []models.QualityReviewRevision
 	var payload map[string]any
 	if json.Unmarshal(raw, &payload) == nil {
 		result.TotalScore = numberPointer(payload["score"])
+		if result.TotalScore == nil {
+			result.TotalScore = numberPointer(payload["overall_score"])
+		}
 	}
 	byKey := make(map[string]int, len(source))
 	for _, item := range source {

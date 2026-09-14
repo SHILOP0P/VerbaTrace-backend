@@ -61,6 +61,13 @@ func (s *Service) AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput
 	if err = s.enqueueAnalyzeJob(ctx, call.ID); err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("enqueue analysis job: %w", err)
 	}
+	// A previous analysis failure must not make a successfully transcribed call
+	// look like a transcription failure while a new analysis is running.
+	if call.Status == models.CallStatusFailed {
+		if _, err = s.callRepository.UpdateCallStatus(ctx, call.ID, models.CallStatusTranscribed); err != nil {
+			return models.CallAnalysis{}, fmt.Errorf("restore transcribed call status: %w", err)
+		}
+	}
 
 	s.log.Info(ctx, "call analysis job enqueued", zap.String("call_id", call.ID.String()), zap.String("analysis_id", analysis.ID.String()))
 
@@ -112,7 +119,6 @@ func (s *Service) ProcessAnalyzeCall(ctx context.Context, callID uuid.UUID) erro
 			return nil
 		}
 		if err != nil {
-			_ = attempts.MarkAttempt(ctx, attempt.ID, "failed", err)
 			return err
 		}
 		currentRevision, revisionErr := attempts.CurrentTranscriptionRevision(ctx, callID)
@@ -138,6 +144,11 @@ func (s *Service) MarkAnalyzeCallFailed(ctx context.Context, callID uuid.UUID, c
 	errorMessage := "analysis failed"
 	if cause != nil && strings.TrimSpace(cause.Error()) != "" {
 		errorMessage = cause.Error()
+	}
+	if attempts, ok := s.analysisRepository.(attemptRepository); ok {
+		if active, activeErr := attempts.ActiveAttempt(ctx, callID); activeErr == nil {
+			_ = attempts.MarkAttempt(ctx, active.ID, "failed", cause)
+		}
 	}
 
 	analysis, err := s.analysisRepository.GetByCallUUID(ctx, callID)
@@ -231,7 +242,8 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		}
 	}
 	var creditOperationID uuid.UUID
-	if s.creditMeter != nil {
+	_, progressive := activeAnalyzer.(interface{ AnalysisSchema() map[string]any })
+	if s.creditMeter != nil && !progressive {
 		var billableInput strings.Builder
 		billableInput.WriteString(*transcription.Text)
 		for _, instruction := range instructions {
@@ -241,16 +253,24 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		for _, value := range personalization {
 			billableInput.WriteString(value)
 		}
-		creditOperationID, err = s.creditMeter.ReserveAnalysis(ctx, call, analysis.ID, billableInput.String(), analyzer.MaximumCompletionTokens(activeAnalyzer, analysisRequest))
+		// Each provider attempt needs its own billing operation. The analysis row is
+		// intentionally reused per call, so deriving the operation from analysis.ID
+		// made every worker retry collide with an already settled reservation.
+		creditOperationID, err = s.creditMeter.ReserveAnalysis(ctx, call, uuid.New(), billableInput.String(), analyzer.MaximumCompletionTokens(activeAnalyzer, analysisRequest))
 		if err != nil {
 			return analysis, fmt.Errorf("reserve analysis credits: %w", err)
 		}
 	}
 
 	analysisStartedAt := time.Now()
-	result, err := activeAnalyzer.Analyze(ctx, analysisRequest)
+	var result models.AnalysisResult
+	if stages, ok := activeAnalyzer.(interface{ AnalysisSchema() map[string]any }); ok {
+		result, err = s.analyzeProgressively(ctx, call, analysis, transcription, analysisRequest, activeAnalyzer, stages.AnalysisSchema())
+	} else {
+		result, err = activeAnalyzer.Analyze(ctx, analysisRequest)
+	}
 	if err != nil {
-		if s.creditMeter != nil {
+		if s.creditMeter != nil && !progressive {
 			_ = s.creditMeter.MarkCreditOperationReconciling(context.Background(), creditOperationID, "analysis_provider_error")
 		}
 		if opts.markAttemptFailed {
@@ -263,7 +283,7 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		s.log.Error(ctx, "call analysis failed", zap.String("call_id", call.ID.String()), zap.Error(err))
 		return analysis, fmt.Errorf("analyze call: %w", err)
 	}
-	if s.creditMeter != nil {
+	if s.creditMeter != nil && !progressive {
 		if err = s.creditMeter.SettleAnalysis(ctx, creditOperationID, result.Usage); err != nil {
 			return analysis, fmt.Errorf("settle analysis credits: %w", err)
 		}
@@ -508,6 +528,9 @@ func normalizeAnalysisResult(result models.AnalysisResult) (models.AnalysisResul
 		if err := json.Unmarshal(result.ResultJSON, &payload); err != nil {
 			return models.AnalysisResult{}, fmt.Errorf("decode analysis result json: %w", err)
 		}
+	}
+	if isUniversalAnalysis(payload) {
+		return normalizeUniversalAnalysisResult(result, payload)
 	}
 
 	resultText := ""

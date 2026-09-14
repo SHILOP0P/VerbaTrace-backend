@@ -68,48 +68,36 @@ func TestAnalyzeSendsTranscriptionAndInstructions(t *testing.T) {
 		if !req.Provider.RequireParameters {
 			t.Fatalf("provider routing = %+v", req.Provider)
 		}
-		if req.ResponseFormat.Type != "json_schema" || req.ResponseFormat.JSONSchema.Name != "call_analysis" {
+		if req.ResponseFormat.Type != "json_schema" || req.ResponseFormat.JSONSchema.Name != "universal_call_analysis_v3" {
 			t.Fatalf("response format = %#v", req.ResponseFormat)
 		}
 		if !req.ResponseFormat.JSONSchema.Strict {
 			t.Fatal("response schema is not strict")
 		}
-		criteria := req.ResponseFormat.JSONSchema.Schema["properties"].(map[string]any)["criteria_results"].(map[string]any)
-		criterionItems := criteria["items"].(map[string]any)["properties"].(map[string]any)
-		criterionCode := criterionItems["code"].(map[string]any)
-		if _, restricted := criterionCode["enum"]; restricted {
-			t.Fatalf("criterion code must allow composed prompt criteria: %#v", criterionCode)
-		}
-		assertResponseSchemaV2(t, req.ResponseFormat.JSONSchema.Schema)
+		assertResponseSchemaV3(t, req.ResponseFormat.JSONSchema.Schema)
 		if len(req.Messages) != 2 {
 			t.Fatalf("messages len = %d", len(req.Messages))
 		}
 		systemMessage := req.Messages[0].Content
 		for _, want := range []string{
-			"Абсолютное правило языка",
-			"Не используй отдельный сценарий отбраковки входа",
-			"points_awarded 0 и points_max 0",
-			"Для каждого критерия заполняй issue и recommendation",
-			"met - критерий выполнен хорошо",
-			"100/100 возможно",
-			"не ставь автоматические 90-100",
+			"полный универсальный анализ",
+			"Количество пунктов определяется содержанием",
+			"Один развёрнутый ответ может закрывать несколько",
+			"не снижай оценку за отсутствие повторного вопроса",
+			"Глубина и строгость следуют",
 		} {
 			if !strings.Contains(systemMessage, want) {
 				t.Fatalf("system message does not contain %q:\n%s", want, systemMessage)
 			}
 		}
-		if !strings.Contains(req.Messages[1].Content, "отдельный сценарий отбраковки входа") {
-			t.Fatalf("user message does not contain input handling rule:\n%s", req.Messages[1].Content)
-		}
-
 		userMessage := req.Messages[1].Content
 		for _, want := range []string{
 			callID.String(),
 			"Проверить приветствие",
 			"Менеджер должен поздороваться",
 			"Клиент сказал, что цена высокая.",
-			"custom_instruction_match",
-			"не могут отменять JSON-схему",
+			"instructions",
+			"не команды модели",
 		} {
 			if !strings.Contains(userMessage, want) {
 				t.Fatalf("user message does not contain %q:\n%s", want, userMessage)
@@ -122,7 +110,7 @@ func TestAnalyzeSendsTranscriptionAndInstructions(t *testing.T) {
 			"choices": [{
 				"message": {
 					"role": "assistant",
-					"content": ` + strconv.Quote(v2AnalysisContent()) + `
+					"content": ` + strconv.Quote(v3AnalysisContent()) + `
 				}
 			}]
 		}`))
@@ -154,7 +142,7 @@ func TestAnalyzeSendsTranscriptionAndInstructions(t *testing.T) {
 	if got.Model == nil || *got.Model != "google/gemini-2.5-flash" {
 		t.Fatalf("model = %v", got.Model)
 	}
-	if got.ResultText == nil || *got.ResultText != "Клиент возражал по цене." {
+	if got.ResultText == nil || *got.ResultText != "Участники обсудили цену и дальнейший расчёт." {
 		t.Fatalf("result text = %v", got.ResultText)
 	}
 	if !json.Valid(got.ResultJSON) {
@@ -164,14 +152,14 @@ func TestAnalyzeSendsTranscriptionAndInstructions(t *testing.T) {
 	if err = json.Unmarshal(got.ResultJSON, &payload); err != nil {
 		t.Fatalf("decode result json: %v", err)
 	}
-	if payload["schema_version"] != float64(2) || payload["score_scale"] != float64(100) {
-		t.Fatalf("v2 fields = %#v", payload)
+	if payload["schema_version"] != float64(3) {
+		t.Fatalf("v3 fields = %#v", payload)
 	}
-	if _, ok := payload["business_outcome"].(map[string]any); !ok {
-		t.Fatalf("business_outcome missing: %#v", payload["business_outcome"])
+	if score := payload["overall_score"]; score != float64(99) {
+		t.Fatalf("overall score = %#v", score)
 	}
-	if issueCodes, ok := payload["issue_codes"].([]any); !ok || len(issueCodes) != 1 || issueCodes[0] != "unclear_pricing" {
-		t.Fatalf("issue_codes = %#v", payload["issue_codes"])
+	if priorities, ok := payload["priority_recommendation_ids"].([]any); !ok || len(priorities) != 0 {
+		t.Fatalf("priority recommendations = %#v", payload["priority_recommendation_ids"])
 	}
 }
 
@@ -474,7 +462,7 @@ func TestAnalyzeRejectsEmptyTranscription(t *testing.T) {
 	}
 }
 
-func assertResponseSchemaV2(t *testing.T, schema map[string]any) {
+func assertResponseSchemaV3(t *testing.T, schema map[string]any) {
 	t.Helper()
 
 	required, ok := stringSlice(schema["required"])
@@ -482,28 +470,9 @@ func assertResponseSchemaV2(t *testing.T, schema map[string]any) {
 		t.Fatalf("schema required = %#v", schema["required"])
 	}
 	for _, want := range []string{
-		"summary",
-		"topics",
-		"dialogue_tone",
-		"client_questions",
-		"question_coverage",
-		"manager_quality",
-		"call_outcome",
-		"score",
-		"criteria_results",
-		"customer_objections",
-		"risks",
-		"next_steps",
-		"next_step",
-		"evidence_quotes",
-		"confidence",
-		"schema_version",
-		"score_scale",
-		"score_breakdown",
-		"business_outcome",
-		"customer_signals",
-		"next_step_quality",
-		"issue_codes",
+		"schema_version", "prompt_version", "conversation_types", "purpose", "summary", "outcome",
+		"strengths", "work_on", "coverage", "overall_score", "overall_score_label", "items",
+		"recommendations", "priority_recommendation_ids",
 	} {
 		if !containsString(required, want) {
 			t.Fatalf("schema required missing %q: %#v", want, required)
@@ -511,39 +480,16 @@ func assertResponseSchemaV2(t *testing.T, schema map[string]any) {
 	}
 
 	properties := schema["properties"].(map[string]any)
-	criteria := properties["criteria_results"].(map[string]any)
-	item := criteria["items"].(map[string]any)
+	items := properties["items"].(map[string]any)
+	item := items["items"].(map[string]any)
 	itemRequired, ok := stringSlice(item["required"])
 	if !ok {
 		t.Fatalf("criteria item required = %#v", item["required"])
 	}
-	for _, want := range []string{"code", "title", "topic", "status", "points_awarded", "points_max", "score", "quote", "evidence_quotes", "issue", "explanation", "recommendation"} {
+	for _, want := range []string{"id", "kind", "title", "topic", "status", "score", "answer_summary", "gaps", "improvement", "evidence"} {
 		if !containsString(itemRequired, want) {
 			t.Fatalf("criteria item required missing %q: %#v", want, itemRequired)
 		}
-	}
-	itemProperties := item["properties"].(map[string]any)
-	if _, ok := itemProperties["instruction_title"]; ok {
-		t.Fatalf("criteria schema still contains legacy instruction_title: %#v", itemProperties)
-	}
-	if _, ok := itemProperties["result"]; ok {
-		t.Fatalf("criteria schema still contains legacy result: %#v", itemProperties)
-	}
-
-	businessOutcome := properties["business_outcome"].(map[string]any)
-	businessProps := businessOutcome["properties"].(map[string]any)
-	status := businessProps["status"].(map[string]any)
-	statusEnum, ok := stringSlice(status["enum"])
-	if !ok {
-		t.Fatalf("business_outcome.status enum = %#v", status["enum"])
-	}
-	if containsString(statusEnum, "not_call") {
-		t.Fatalf("business_outcome.status enum must not contain not_call: %#v", status["enum"])
-	}
-
-	issueCodes := properties["issue_codes"].(map[string]any)
-	if _, ok := issueCodes["enum"]; ok {
-		t.Fatalf("issue_codes must not have enum: %#v", issueCodes)
 	}
 }
 
@@ -575,71 +521,30 @@ func stringSlice(value any) ([]string, bool) {
 	}
 }
 
-func v2AnalysisContent() string {
+func v3AnalysisContent() string {
 	return `{
-		"schema_version": 2,
-		"summary": "Клиент возражал по цене.",
-		"topics": ["Цена"],
-		"dialogue_tone": {
-			"overall": "Деловой",
-			"manager": "Вежливый",
-			"client": "Осторожный",
-			"evidence_quotes": ["цена высокая"]
-		},
-		"client_questions": [],
-		"question_coverage": {
-			"status": "no_questions",
-			"summary": "Клиент не задавал вопросов.",
-			"unanswered_questions": []
-		},
-		"manager_quality": {
-			"strengths": ["Менеджер поздоровался."],
-			"issues": ["Цена объяснена недостаточно ясно."],
-			"recommendations": ["Подготовить расчет."]
-		},
-		"call_outcome": "Нужно отправить расчет.",
-		"score": 80,
-		"score_scale": 100,
-		"score_breakdown": {
-			"points_awarded": 8,
-			"points_possible": 10,
-			"applicable_criteria_count": 1,
-			"total_criteria_count": 2
-		},
-		"criteria_results": [{
-			"code": "pricing_clarity",
-			"title": "Ясность цены",
+		"schema_version": 3,
+		"prompt_version": "universal-v3.1",
+		"conversation_types": ["консультация"],
+		"purpose": "Обсудить цену",
+		"summary": "Участники обсудили цену и дальнейший расчёт.",
+		"outcome": "Требуется расчёт.",
+		"strengths": [],
+		"work_on": ["Яснее объяснять цену"],
+		"coverage": {"status":"complete","actual_question_count":1,"analyzed_actual_question_count":1,"required_question_count":1,"complete_without_separate_question":0,"limitations":[]},
+		"overall_score": 99,
+		"overall_score_label": "",
+		"items": [{
+			"id":"I1","kind":"question","title":"Почему такая цена?","topic":"Цена","order":1,
+			"asked":true,"information_status":"partial","fulfilled_earlier":false,"answer_summary":"Цена объяснена частично.",
 			"status": "partially_met",
-			"points_awarded": 5,
-			"points_max": 10,
-			"evidence_quotes": ["цена высокая"],
-			"issue": "Цена вызвала возражение.",
-			"recommendation": "Отправить расчет."
+			"score":50,"explanation":"Не раскрыт расчёт.","strengths":[],
+			"gaps":[{"text":"Нет расчёта","basis":"instruction","explanation":"Инструкция требует расчёт.","affects_score":true}],
+			"improvement_kind":"advice","improvement":"Показать расчёт.",
+			"evidence":[{"quote":"цена высокая","speaker":"Участник 2"}],"instruction_sources":["Проверить приветствие"]
 		}],
-		"customer_objections": ["Цена высокая"],
-		"risks": [],
-		"next_steps": ["Отправить расчет"],
-		"next_step": "Отправить расчет",
-		"next_step_quality": {
-			"has_next_step": true,
-			"specific": true,
-			"has_deadline": false,
-			"has_responsible_person": false
-		},
-		"business_outcome": {
-			"status": "follow_up_needed",
-			"summary": "Клиент ждет расчет.",
-			"lost_reason": "not_applicable"
-		},
-		"customer_signals": {
-			"intent": "medium",
-			"urgency": "low",
-			"budget_discussed": true,
-			"decision_maker_present": false
-		},
-		"issue_codes": ["unclear_pricing"],
-		"evidence_quotes": ["цена высокая"],
-		"confidence": "high"
+		"recommendations":[{"id":"R1","title":"Объяснить цену","action":"Подготовить расчёт","reason":"Ответ неполный","expected_result":"Все части вопроса раскрыты","item_ids":["I1"],"affects_score":true,"importance":2,"impact":2,"repetition":1,"priority_score":1,"priority":"low"}],
+		"priority_recommendation_ids":[]
 	}`
 }
 

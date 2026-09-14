@@ -223,7 +223,11 @@ func (s *Service) ContentSearch(ctx context.Context, in models.ContentSearchInpu
 	vectorMode := false
 	var vector string
 	if s.embedder != nil && s.embedder.Enabled() {
-		vectors, _, embedErr := s.embedder.Embed(ctx, []string{in.Query}, "search_query")
+		semanticQuery := strings.TrimSpace(in.SemanticQuery)
+		if semanticQuery == "" {
+			semanticQuery = in.Query
+		}
+		vectors, _, embedErr := s.embedder.Embed(ctx, []string{semanticQuery}, "search_query")
 		if embedErr == nil && len(vectors) == 1 {
 			vectorMode = true
 			vector = vectorLiteral(vectors[0])
@@ -245,11 +249,16 @@ func (s *Service) ContentSearch(ctx context.Context, in models.ContentSearchInpu
 		order = score + ` DESC`
 		mode = "hybrid"
 	}
-	query := `SELECT ch.call_search_chunk_uuid,c.call_uuid,c.title,ch.text,ch.speaker,ch.start_seconds,ch.end_seconds,c.created_at,GREATEST(c.created_at,t.updated_at),d.transcription_revision,` + score + ` FROM call_search_chunks ch JOIN call_search_documents d ON d.call_search_document_uuid=ch.call_search_document_uuid AND d.status='ready' JOIN search_index_profiles p ON p.search_index_profile_uuid=d.profile_uuid AND p.status='active' JOIN calls c ON c.call_uuid=d.call_uuid JOIN call_transcriptions t ON t.transcription_uuid=d.transcription_uuid WHERE ` + scopeSQL() + ` AND (` + callAccessSQL() + `) ` + where + ` AND ` + currentDocumentSQL() + ` AND ((ch.text_search || to_tsvector('russian',c.title)) @@ websearch_to_tsquery('russian',$3)`
+	query := `SELECT ch.call_search_chunk_uuid,c.call_uuid,c.title,ch.text,ch.speaker,ch.start_seconds,ch.end_seconds,c.created_at,GREATEST(c.created_at,t.updated_at),d.transcription_revision,` + score + `,ch.source_kind FROM call_search_chunks ch JOIN call_search_documents d ON d.call_search_document_uuid=ch.call_search_document_uuid AND d.status='ready' JOIN search_index_profiles p ON p.search_index_profile_uuid=d.profile_uuid AND p.status='active' JOIN calls c ON c.call_uuid=d.call_uuid JOIN call_transcriptions t ON t.transcription_uuid=d.transcription_uuid WHERE ` + scopeSQL() + ` AND (` + callAccessSQL() + `) ` + where + ` AND ` + currentDocumentSQL() + ` AND ((ch.text_search || to_tsvector('russian',c.title)) @@ websearch_to_tsquery('russian',$3)`
 	if vectorMode {
 		query += ` OR ch.embedding IS NOT NULL`
 	}
-	query += `) ORDER BY ` + order + `,c.call_uuid,ch.ordinal LIMIT $4`
+	query += `)`
+	if vectorMode {
+		args = append(args, 0.35)
+		query += fmt.Sprintf(` AND %s >= $%d`, score, len(args))
+	}
+	query += ` ORDER BY ` + order + `,c.call_uuid,ch.ordinal LIMIT $4`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return models.ContentSearchResult{}, err
@@ -258,7 +267,7 @@ func (s *Service) ContentSearch(ctx context.Context, in models.ContentSearchInpu
 	items := []models.ContentSearchItem{}
 	for rows.Next() {
 		var x models.ContentSearchItem
-		if err = rows.Scan(&x.ChunkUUID, &x.CallUUID, &x.Title, &x.Quote, &x.Speaker, &x.StartSeconds, &x.EndSeconds, &x.CreatedAt, &x.UpdatedAt, &x.Revision, &x.Score); err != nil {
+		if err = rows.Scan(&x.ChunkUUID, &x.CallUUID, &x.Title, &x.Quote, &x.Speaker, &x.StartSeconds, &x.EndSeconds, &x.CreatedAt, &x.UpdatedAt, &x.Revision, &x.Score, &x.SourceKind); err != nil {
 			return models.ContentSearchResult{}, err
 		}
 		x.RetrievalMode = mode
@@ -283,6 +292,82 @@ func (s *Service) ContentSearch(ctx context.Context, in models.ContentSearchInpu
 		warnings = append(warnings, "Семантический провайдер недоступен: выполнен полнотекстовый поиск")
 	}
 	return models.ContentSearchResult{Items: items, RetrievalMode: mode, EvaluatedCalls: evaluated, IndexReadyCalls: indexed, Warnings: warnings}, nil
+}
+
+func (s *Service) fullSelectedContent(ctx context.Context, in models.ContentSearchInput) (models.ContentSearchResult, error) {
+	if in.UserUUID == uuid.Nil || len(in.CallIDs) == 0 || len(in.CallIDs) > 100 {
+		return models.ContentSearchResult{}, ErrInvalidInput
+	}
+	cap, err := s.Capabilities(ctx, in.UserUUID, in.CompanyUUID)
+	if err != nil {
+		return models.ContentSearchResult{}, err
+	}
+	if !cap.SearchEnabled {
+		return models.ContentSearchResult{}, ErrForbidden
+	}
+	if err = validateDepartments(in.DepartmentIDs, cap); err != nil {
+		return models.ContentSearchResult{}, err
+	}
+	args := []any{in.UserUUID, in.CompanyUUID}
+	where, extra := filterSQL(in, 3)
+	args = append(args, extra...)
+	query := `SELECT ch.call_search_chunk_uuid,c.call_uuid,c.title,ch.text,ch.speaker,ch.start_seconds,ch.end_seconds,c.created_at,GREATEST(c.created_at,t.updated_at),d.transcription_revision,1::double precision,ch.source_kind
+	FROM call_search_chunks ch
+	JOIN call_search_documents d ON d.call_search_document_uuid=ch.call_search_document_uuid AND d.status='ready'
+	JOIN search_index_profiles p ON p.search_index_profile_uuid=d.profile_uuid AND p.status='active'
+	JOIN calls c ON c.call_uuid=d.call_uuid
+	JOIN call_transcriptions t ON t.transcription_uuid=d.transcription_uuid
+	WHERE ` + scopeSQL() + ` AND (` + callAccessSQL() + `) ` + where + ` AND ` + currentDocumentSQL() + `
+	ORDER BY c.created_at,c.call_uuid,ch.ordinal`
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return models.ContentSearchResult{}, err
+	}
+	defer func() { _ = rows.Close() }()
+	items := make([]models.ContentSearchItem, 0)
+	indexed := map[uuid.UUID]bool{}
+	for rows.Next() {
+		var item models.ContentSearchItem
+		if err = rows.Scan(&item.ChunkUUID, &item.CallUUID, &item.Title, &item.Quote, &item.Speaker, &item.StartSeconds, &item.EndSeconds, &item.CreatedAt, &item.UpdatedAt, &item.Revision, &item.Score, &item.SourceKind); err != nil {
+			return models.ContentSearchResult{}, err
+		}
+		item.RetrievalMode = "full_selected_calls"
+		items = append(items, item)
+		indexed[item.CallUUID] = true
+	}
+	if err = rows.Err(); err != nil {
+		return models.ContentSearchResult{}, err
+	}
+	warnings := []string{}
+	if len(indexed) < len(in.CallIDs) {
+		warnings = append(warnings, "Часть выбранных звонков ещё индексируется или недоступна")
+	}
+	return models.ContentSearchResult{Items: items, RetrievalMode: "full_selected_calls", EvaluatedCalls: len(in.CallIDs), IndexReadyCalls: len(indexed), Warnings: warnings}, nil
+}
+
+func requestsFullConversationReview(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	markers := []string{"полный анализ", "полностью проанализ", "разбери весь", "проанализируй весь", "все вопросы", "каждый вопрос", "весь разговор", "весь звонок", "всю беседу", "все нарушения", "каждое нарушение", "все требования", "каждое требование", "all questions", "full analysis", "entire conversation", "every requirement"}
+	for _, marker := range markers {
+		if strings.Contains(value, marker) {
+			return true
+		}
+	}
+	// Cover natural variations without coupling the route to a closed list of
+	// conversation domains. A completeness quantifier must be paired with an
+	// object that can only be checked by reading the selected material in full.
+	quantified := containsAny(value, "весь", "всю", "всё", "все ", "всех ", "кажд", "полност", "целиком", "all ", "every ", "entire ", "complete ")
+	material := containsAny(value, "вопрос", "ответ", "реплик", "эпизод", "разговор", "диалог", "звонок", "бесед", "требован", "инструкц", "нарушен", "conversation", "call", "question", "answer", "requirement", "violation")
+	return quantified && material
+}
+
+func containsAny(value string, values ...string) bool {
+	for _, candidate := range values {
+		if strings.Contains(value, candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 func callAccessSQL() string {
@@ -646,7 +731,18 @@ func (s *Service) GetRun(ctx context.Context, user, runID uuid.UUID) (models.Ass
 }
 
 func (s *Service) completeRun(ctx context.Context, run models.AssistantRun, in models.CreateAssistantMessageInput) (models.AssistantRun, error) {
-	search, err := s.ContentSearch(ctx, models.ContentSearchInput{UserUUID: in.UserUUID, CompanyUUID: in.CompanyUUID, Query: in.Text, CallIDs: in.CallIDs, DepartmentIDs: in.DepartmentIDs, FolderIDs: in.FolderIDs, From: in.From, To: in.To, Limit: 20})
+	contextualQuestion, err := s.questionWithHistory(ctx, run.ChatUUID, in.Text)
+	if err != nil {
+		_ = s.failRun(ctx, run.ID, "history_failed")
+		return models.AssistantRun{}, err
+	}
+	searchInput := models.ContentSearchInput{UserUUID: in.UserUUID, CompanyUUID: in.CompanyUUID, Query: in.Text, SemanticQuery: contextualQuestion, CallIDs: in.CallIDs, DepartmentIDs: in.DepartmentIDs, FolderIDs: in.FolderIDs, From: in.From, To: in.To, Limit: 20}
+	var search models.ContentSearchResult
+	if requestsFullConversationReview(in.Text) && len(in.CallIDs) > 0 {
+		search, err = s.fullSelectedContent(ctx, searchInput)
+	} else {
+		search, err = s.ContentSearch(ctx, searchInput)
+	}
 	if err != nil {
 		_ = s.failRun(ctx, run.ID, "search_failed")
 		return models.AssistantRun{}, err
@@ -658,7 +754,11 @@ func (s *Service) completeRun(ctx context.Context, run models.AssistantRun, in m
 	sourceMap := map[string]models.ContentSearchItem{}
 	for i, item := range search.Items {
 		id := fmt.Sprintf("S%d", i+1)
-		sources = append(sources, sourcePrompt{ID: id, CallTitle: item.Title, Text: item.Quote})
+		speaker := ""
+		if item.Speaker != nil {
+			speaker = *item.Speaker
+		}
+		sources = append(sources, sourcePrompt{ID: id, CallTitle: item.Title, Text: item.Quote, Speaker: speaker, Revision: item.Revision, StartSeconds: item.StartSeconds, EndSeconds: item.EndSeconds, SourceKind: item.SourceKind})
 		sourceMap[id] = item
 	}
 	answer := generatedAnswer{}
@@ -688,7 +788,7 @@ func (s *Service) completeRun(ctx context.Context, run models.AssistantRun, in m
 			_, _ = s.db.ExecContext(ctx, `UPDATE assistant_runs SET usage_operation_uuid=$2,provider=$3,model=$4 WHERE assistant_run_uuid=$1`, run.ID, creditOperation, provider, model)
 		}
 		var usage ProviderUsage
-		answer, usage, err = s.generator.Generate(ctx, in.Text, sources, maxTokens)
+		answer, usage, err = s.generator.Generate(ctx, contextualQuestion, sources, maxTokens)
 		if err != nil {
 			if s.credits != nil && creditOperation != uuid.Nil {
 				_ = s.credits.MarkCreditOperationReconciling(ctx, creditOperation, "assistant provider result unavailable")
@@ -742,10 +842,10 @@ func (s *Service) completeRun(ctx context.Context, run models.AssistantRun, in m
 	for i, id := range validIDs {
 		item := sourceMap[id]
 		cid, _ := uuid.NewV7()
-		if _, err = tx.ExecContext(ctx, `INSERT INTO assistant_citations(assistant_citation_uuid,assistant_message_uuid,call_uuid,transcription_revision,chunk_uuid,quote,start_seconds,end_seconds,ordinal) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, cid, msgID, item.CallUUID, item.Revision, item.ChunkUUID, item.Quote, item.StartSeconds, item.EndSeconds, i); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO assistant_citations(assistant_citation_uuid,assistant_message_uuid,call_uuid,transcription_revision,chunk_uuid,quote,start_seconds,end_seconds,ordinal,source_kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, cid, msgID, item.CallUUID, item.Revision, item.ChunkUUID, item.Quote, item.StartSeconds, item.EndSeconds, i, item.SourceKind); err != nil {
 			return models.AssistantRun{}, err
 		}
-		msg.Sources = append(msg.Sources, models.AssistantSource{ID: cid, CallUUID: item.CallUUID, CallTitle: item.Title, Quote: item.Quote, StartSeconds: item.StartSeconds, EndSeconds: item.EndSeconds, Revision: item.Revision})
+		msg.Sources = append(msg.Sources, models.AssistantSource{ID: cid, CallUUID: item.CallUUID, CallTitle: item.Title, Quote: item.Quote, StartSeconds: item.StartSeconds, EndSeconds: item.EndSeconds, Revision: item.Revision, SourceKind: item.SourceKind})
 	}
 	if len(search.Items) > 0 && isRetrievalDistributionRequest(in.Text) {
 		artifact, artifactErr := storeRetrievalArtifact(ctx, tx, msgID, search)
@@ -784,6 +884,46 @@ func (s *Service) completeRun(ctx context.Context, run models.AssistantRun, in m
 	return run, nil
 }
 
+func (s *Service) questionWithHistory(ctx context.Context, chatID uuid.UUID, current string) (string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT role,content_json FROM assistant_messages WHERE assistant_chat_uuid=$1 ORDER BY sequence DESC LIMIT 9`, chatID)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rows.Close() }()
+	type entry struct{ role, text string }
+	entries := make([]entry, 0, 8)
+	for rows.Next() {
+		var role string
+		var raw []byte
+		if err = rows.Scan(&role, &raw); err != nil {
+			return "", err
+		}
+		var message models.AssistantMessage
+		if json.Unmarshal(raw, &message) != nil || strings.TrimSpace(message.Text) == "" {
+			continue
+		}
+		entries = append(entries, entry{role: role, text: truncateRunes(strings.TrimSpace(message.Text), 2000)})
+	}
+	if err = rows.Err(); err != nil {
+		return "", err
+	}
+	if len(entries) > 0 && entries[0].role == "user" && entries[0].text == current {
+		entries = entries[1:]
+	}
+	if len(entries) == 0 {
+		return current, nil
+	}
+	var history strings.Builder
+	for i := len(entries) - 1; i >= 0; i-- {
+		label := "Пользователь"
+		if entries[i].role == "assistant" {
+			label = "Помощник"
+		}
+		_, _ = fmt.Fprintf(&history, "%s: %s\n", label, entries[i].text)
+	}
+	return "Предыдущая переписка нужна только для понимания текущего вопроса; утверждения помощника не являются доказательствами.\n" + history.String() + "\nТекущий вопрос: " + current, nil
+}
+
 func (s *Service) failRun(ctx context.Context, id uuid.UUID, code string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE assistant_runs SET state='failed',error_code=$2,completed_at=now() WHERE assistant_run_uuid=$1 AND state NOT IN ('completed','failed','cancelled','access_revoked')`, id, code)
 	return err
@@ -808,7 +948,7 @@ func (s *Service) ownedChat(ctx context.Context, user, chat uuid.UUID) (uuid.UUI
 	return company, detail, err
 }
 func (s *Service) loadSources(ctx context.Context, msg *models.AssistantMessage) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT ac.assistant_citation_uuid,ac.call_uuid,c.title,ac.quote,ac.start_seconds,ac.end_seconds,ac.transcription_revision FROM assistant_citations ac JOIN calls c ON c.call_uuid=ac.call_uuid WHERE ac.assistant_message_uuid=$1 ORDER BY ac.ordinal`, msg.ID)
+	rows, err := s.db.QueryContext(ctx, `SELECT ac.assistant_citation_uuid,ac.call_uuid,c.title,ac.quote,ac.start_seconds,ac.end_seconds,ac.transcription_revision,ac.source_kind FROM assistant_citations ac JOIN calls c ON c.call_uuid=ac.call_uuid WHERE ac.assistant_message_uuid=$1 ORDER BY ac.ordinal`, msg.ID)
 	if err != nil {
 		return err
 	}
@@ -816,7 +956,7 @@ func (s *Service) loadSources(ctx context.Context, msg *models.AssistantMessage)
 	msg.Sources = []models.AssistantSource{}
 	for rows.Next() {
 		var x models.AssistantSource
-		if err = rows.Scan(&x.ID, &x.CallUUID, &x.CallTitle, &x.Quote, &x.StartSeconds, &x.EndSeconds, &x.Revision); err != nil {
+		if err = rows.Scan(&x.ID, &x.CallUUID, &x.CallTitle, &x.Quote, &x.StartSeconds, &x.EndSeconds, &x.Revision, &x.SourceKind); err != nil {
 			return err
 		}
 		msg.Sources = append(msg.Sources, x)

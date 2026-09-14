@@ -206,6 +206,17 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 			return fmt.Errorf("mark call transcribed: %w", err)
 		}
 	}
+	if mode == models.TranscriptionModeIdentified && call.UploadedByUserUUID.Valid {
+		if repository, ok := s.transcriptionRepository.(interface {
+			MergeDetectedSpeakerAssignments(context.Context, uuid.UUID, uuid.UUID, map[string]string) error
+		}); ok {
+			if names := inferSpeakerNames(result.Segments); len(names) > 0 {
+				if err = repository.MergeDetectedSpeakerAssignments(ctx, call.ID, call.UploadedByUserUUID.UUID, names); err != nil {
+					return fmt.Errorf("save detected speaker names: %w", err)
+				}
+			}
+		}
+	}
 
 	if !call.TranscriptionOnly {
 		if err = s.enqueueAnalyzeJob(ctx, call.ID); err != nil {

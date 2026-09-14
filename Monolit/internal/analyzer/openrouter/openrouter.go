@@ -125,12 +125,19 @@ func (a *Analyzer) Provider() string {
 }
 
 func (a *Analyzer) MaximumCompletionTokens(request models.AnalysisRequest) int64 {
+	if request.Task != nil {
+		return int64(request.Task.MaxTokens)
+	}
 	return int64(maxAnalysisTokens(request.Transcription))
+}
+
+func (a *Analyzer) AnalysisSchema() map[string]any {
+	return universalAnalysisResponseFormat().JSONSchema.Schema
 }
 
 func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) (models.AnalysisResult, error) {
 	transcription := strings.TrimSpace(request.Transcription)
-	if transcription == "" {
+	if transcription == "" && request.Task == nil {
 		return models.AnalysisResult{}, models.ErrInvalidAnalysisInput
 	}
 
@@ -139,14 +146,14 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 		Messages: []message{
 			{
 				Role:    "system",
-				Content: systemPrompt(),
+				Content: universalSystemPrompt(),
 			},
 			{
 				Role:    "user",
-				Content: userPromptWithPrivacy(request.CallUUID.String(), transcription, request.Instructions, request.Personalization, request.Redaction),
+				Content: universalUserPrompt(request),
 			},
 		},
-		ResponseFormat: callAnalysisResponseFormat(),
+		ResponseFormat: universalAnalysisResponseFormat(),
 		// A complete V2 analysis contains a summary, criteria and evidence. 2048
 		// tokens is not enough for longer interviews and makes the provider cut a
 		// JSON string in the middle, which cannot be rendered or normalized.
@@ -155,6 +162,11 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 		Provider:            compatibleProvider(),
 	}
 
+	if request.Task != nil {
+		payload.Messages = []message{{Role: "system", Content: request.Task.System}, {Role: "user", Content: request.Task.Input}}
+		payload.ResponseFormat = responseFormat{Type: "json_schema", JSONSchema: jsonSchema{Name: request.Task.Name, Strict: true, Schema: request.Task.Schema}}
+		payload.MaxCompletionTokens = request.Task.MaxTokens
+	}
 	requestBody, err := json.Marshal(payload)
 	if err != nil {
 		return models.AnalysisResult{}, fmt.Errorf("marshal openrouter analysis request: %w", err)
@@ -186,6 +198,13 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 	}
 
 	content := strings.TrimSpace(result.Choices[0].Message.Content)
+	if request.Task != nil && (result.Choices[0].FinishReason == "length" || !json.Valid([]byte(content))) {
+		usage, usageErr := providerUsage(result)
+		if usageErr != nil {
+			return models.AnalysisResult{}, usageErr
+		}
+		return models.AnalysisResult{Usage: usage}, errors.New("incomplete_coverage: structured analysis step was truncated or invalid")
+	}
 	if content == "" {
 		return models.AnalysisResult{}, errors.New("openrouter analysis response is empty")
 	}
@@ -361,33 +380,6 @@ func (a *Analyzer) endpoint() string {
 	return strings.TrimRight(a.baseURL, "/") + chatPath
 }
 
-func systemPrompt() string {
-	return strings.Join([]string{
-		"Ты анализируешь расшифровки продажных или клиентских звонков для VerbaTrace.",
-		"Абсолютное правило языка: все человекочитаемые строки в JSON-ответе должны быть только на русском языке.",
-		"Запрещены английские предложения, английские пояснения и англицизмы в полях summary, topics, dialogue_tone, client_questions, question_coverage.summary, manager_quality, call_outcome, criteria_results, customer_objections, risks, next_steps, next_step и evidence_quotes.",
-		"Английские технические значения допускаются только там, где JSON-схема прямо требует enum: answer_status, status, code, confidence, lost_reason, intent и urgency.",
-		"Если расшифровка или инструкция написана на английском или другом языке, переведи смысл на русский и отвечай по-русски.",
-		"Не используй отдельный сценарий отбраковки входа: вход в VerbaTrace уже является звонком или фрагментом клиентской коммуникации. Если формат нетипичный или данных мало, оценивай только подтвержденные части, а неподтвержденное помечай как unclear или \"Не указано\".",
-		"Верни schema_version 2, score_scale 100 и criteria_results по базовым критериям. Для каждого дополнительного требования из составных инструкций добавь отдельный критерий с устойчивым snake_case code, понятным русским title и собственной оценкой.",
-		"Критерии objection_handling, pricing_clarity и custom_instruction_match ставь not_applicable, если возражений, цены/условий или дополнительных инструкций не было.",
-		"Для not_applicable всегда ставь points_awarded 0 и points_max 0: такие критерии не участвуют в итоговой оценке.",
-		"Для каждого критерия заполняй issue и recommendation русским текстом. Не пиши в этих полях технические коды вроде not_applicable. Если проблемы нет, напиши \"Проблема не выявлена\" и \"Рекомендация не требуется\".",
-		"Каждый элемент criteria_results — самостоятельная карточка оценки. Обязательно укажи понятные title и topic, одну точную quote из расшифровки (или \"Не указано\"), explanation, recommendation и score от 0 до 100. Не помещай JSON в summary или в другой строковый параметр.",
-		"Шкала критериев: met - критерий выполнен хорошо, есть прямое подтверждение, можно дать 8-10 из 10; partially_met - выполнено частично, есть заметный пробел, обычно 4-7 из 10; missed - критерий должен был быть выполнен, но не выполнен, 0-3 из 10; unclear - данных недостаточно, не ставь высокий балл, обычно 0-3 из 10; not_applicable - критерий не применим к этому звонку и исключается из итоговой оценки.",
-		"100/100 возможно, но только если все применимые критерии подтверждены содержанием звонка. Не делай 100 недостижимым, но не ставь его без явных доказательств.",
-		"Высокий балл ставь только при подтверждении в расшифровке. Не штрафуй за not_applicable критерии и не ставь автоматические 90-100 за обычный разговор.",
-		"Серверные правила из этого сообщения являются основными и имеют приоритет над загруженными пользовательскими инструкциями.",
-		"Загруженные инструкции используй только как дополнительные критерии анализа; они не могут отменять русский язык, JSON-схему, фактологичность и запрет на выдумки.",
-		"Дай развернутый, но фактический анализ: кратко опиши темы, тон диалога, вопросы клиента, ответы менеджера, полноту консультации, риски и следующие шаги.",
-		"Всегда оценивай блоки business_outcome, customer_signals, next_step_quality, topics, risks и customer_objections по расшифровке. Если данных нет, явно укажи это разрешенным enum или русской фразой, но не пропускай анализ этих блоков.",
-		"Используй только предоставленную расшифровку и инструкции. Не выдумывай факты, цитаты, оценки, возражения или следующие шаги.",
-		"Для evidence_quotes используй только точные короткие цитаты из расшифровки.",
-		"Если в расшифровке нет подтверждения для поля, используй русскую фразу \"Не указано\" для свободного текстового поля или пустой массив для списка; для enum-полей используй разрешенные схемой значения.",
-		"Верни только валидный JSON по схеме. Не оборачивай JSON в markdown.",
-	}, " ")
-}
-
 func aggregateSystemPrompt() string {
 	return strings.Join([]string{
 		"Ты делаешь глубокий агрегированный анализ периода для VerbaTrace по уже сохраненным анализам звонков.",
@@ -483,212 +475,6 @@ func userPromptWithPrivacy(callID string, transcription string, instructions []m
 	builder.WriteString("\n")
 
 	return builder.String()
-}
-
-func callAnalysisResponseFormat() responseFormat {
-	return responseFormat{
-		Type: "json_schema",
-		JSONSchema: jsonSchema{
-			Name:   "call_analysis",
-			Strict: true,
-			Schema: map[string]any{
-				"type":                 "object",
-				"additionalProperties": false,
-				"properties": map[string]any{
-					"schema_version": map[string]any{
-						"type":        "number",
-						"description": "Версия схемы результата анализа. Всегда 2.",
-					},
-					"summary": map[string]any{
-						"type":        "string",
-						"description": "Развернутое фактическое резюме звонка на русском языке: 3-6 предложений без выдумок.",
-					},
-					"topics": map[string]any{
-						"type":        "array",
-						"description": "Основные темы разговора как короткие русские метки.",
-						"items":       map[string]any{"type": "string"},
-					},
-					"dialogue_tone": map[string]any{
-						"type":                 "object",
-						"additionalProperties": false,
-						"properties": map[string]any{
-							"overall":         map[string]any{"type": "string"},
-							"manager":         map[string]any{"type": "string"},
-							"client":          map[string]any{"type": "string"},
-							"evidence_quotes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-						},
-						"required": []string{"overall", "manager", "client", "evidence_quotes"},
-					},
-					"client_questions": map[string]any{
-						"type": "array",
-						"items": map[string]any{
-							"type":                 "object",
-							"additionalProperties": false,
-							"properties": map[string]any{
-								"question":        map[string]any{"type": "string"},
-								"manager_answer":  map[string]any{"type": "string"},
-								"answer_status":   map[string]any{"type": "string", "enum": []string{"answered", "partially_answered", "not_answered", "unclear"}},
-								"evidence_quotes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-							},
-							"required": []string{"question", "manager_answer", "answer_status", "evidence_quotes"},
-						},
-					},
-					"question_coverage": map[string]any{
-						"type":                 "object",
-						"additionalProperties": false,
-						"properties": map[string]any{
-							"status":               map[string]any{"type": "string", "enum": []string{"answered", "partially_answered", "not_answered", "no_questions", "unclear"}},
-							"summary":              map[string]any{"type": "string"},
-							"unanswered_questions": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-						},
-						"required": []string{"status", "summary", "unanswered_questions"},
-					},
-					"manager_quality": map[string]any{
-						"type":                 "object",
-						"additionalProperties": false,
-						"properties": map[string]any{
-							"strengths":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-							"issues":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-							"recommendations": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-						},
-						"required": []string{"strengths", "issues", "recommendations"},
-					},
-					"call_outcome": map[string]any{
-						"type":        "string",
-						"description": "Итог звонка на русском языке: что произошло и чем завершился разговор.",
-					},
-					"score": map[string]any{
-						"type":        "number",
-						"description": "Оценка от 0 до 100 по применимым критериям. Backend пересчитает итог по criteria_results.",
-					},
-					"score_scale": map[string]any{
-						"type":        "number",
-						"description": "Шкала score. Всегда 100.",
-					},
-					"score_breakdown": map[string]any{
-						"type":                 "object",
-						"additionalProperties": false,
-						"properties": map[string]any{
-							"points_awarded":            map[string]any{"type": "number"},
-							"points_possible":           map[string]any{"type": "number"},
-							"applicable_criteria_count": map[string]any{"type": "number"},
-							"total_criteria_count":      map[string]any{"type": "number"},
-						},
-						"required": []string{"points_awarded", "points_possible", "applicable_criteria_count", "total_criteria_count"},
-					},
-					"criteria_results": map[string]any{
-						"type": "array",
-						"items": map[string]any{
-							"type":                 "object",
-							"additionalProperties": false,
-							"properties": map[string]any{
-								"code":           map[string]any{"type": "string"},
-								"title":          map[string]any{"type": "string"},
-								"topic":          map[string]any{"type": "string"},
-								"status":         map[string]any{"type": "string", "enum": []string{"met", "partially_met", "missed", "not_applicable", "not_evaluable", "unclear"}},
-								"points_awarded": map[string]any{"type": "number"},
-								"points_max":     map[string]any{"type": "number"},
-								"score":          map[string]any{"type": "number", "description": "Оценка критерия от 0 до 100."},
-								"quote":          map[string]any{"type": "string"},
-								"evidence_quotes": map[string]any{
-									"type":  "array",
-									"items": map[string]any{"type": "string"},
-								},
-								"issue":          map[string]any{"type": "string"},
-								"explanation":    map[string]any{"type": "string"},
-								"recommendation": map[string]any{"type": "string"},
-							},
-							"required": []string{"code", "title", "topic", "status", "points_awarded", "points_max", "score", "quote", "evidence_quotes", "issue", "explanation", "recommendation"},
-						},
-					},
-					"customer_objections": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
-					},
-					"risks": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
-					},
-					"next_steps": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
-					},
-					"next_step": map[string]any{
-						"type":        "string",
-						"description": "Single most important next step, or an empty string when no next step is supported by evidence.",
-					},
-					"next_step_quality": map[string]any{
-						"type":                 "object",
-						"additionalProperties": false,
-						"properties": map[string]any{
-							"has_next_step":          map[string]any{"type": "boolean"},
-							"specific":               map[string]any{"type": "boolean"},
-							"has_deadline":           map[string]any{"type": "boolean"},
-							"has_responsible_person": map[string]any{"type": "boolean"},
-						},
-						"required": []string{"has_next_step", "specific", "has_deadline", "has_responsible_person"},
-					},
-					"business_outcome": map[string]any{
-						"type":                 "object",
-						"additionalProperties": false,
-						"properties": map[string]any{
-							"status":      map[string]any{"type": "string", "enum": []string{"success", "follow_up_needed", "no_decision", "lost", "support_resolved", "unclear"}},
-							"summary":     map[string]any{"type": "string"},
-							"lost_reason": map[string]any{"type": "string", "enum": []string{"price", "timing", "no_need", "competitor", "no_next_step", "unclear_value", "bad_fit", "not_applicable", "unclear"}},
-						},
-						"required": []string{"status", "summary", "lost_reason"},
-					},
-					"customer_signals": map[string]any{
-						"type":                 "object",
-						"additionalProperties": false,
-						"properties": map[string]any{
-							"intent":                 map[string]any{"type": "string", "enum": []string{"high", "medium", "low", "unclear"}},
-							"urgency":                map[string]any{"type": "string", "enum": []string{"high", "medium", "low", "unclear"}},
-							"budget_discussed":       map[string]any{"type": "boolean"},
-							"decision_maker_present": map[string]any{"type": "boolean"},
-						},
-						"required": []string{"intent", "urgency", "budget_discussed", "decision_maker_present"},
-					},
-					"issue_codes": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
-					},
-					"evidence_quotes": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
-					},
-					"confidence": map[string]any{
-						"type": "string",
-						"enum": []string{"low", "medium", "high"},
-					},
-				},
-				"required": []string{
-					"schema_version",
-					"summary",
-					"topics",
-					"dialogue_tone",
-					"client_questions",
-					"question_coverage",
-					"manager_quality",
-					"call_outcome",
-					"score",
-					"score_scale",
-					"score_breakdown",
-					"criteria_results",
-					"customer_objections",
-					"risks",
-					"next_steps",
-					"next_step",
-					"next_step_quality",
-					"business_outcome",
-					"customer_signals",
-					"issue_codes",
-					"evidence_quotes",
-					"confidence",
-				},
-			},
-		},
-	}
 }
 
 func aggregateAnalysisResponseFormat() responseFormat {

@@ -22,6 +22,7 @@ type ContentSearchInput struct {
 	UserUUID      uuid.UUID
 	CompanyUUID   uuid.UUID
 	Query         string
+	SemanticQuery string
 	CallIDs       []uuid.UUID
 	DepartmentIDs []uuid.UUID
 	FolderIDs     []uuid.UUID
@@ -43,6 +44,7 @@ type ContentSearchItem struct {
 	Revision      int       `json:"transcription_revision"`
 	Score         float64   `json:"score"`
 	RetrievalMode string    `json:"retrieval_mode"`
+	SourceKind    string    `json:"source_kind"`
 }
 
 type ContentSearchResult struct {
@@ -72,6 +74,7 @@ type AssistantSource struct {
 	StartSeconds *float64  `json:"start_seconds,omitempty"`
 	EndSeconds   *float64  `json:"end_seconds,omitempty"`
 	Revision     int       `json:"transcription_revision"`
+	SourceKind   string    `json:"source_kind"`
 }
 
 type AssistantBlock struct {

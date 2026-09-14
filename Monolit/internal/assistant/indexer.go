@@ -19,6 +19,7 @@ type indexCandidate struct {
 	revision                int
 	hash                    []byte
 	payload                 []byte
+	analysisPayload         []byte
 }
 type revisionPayload struct {
 	Text     string                        `json:"text"`
@@ -27,6 +28,7 @@ type revisionPayload struct {
 type searchChunk struct {
 	Text, Speaker string
 	Start, End    *float64
+	SourceKind    string
 }
 
 func (s *Service) RunIndexWorker(ctx context.Context) <-chan struct{} {
@@ -58,14 +60,14 @@ func (s *Service) IndexNext(ctx context.Context, limit int) error {
 	if err != nil {
 		return err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT c.call_uuid,t.transcription_uuid,r.revision,ct.content_sha256,ct.payload FROM calls c JOIN call_transcriptions t ON t.call_uuid=c.call_uuid JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid JOIN call_transcription_revisions r ON r.transcription_uuid=t.transcription_uuid AND r.revision=rs.active_revision JOIN call_transcription_contents ct ON ct.transcription_content_uuid=r.transcription_content_uuid LEFT JOIN call_privacy_states ps ON ps.call_uuid=c.call_uuid WHERE t.status='transcribed' AND (ps.call_uuid IS NULL OR ps.status IN ('not_requested','ready')) AND NOT EXISTS(SELECT 1 FROM call_search_documents d WHERE d.call_uuid=c.call_uuid AND d.transcription_revision=r.revision AND d.profile_uuid=$1 AND d.status='ready' AND d.content_sha256=ct.content_sha256 AND (ps.updated_at IS NULL OR d.updated_at>=ps.updated_at)) ORDER BY t.updated_at LIMIT $2`, profile, limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT c.call_uuid,t.transcription_uuid,r.revision,ct.content_sha256,ct.payload,COALESCE(a.result_json,'{}'::jsonb) FROM calls c JOIN call_transcriptions t ON t.call_uuid=c.call_uuid JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid JOIN call_transcription_revisions r ON r.transcription_uuid=t.transcription_uuid AND r.revision=rs.active_revision JOIN call_transcription_contents ct ON ct.transcription_content_uuid=r.transcription_content_uuid LEFT JOIN call_privacy_states ps ON ps.call_uuid=c.call_uuid LEFT JOIN LATERAL (SELECT result_json,updated_at FROM call_analyses WHERE call_uuid=c.call_uuid AND status='done' ORDER BY updated_at DESC LIMIT 1) a ON true WHERE t.status='transcribed' AND (ps.call_uuid IS NULL OR ps.status IN ('not_requested','ready')) AND NOT EXISTS(SELECT 1 FROM call_search_documents d WHERE d.call_uuid=c.call_uuid AND d.transcription_revision=r.revision AND d.profile_uuid=$1 AND d.status='ready' AND d.content_sha256=ct.content_sha256 AND (ps.updated_at IS NULL OR d.updated_at>=ps.updated_at) AND (a.updated_at IS NULL OR d.updated_at>=a.updated_at)) ORDER BY GREATEST(t.updated_at,COALESCE(a.updated_at,t.updated_at)) LIMIT $2`, profile, limit)
 	if err != nil {
 		return err
 	}
 	candidates := []indexCandidate{}
 	for rows.Next() {
 		var x indexCandidate
-		if err = rows.Scan(&x.callID, &x.transcriptionID, &x.revision, &x.hash, &x.payload); err != nil {
+		if err = rows.Scan(&x.callID, &x.transcriptionID, &x.revision, &x.hash, &x.payload, &x.analysisPayload); err != nil {
 			_ = rows.Close()
 			return err
 		}
@@ -114,6 +116,11 @@ func (s *Service) indexCandidate(ctx context.Context, profile uuid.UUID, c index
 		return err
 	}
 	chunks := chunkPayload(payload)
+	if analysisText := analysisSearchText(c.analysisPayload); analysisText != "" {
+		for _, text := range splitText("Сохранённый анализ звонка. "+analysisText, maxChunkRunes) {
+			chunks = append(chunks, searchChunk{Text: text, SourceKind: "analysis"})
+		}
+	}
 	if len(chunks) == 0 {
 		return nil
 	}
@@ -154,7 +161,11 @@ func (s *Service) indexCandidate(ctx context.Context, profile uuid.UUID, c index
 		if len(vectors) > i {
 			embedding = vectorLiteral(vectors[i])
 		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO call_search_chunks(call_search_chunk_uuid,call_search_document_uuid,ordinal,text,speaker,start_seconds,end_seconds,embedding) VALUES($1,$2,$3,$4,NULLIF($5,''),$6,$7,$8::vector)`, id, doc, i, ch.Text, ch.Speaker, ch.Start, ch.End, embedding); err != nil {
+		kind := ch.SourceKind
+		if kind == "" {
+			kind = "transcription"
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO call_search_chunks(call_search_chunk_uuid,call_search_document_uuid,ordinal,text,speaker,start_seconds,end_seconds,embedding,source_kind) VALUES($1,$2,$3,$4,NULLIF($5,''),$6,$7,$8::vector,$9)`, id, doc, i, ch.Text, ch.Speaker, ch.Start, ch.End, embedding, kind); err != nil {
 			return err
 		}
 	}
@@ -167,6 +178,52 @@ func (s *Service) indexCandidate(ctx context.Context, profile uuid.UUID, c index
 		return errors.New("transcription changed during indexing")
 	}
 	return tx.Commit()
+}
+
+func analysisSearchText(raw []byte) string {
+	var payload map[string]any
+	if len(raw) == 0 || json.Unmarshal(raw, &payload) != nil {
+		return ""
+	}
+	parts := make([]string, 0)
+	appendString := func(label string, value any) {
+		if text, ok := value.(string); ok && strings.TrimSpace(text) != "" {
+			parts = append(parts, label+": "+strings.TrimSpace(text))
+		}
+	}
+	appendString("Общий вывод", payload["summary"])
+	appendString("Результат", payload["outcome"])
+	if items, ok := payload["items"].([]any); ok {
+		for _, rawItem := range items {
+			item, ok := rawItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			title, _ := item["title"].(string)
+			answer, _ := item["answer_summary"].(string)
+			explanation, _ := item["explanation"].(string)
+			improvement, _ := item["improvement"].(string)
+			text := strings.TrimSpace(strings.Join([]string{title, answer, explanation, improvement}, ". "))
+			if text != "" {
+				parts = append(parts, "Пункт анализа: "+text)
+			}
+		}
+	} else if criteria, ok := payload["criteria_results"].([]any); ok {
+		for _, rawItem := range criteria {
+			item, ok := rawItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			title, _ := item["title"].(string)
+			explanation, _ := item["explanation"].(string)
+			recommendation, _ := item["recommendation"].(string)
+			text := strings.TrimSpace(strings.Join([]string{title, explanation, recommendation}, ". "))
+			if text != "" {
+				parts = append(parts, "Пункт анализа: "+text)
+			}
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 const maxChunkRunes = 1800

@@ -32,7 +32,14 @@ type Generator interface {
 	Generate(context.Context, string, []sourcePrompt, int) (generatedAnswer, ProviderUsage, error)
 }
 
-type sourcePrompt struct{ ID, CallTitle, Text string }
+type sourcePrompt struct {
+	ID, CallTitle, Text string
+	Speaker             string   `json:"speaker,omitempty"`
+	Revision            int      `json:"transcription_revision"`
+	StartSeconds        *float64 `json:"start_seconds,omitempty"`
+	EndSeconds          *float64 `json:"end_seconds,omitempty"`
+	SourceKind          string   `json:"source_kind"`
+}
 type generatedAnswer struct {
 	Text        string   `json:"text"`
 	CitationIDs []string `json:"citation_ids"`

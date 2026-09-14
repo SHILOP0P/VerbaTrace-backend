@@ -3,7 +3,9 @@ package billing
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"verbatrace/monolit/internal/models"
@@ -87,7 +89,7 @@ func (r *Repository) walletEntries(ctx context.Context, accountID uuid.UUID, lim
 		       -CASE WHEN o.status='settled' THEN o.settled_credits ELSE o.reserved_credits END,
 		       o.operation_type,o.started_at
 		FROM usage_operations o
-		WHERE o.billing_account_uuid=$1 AND o.environment='production'
+		WHERE o.billing_account_uuid=$1 AND o.environment='production' AND o.operation_type<>'analysis'
 		  AND o.status IN ('reserved','provider_running','settled','reconciling')
 		) history
 		ORDER BY created_at DESC LIMIT $2
@@ -106,6 +108,51 @@ func (r *Repository) walletEntries(ctx context.Context, accountID uuid.UUID, lim
 	}
 	if err = rows.Err(); err != nil && err != sql.ErrNoRows {
 		return nil, err
+	}
+	analysisRows, err := r.db.QueryContext(ctx, `
+		SELECT t.analysis_uuid,-sum(CASE WHEN o.status='settled' THEN o.settled_credits ELSE o.reserved_credits END),
+		       min(o.started_at),jsonb_agg(jsonb_build_object(
+		         'transaction_uuid',o.usage_operation_uuid,'type','usage','credits',
+		         -CASE WHEN o.status='settled' THEN o.settled_credits ELSE o.reserved_credits END,
+		         'reason','analysis','created_at',o.started_at) ORDER BY o.started_at)
+		FROM usage_operations o
+		JOIN call_analysis_tasks t ON t.result->>'CreditOperationID'=o.usage_operation_uuid::text
+		WHERE o.billing_account_uuid=$1 AND o.environment='production' AND o.operation_type='analysis'
+		  AND o.status IN ('reserved','provider_running','settled','reconciling')
+		GROUP BY t.analysis_uuid
+	`, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("list grouped analysis usage: %w", err)
+	}
+	defer func() { _ = analysisRows.Close() }()
+	for analysisRows.Next() {
+		var item models.CreditWalletEntry
+		var raw []byte
+		if err = analysisRows.Scan(&item.TransactionUUID, &item.Credits, &item.CreatedAt, &raw); err != nil {
+			return nil, err
+		}
+		item.Type, item.Reason = "usage_group", "analysis"
+		var details []struct {
+			TransactionUUID uuid.UUID `json:"transaction_uuid"`
+			Type            string    `json:"type"`
+			Credits         int64     `json:"credits"`
+			Reason          string    `json:"reason"`
+			CreatedAt       time.Time `json:"created_at"`
+		}
+		if err = json.Unmarshal(raw, &details); err != nil {
+			return nil, fmt.Errorf("decode grouped analysis usage: %w", err)
+		}
+		for _, detail := range details {
+			item.Details = append(item.Details, models.CreditWalletEntry{TransactionUUID: detail.TransactionUUID, Type: detail.Type, Credits: detail.Credits, Reason: detail.Reason, CreatedAt: detail.CreatedAt})
+		}
+		result = append(result, item)
+	}
+	if err = analysisRows.Err(); err != nil {
+		return nil, err
+	}
+	sort.SliceStable(result, func(i, j int) bool { return result[i].CreatedAt.After(result[j].CreatedAt) })
+	if len(result) > limit {
+		result = result[:limit]
 	}
 	return result, nil
 }
