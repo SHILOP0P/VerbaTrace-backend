@@ -1,29 +1,27 @@
 # VerbaTrace
 
+VerbaTrace — платформа анализа аудио- и видеозвонков. Backend-монолит на Go хранит записи, транскрипции, версии анализа и применённых инструкций, управляет доступом компаний и отделов, запускает фоновые задания и предоставляет API для рабочего интерфейса. Frontend находится в соседнем репозитории `C:\projects\VerbaTrace-frontend`.
+
 Backend-код расположен в [`Monolit/`](Monolit). Все команды Go, Task и Docker Compose ниже нужно запускать из этой директории:
 
 ```powershell
 Set-Location C:\projects\VerbaTrace\Monolit
 ```
 
-# VerbaTrace Monolith
-
-VerbaTrace — платформа анализа аудио- и видеозвонков. Backend-монолит на Go хранит записи, транскрипции, версии анализа и применённых инструкций, управляет доступом компаний и отделов, запускает фоновые задания и предоставляет API для рабочего интерфейса.
-
-Текущая реализация охватывает авторизацию и подписки, credit billing, загрузку и хранение медиа, транскрибацию с диаризацией, AI-анализ, инструкции анализа, Human QA, действия по итогам звонка, отчёты, уведомления, компании, отделы, ролевой доступ, developer ingest API и company-scoped коннектор Bitrix24.
+Текущая реализация охватывает авторизацию и подписки, credit billing, загрузку и хранение медиа, транскрибацию (обычную, с диаризацией или с идентификацией спикеров — в зависимости от тарифа), поэтапный AI-анализ, инструкции анализа, Human QA, действия по итогам звонка, отчёты, уведомления, компании, отделы, ролевой доступ, developer ingest API и company-scoped коннектор Bitrix24. Семантический поиск и AI-ассистент по звонкам находятся в разработке.
 
 ## Стек
 
-- Go 1.25.7
-- PostgreSQL 16
-- chi router
-- goose migrations
-- JWT access tokens
-- Refresh sessions в PostgreSQL
-- Локальное хранение аудио на файловой системе
-- Локальное хранение файлов инструкций анализа в форматах MD, PDF, DOCX и XLSX
-- Структурированный logger на базе zap
-- Docker Compose для локального PostgreSQL
+- Go 1.25.7, chi router, pgx v5 (через `database/sql`), zap
+- PostgreSQL 16 с расширениями `pgvector` и `pgcrypto` (образ `pgvector/pgvector:0.8.1-pg16`)
+- goose migrations, применяются автоматически при старте
+- JWT access tokens и refresh sessions в PostgreSQL
+- AssemblyAI — транскрибация, диаризация, идентификация спикеров и маскирование персональных данных
+- OpenRouter — AI-анализ звонков, embeddings (`openai/text-embedding-3-small`) и ответы ассистента
+- `ffmpeg`/`ffprobe` — длительность медиа, ASR-кэш и очищенные медиаверсии
+- Локальное хранение медиа, аватаров, инструкций (MD, PDF, DOCX, XLSX) и отчётов на файловой системе
+- Server-Sent Events для статуса звонка, deep analysis и уведомлений
+- Docker Compose (`deploy/docker-compose.yaml`) для локального стека API + PostgreSQL
 
 ## Текущее состояние
 
@@ -49,14 +47,24 @@ VerbaTrace — платформа анализа аудио- и видеозво
 - Очередь `processing_jobs` и worker для фоновой транскрибации и анализа.
 - Абстракция transcriber с mock- и AssemblyAI-провайдерами; штатный production-путь транскрибации — AssemblyAI.
 - Сохранение транскрипций звонков в `call_transcriptions`.
-- Неизменяемые версии транскрипции, исправление текста и спикеров, сравнение версий и безопасный повторный анализ.
+- Режим транскрибации определяется тарифом: `standard`, `diarized` (разделение на спикеров) или `identified` (идентификация спикеров по подсказкам `speaker_hints` и ролям `diarization_roles`).
+- Неизменяемые версии транскрипции, исправление текста и спикеров, получение любой версии для сравнения, восстановление версии и повторный анализ по активной версии.
 - Управление инструкциями анализа в форматах MD, PDF, DOCX и XLSX для личного, корпоративного и отделского scope.
 - Неизменяемая история версий файлов инструкций, скачивание конкретной версии и снимки инструкций, фактически применённых при анализе звонка.
 - Мягкое удаление инструкций с исключением из рабочих списков; окончательная очистка выполняется retention worker только после исчезновения исторических ссылок.
 - Абстракция analyzer с mock-провайдером, OpenRouter-провайдером и factory-заглушкой для OpenAI.
 - Асинхронный анализ звонка по готовой транскрипции и инструкциям через `processing_jobs`.
+- Поэтапный (progressive) анализ `universal-staged-v5`: инвентаризация вопросов, разбор инструкций на требования, оценка пунктов пакетами и итоговое резюме; промежуточные результаты шагов сохраняются в `call_analysis_tasks`, готовые карточки видны до завершения анализа. Результат — универсальный контракт `schema_version=3`.
+- Персонализация анализа (`/analysis-personalization`) — пользовательский контекст до 6000 символов.
 - Ручной запуск анализа через HTTP-ручку по готовой транскрипции.
-- Сохранение анализа звонка в `call_analyses`.
+- Сохранение анализа звонка в `call_analyses` с историей попыток (`call_analysis_attempts`).
+- Папки звонков с доступом по пользователям и привязанными инструкциями анализа.
+- Контакты и избранные звонки.
+- Глубокий агрегированный AI-анализ периода (deep analysis) с экспортом отчётов и SSE-статусом.
+- Retention звонков по тарифу и фоновое удаление просроченных записей.
+- SSE-события статуса обработки звонка (`/calls/{uuid}/events`).
+- Смена пароля и управление собственными сессиями.
+- Семантический поиск по содержимому звонков и AI-ассистент с цитатами (**в разработке**, не готово к релизу; без `EMBEDDING_API_KEY` используется лексический поиск PostgreSQL). Статус: [implementation-status](docs/verification/semantic-search-ai-workspace/implementation-status.md).
 - Создание компании.
 - Создание отдела.
 - Управление участниками компании и отдела, включая независимую должность `company_members.job_title`.
@@ -93,11 +101,13 @@ VerbaTrace — платформа анализа аудио- и видеозво
 
 ## Основные сущности
 
+Диаграмма показывает только ядро схемы. Версии транскрипций, инструкций и анализа, биллинг, интеграции, privacy, Human QA, действия и поиск хранятся в отдельных таблицах — см. [Monolit/migrations](Monolit/migrations).
+
 ```mermaid
 flowchart LR
-    users["users<br/>user_uuid PK<br/>email<br/>password_hash<br/>role<br/>access_version<br/>created_at"]
+    users["users<br/>user_uuid PK<br/>email<br/>password_hash<br/>role<br/>created_at"]
     user_profiles["user_profiles<br/>user_uuid PK/FK<br/>username<br/>full_name<br/>full_surname<br/>headline<br/>phone<br/>timezone<br/>avatar_path"]
-    refresh_sessions["refresh_sessions<br/>session_uuid PK<br/>user_uuid FK<br/>refresh_token_hash<br/>user_agent<br/>ip_address<br/>created_at<br/>last_used_at<br/>expires_at<br/>revoked_at<br/>revoked_reason"]
+    refresh_sessions["refresh_sessions<br/>session_uuid PK<br/>user_uuid FK<br/>refresh_token_hash<br/>user_agent<br/>ip_address<br/>created_at<br/>last_used_at<br/>expires_at<br/>revoked_at<br/>revoked_reason<br/>access_version"]
     companies["companies<br/>company_uuid PK<br/>name<br/>manager_user_uuid FK<br/>member_limit<br/>created_at"]
     company_members["company_members<br/>company_uuid FK<br/>user_uuid FK<br/>job_title nullable<br/>role<br/>status<br/>created_at"]
     departments["departments<br/>department_uuid PK<br/>company_uuid FK<br/>name<br/>created_at"]
@@ -105,7 +115,7 @@ flowchart LR
     membership_invitations["membership_invitations<br/>invitation_uuid PK<br/>company_uuid FK<br/>department_uuid FK nullable<br/>invited_user_uuid FK<br/>invited_by_user_uuid FK<br/>company_role<br/>department_role nullable<br/>status<br/>expires_at<br/>responded_at nullable<br/>created_at<br/>updated_at"]
     notifications["notifications<br/>notification_uuid PK<br/>user_uuid FK<br/>type<br/>title<br/>body<br/>entity_type nullable<br/>entity_uuid nullable<br/>read_at nullable<br/>created_at"]
     calls["calls<br/>call_uuid PK<br/>title<br/>status<br/>audio_path<br/>original_filename<br/>mime_type<br/>size_bytes<br/>duration_seconds<br/>uploaded_by_user_uuid FK<br/>company_uuid FK nullable<br/>department_uuid FK nullable<br/>visibility_scope<br/>transcription_only<br/>created_at"]
-    processing_jobs["processing_jobs<br/>job_uuid PK<br/>type<br/>entity_uuid<br/>status<br/>attempts<br/>available_at<br/>created_at<br/>updated_at"]
+    processing_jobs["processing_jobs<br/>job_uuid PK<br/>job_type<br/>entity_uuid<br/>status<br/>attempts<br/>available_at<br/>created_at<br/>updated_at"]
     call_transcriptions["call_transcriptions<br/>transcription_uuid PK<br/>call_uuid FK unique<br/>status<br/>text<br/>language<br/>provider<br/>error_message<br/>created_at<br/>updated_at"]
     analysis_instructions["analysis_instructions<br/>instruction_uuid PK<br/>scope<br/>user_uuid nullable<br/>company_uuid nullable<br/>department_uuid nullable<br/>file_path<br/>is_active<br/>created_at<br/>updated_at"]
     call_analyses["call_analyses<br/>analysis_uuid PK<br/>call_uuid FK unique<br/>status<br/>provider<br/>model<br/>result_json<br/>result_text<br/>error_message<br/>created_at<br/>updated_at"]
@@ -194,6 +204,7 @@ flowchart LR
 - `processing`
 - `done`
 - `failed`
+- `stale` — результат устарел после изменения транскрипции или политики защиты данных
 
 Правила целостности в БД:
 
@@ -213,12 +224,14 @@ flowchart LR
 - Любой авторизованный пользователь может загрузить личный звонок.
 - Только `company_manager` может загрузить звонок на уровне компании.
 - `company_manager`, `department_leader` и `employee` целевого отдела могут загрузить звонок на уровне отдела.
+- Для любой загрузки нужна активная подписка (персональная для личного звонка, бизнес-подписка компании для company/department); без неё API возвращает `402 subscription_required`.
+- Звонки из интеграций (developer API, Bitrix24) проходят проверку прав на уровне ключа или подключения, а не пользователя.
 
 ```mermaid
 flowchart TD
     A["POST /api/v1/calls"] --> B["Парсим multipart form"]
-    B --> C["Читаем title и audio"]
-    C --> D["Читаем company_uuid и department_uuid"]
+    B --> C["Читаем media (или audio), title, processing_mode, speaker_hints"]
+    C --> D["Читаем company_uuid, department_uuid, folder_uuid"]
     D --> E{"Определяем visibility_scope"}
 
     E -->|"нет company_uuid и department_uuid"| P["personal"]
@@ -226,14 +239,16 @@ flowchart TD
     E -->|"company_uuid + department_uuid"| DE["department"]
     E -->|"department_uuid без company_uuid"| X["400 invalid_call_placement"]
 
-    P --> V["Валидируем аудио"]
+    P --> V["Валидируем тип медиа"]
     CO --> V
     DE --> V
 
-    V --> R{"Проверяем права на загрузку"}
-    R -->|"разрешено"| S["Сохраняем аудио локально"]
+    V --> R{"Проверяем права на загрузку и папку"}
+    R -->|"разрешено"| S["Сохраняем медиа локально, ffprobe определяет длительность"]
     R -->|"запрещено"| F["403 forbidden"]
-    S --> DB["Создаем запись в calls"]
+    S --> M{"Режим транскрибации по тарифу"}
+    M -->|"нет активной подписки"| NS["402 subscription_required"]
+    M --> DB["В одной транзакции: calls + job transcribe_call + privacy state"]
     DB --> OK["201 Created"]
 ```
 
@@ -314,17 +329,17 @@ sequenceDiagram
 
 Новый flow приглашений не удаляет старые прямые ручки добавления участников. Pending-приглашение не создает `active` membership и не дает доступ к компании или отделу. Пользователь становится активным участником только после `accept`.
 
-Прямое добавление участника отдела доступно `company_manager`; `department_leader` может добавить в свой отдел только уже активного участника компании и только как `employee`.
+Прямое добавление участника отдела доступно `company_manager` и `department_leader` (лидер — только в свой отдел и только как `employee`); в обоих случаях добавляемый пользователь уже должен быть активным участником компании.
 
 Права:
 
 - `company_manager` может приглашать пользователя в компанию только как `employee`.
-- `company_manager` может приглашать активного участника компании в любой отдел как `employee` или `department_leader`.
+- `company_manager` может приглашать пользователя в любой отдел как `employee` или `department_leader`.
 - `department_leader` может приглашать только в свой отдел и только как `employee`.
 
-Для MVP выбран консервативный вариант department-invite: лидер отдела может приглашать в отдел только уже активного участника компании. Такой accept не создает `company_members`, поэтому не расширяет права лидера отдела до ввода новых людей в компанию.
+Приглашать в отдел можно и пользователя, который ещё не состоит в компании: тогда при создании приглашения проверяется лимит участников компании, а принятие department-invite создаёт или реактивирует запись в `company_members` вместе с `department_members`. Пользователь может быть активным участником только одного отдела компании: при принятии приглашения в другой отдел прежнее членство переводится в `left`. Приглашение уже активному участнику этого отдела отклоняется.
 
-Если пользователь был `left` или `suspended` в компании, принятие company-invite реактивирует запись в `company_members` со статусом `active`. Лимит участников компании проверяется на `accept`, а pending invitation не занимает место в лимите.
+Если пользователь был `left` или `suspended` в компании, принятие company-invite реактивирует запись в `company_members` со статусом `active`. Для company-invite лимит участников проверяется на `accept`, pending invitation не занимает место в лимите.
 
 ## Bitrix24-коннектор
 
@@ -368,6 +383,9 @@ Health:
 | Method | Path | Auth | Описание |
 | --- | --- | --- | --- |
 | GET | `/health` | Нет | Проверка состояния API |
+| GET | `/health/live` | Нет | Liveness: процесс API отвечает |
+| GET | `/health/ready` | Нет | Readiness: PostgreSQL, uploads, `ffmpeg` и `ffprobe` доступны |
+| GET | `/health/startup` | Нет | Startup: стартовая инициализация завершена |
 
 Auth:
 
@@ -382,9 +400,12 @@ Auth:
 | DELETE | `/api/v1/auth/me/sessions/{session_uuid}` | Да | Отозвать одну свою refresh session |
 | PATCH | `/api/v1/auth/me/profile` | Да | Частично обновить профиль пользователя |
 | POST | `/api/v1/auth/me/avatar` | Да | Загрузить avatar через multipart field `avatar` |
+| GET | `/api/v1/auth/me/avatar` | Да | Получить файл avatar |
 | DELETE | `/api/v1/auth/me/avatar` | Да | Сбросить avatar к буквенной заглушке |
 | GET | `/api/v1/auth/me/preferences` | Да | Получить UI preferences пользователя |
 | PATCH | `/api/v1/auth/me/preferences` | Да | Частично обновить UI preferences пользователя |
+| PATCH | `/api/v1/auth/me/username` | Да | Сменить username |
+| GET | `/api/v1/users/lookup` | Да | Найти пользователя (например, для приглашения) |
 | POST | `/api/v1/auth/logout` | Да | Отозвать текущую session |
 | POST | `/api/v1/auth/logout-all` | Да | Отозвать все session пользователя |
 
@@ -422,9 +443,11 @@ Backend проверяет текущий пароль, применяет де�
 }
 ```
 
+Ответ также содержит `can_manage_other_sessions`, `available_at` и `retry_after_seconds`: управлять другими сессиями можно только из сессии не моложе `AUTH_SESSION_TRUST_AGE` (по умолчанию 24 часа).
+
 `last_seen_at` сейчас отражает последнее refresh/rotation событие (`last_used_at`); если refresh еще не было, используется `created_at`. Middleware не обновляет это поле на каждый authenticated request, чтобы не добавлять запись в БД на каждый запрос.
 
-`DELETE /api/v1/auth/me/sessions/{session_uuid}` отзывает только session текущего пользователя. Если удаляется текущая session, backend дополнительно очищает auth cookies. `POST /api/v1/auth/logout-all` сохранен и по-прежнему отзывает все refresh session пользователя.
+`DELETE /api/v1/auth/me/sessions/{session_uuid}` отзывает только session текущего пользователя. Если удаляется текущая session, backend дополнительно очищает auth cookies. Отзыв чужой session и `POST /api/v1/auth/logout-all` из слишком новой session возвращают `403 session_trust_age_required` с заголовком `Retry-After`.
 
 `PATCH /api/v1/auth/me/profile` принимает частичный JSON с полями `full_name`, `full_surname`, `headline`, `phone`, `timezone` и возвращает обновленный `UserResponse`. `headline` — общее профессиональное описание пользователя и не зависит от членства в компаниях. `timezone` проверяется через IANA timezone database, например `Europe/Moscow`.
 
@@ -447,16 +470,19 @@ Calls:
 | GET | `/api/v1/calls` | Да | Получить список видимых звонков |
 | GET | `/api/v1/calls/filters` | Да | Получить справочник фильтров для списка звонков |
 | GET | `/api/v1/calls/{uuid}` | Да | Получить видимый звонок по UUID |
-| GET | `/api/v1/calls/{uuid}/audio` | Да | Получить аудиофайл звонка |
-| GET | `/api/v1/calls/{uuid}/media` | Да | Получить исходное аудио или видео звонка |
+| GET | `/api/v1/calls/{uuid}/audio` | Да | Получить медиафайл звонка (совместимый alias `/media`) |
+| GET | `/api/v1/calls/{uuid}/media` | Да | Получить аудио или видео звонка с учётом политики защиты данных |
+| GET | `/api/v1/calls/{uuid}/events` | Да | SSE-поток изменений статуса обработки звонка |
 | GET | `/api/v1/calls/{uuid}/transcription` | Да | Получить сохраненную транскрипцию звонка |
 | PATCH | `/api/v1/calls/{uuid}/transcription` | Да | Сохранить исправление транскрипции новой версией |
 | GET | `/api/v1/calls/{uuid}/transcription/revisions` | Да | Получить историю версий транскрипции |
 | GET | `/api/v1/calls/{uuid}/transcription/revisions/{revision}` | Да | Получить конкретную версию транскрипции |
 | POST | `/api/v1/calls/{uuid}/transcription/revisions/{revision}/restore` | Да | Восстановить версию как новую активную |
 | GET/PUT | `/api/v1/calls/{uuid}/transcription/speakers` | Да | Получить или заменить назначения спикеров |
-| POST | `/api/v1/calls/{uuid}/analysis` | Да | Поставить `analyze_call` job по готовой транскрипции |
+| POST | `/api/v1/calls/{uuid}/analysis` | Да | Поставить `analyze_call` job по активной версии транскрипции |
 | GET | `/api/v1/calls/{uuid}/analysis` | Да | Получить сохраненный анализ звонка |
+| GET | `/api/v1/analyses/{analysis_uuid}/instructions` | Да | Получить снимки инструкций, применённых в анализе |
+| GET | `/api/v1/analyses/{analysis_uuid}/instructions/{version_uuid}` | Да | Получить одну применённую версию инструкции |
 | POST | `/api/v1/calls/{uuid}/reports` | Да | Создать отчет по одному видимому звонку |
 | GET | `/api/v1/calls/{uuid}/reports` | Да | Получить отчеты одного видимого звонка |
 | GET | `/api/v1/reports` | Да | Получить глобальный список отчетов по видимым звонкам |
@@ -471,7 +497,7 @@ Calls:
 Отсутствие поля сохраняет прежнее поведение `analyze`. Неизвестное значение
 возвращает `400 invalid_request_body`. Режим только транскрибации доступен на
 всех тарифах; обычные правила доступа, хранения и списания за транскрибацию
-сохраняются.
+сохраняются. Остальные поля загрузки описаны в разделе «Загрузка звонка» ниже.
 
 Ответ `GET /api/v1/calls/{uuid}/transcription` содержит `words` — упорядоченный
 массив слов с `start_seconds`, `end_seconds`, необязательными `confidence` и
@@ -494,19 +520,22 @@ Calls:
 ```
 
 Для транскрипции доступны история неизменяемых версий, получение конкретной
-версии, исправление текста и назначений спикеров, сравнение версий и установка
-активной версии. Повторный анализ явно запускается для выбранной версии и не
-перезаписывает историю транскрипции.
+версии (сравнение выполняет клиент), исправление текста и назначений спикеров и
+восстановление старой версии как новой активной. `POST /calls/{uuid}/analysis`
+не принимает body и анализирует текущую активную версию; история транскрипции
+при этом не перезаписывается.
 
-`GET /api/v1/calls/{uuid}/audio`:
+`GET /api/v1/calls/{uuid}/audio` и `/media` обслуживаются одним handler:
 
-- требует авторизацию;
-- доступен только если текущему пользователю виден сам звонок;
-- возвращает бинарный stream с `Content-Disposition: inline`;
-- использует сохраненный `mime_type` как `Content-Type`, если он известен;
-- поддерживает `Range` и `Accept-Ranges: bytes` для перемотки HTML `<audio>` плеера;
-- возвращает `404 call_not_found`, если звонка нет или он не видим;
-- возвращает `410 audio_file_not_found`, если запись звонка существует, но аудиофайл физически недоступен.
+- требуют авторизацию;
+- доступны только если текущему пользователю виден сам звонок;
+- принимают `variant` (по умолчанию `recommended` — очищенная медиаверсия, если у пользователя нет права на оригинал) и `access_session` для ограниченного доступа к оригиналу;
+- возвращают бинарный stream с `Content-Disposition: inline` и `Cache-Control: private, no-store`;
+- используют сохраненный `mime_type` как `Content-Type`, если он известен;
+- поддерживают `Range` и `Accept-Ranges: bytes` для перемотки HTML `<audio>`/`<video>` плеера;
+- возвращают `404 call_not_found`, если звонка нет или он не видим;
+- возвращают `403 original_media_forbidden` без права на оригинал и `422 privacy_policy_invalid` при некорректной политике;
+- возвращают `410 audio_file_not_found`, если запись звонка существует, но файл физически недоступен.
 
 Если передан хотя бы один фильтр или параметр пагинации, ответ возвращается в envelope:
 
@@ -524,17 +553,28 @@ Calls:
 | Параметр | Значение |
 | --- | --- |
 | `q` | Поиск по `title` и `original_filename` |
-| `status` | `new`, `processing`, `transcribed`, `analyzed`, `failed` |
-| `scope` | `personal`, `company`, `department` |
+| `status` | `new`, `processing`, `transcribed`, `analyzed`, `failed`; можно несколько значений |
+| `scope` | `personal`, `company`, `department`; можно несколько значений |
 | `company_uuid` | UUID компании |
-| `department_uuid` | UUID отдела |
+| `department_uuid` | UUID отдела; можно несколько значений |
 | `uploaded_by_user_uuid` | UUID пользователя, загрузившего звонок |
-| `from` | ISO date/datetime, нижняя граница `created_at` |
-| `to` | ISO date/datetime, верхняя граница `created_at`; дата `YYYY-MM-DD` считается до конца этого дня |
+| `participant_user_uuid` | UUID участника звонка |
+| `folder_uuid` | UUID активной видимой папки; можно несколько значений |
+| `source_provider` | `manual`, `generic_api`, `bitrix24` |
+| `connection_uuid` | UUID интеграционного подключения |
+| `from` / `to` | ISO date/datetime, границы `created_at`; дата `YYYY-MM-DD` в `to` считается до конца дня |
+| `occurred_from` / `occurred_to` | Границы фактического времени звонка `occurred_at` |
+| `imported_from` / `imported_to` | Границы времени импорта из интеграции |
+| `duration_min_seconds` / `duration_max_seconds` | Диапазон длительности |
+| `has_analysis`, `has_actions`, `has_processing_error`, `favorite_only` | `true`/`false` |
+| `include_upload_fallback` | Учитывать время загрузки, если `occurred_at` неизвестен |
+| `sort` | `occurred_at` (по умолчанию), `created_at`, `duration` |
+| `order` | `desc` (по умолчанию) или `asc` |
+| `cursor` | Курсор следующей страницы (`next_cursor` из предыдущего ответа) |
 | `limit` | 1..100; по умолчанию 20 для filtered/envelope-ответа |
 | `offset` | 0 или больше; по умолчанию 0 |
 
-Все фильтры применяются только поверх видимых текущему пользователю звонков.
+Все фильтры применяются только поверх видимых текущему пользователю звонков. Некорректный фильтр возвращает `400 invalid_call_filter`, невидимая папка — `404 call_folder_not_found`. Envelope-ответ может содержать `next_cursor`.
 
 Дополнительно `GET /api/v1/calls` принимает `folder_uuid`. Фильтр возвращает только видимые текущему пользователю звонки, назначенные в активную папку. Доступ к самой папке проверяется отдельно; чужая или удаленная папка не должна раскрывать скрытые звонки.
 
@@ -550,6 +590,13 @@ Calls:
       "full_name": "Ivan",
       "full_surname": "Petrov",
       "username": "petrov"
+    }
+  ],
+  "connections": [
+    {
+      "id": "connection_uuid",
+      "name": "Bitrix24",
+      "provider": "bitrix24"
     }
   ]
 }
@@ -571,8 +618,11 @@ Call folders:
 | GET | `/api/v1/call-folders/{folder_uuid}/calls` | Да | Получить звонки папки в форме `{ items, total, limit, offset }` |
 | POST | `/api/v1/call-folders/{folder_uuid}/calls` | Да | Идемпотентно назначить звонок в папку |
 | DELETE | `/api/v1/call-folders/{folder_uuid}/calls/{call_uuid}` | Да | Убрать звонок из папки |
+| GET | `/api/v1/call-folders/{folder_uuid}/accesses` | Да | Получить пользователей с явным доступом к папке |
+| PUT/DELETE | `/api/v1/call-folders/{folder_uuid}/accesses/{user_uuid}` | Да | Выдать или отозвать доступ пользователя к папке |
+| PUT | `/api/v1/call-folders/{folder_uuid}/instructions` | Да | Заменить набор инструкций анализа, привязанных к папке |
 
-`GET /api/v1/call-folders` принимает `scope=personal|company|department`, `company_uuid`, `department_uuid`, `q`, `limit`, `offset`. `limit` по умолчанию `20`, максимум `100`. Для `company` нужен `company_uuid`; для `department` нужны `company_uuid` и `department_uuid`; для `personal` `company_uuid` и `department_uuid` не передаются.
+`GET /api/v1/call-folders` принимает `scope=personal|company|department`, `company_uuid`, `department_uuid`, `q`, `limit`, `offset`. `limit` по умолчанию `20`, максимум `100`. Без `scope` возвращаются все видимые папки. Для `company` нужен `company_uuid`; для `department` нужны `company_uuid` и `department_uuid`; для `personal` `company_uuid` и `department_uuid` не передаются.
 
 Пример `CallFolderResponse`:
 
@@ -587,6 +637,7 @@ Call folders:
   "description": "Звонки, где клиент сомневался из-за цены",
   "color": "#3b82f6",
   "calls_count": 12,
+  "instructions": [],
   "created_by_user_uuid": "user_uuid",
   "created_at": "2026-07-05T10:00:00Z",
   "updated_at": "2026-07-05T10:00:00Z"
@@ -596,7 +647,7 @@ Call folders:
 Права:
 
 - `personal`: владелец создает, читает, обновляет, удаляет и назначает только свои personal-звонки.
-- `company`: управляет только активный `company_manager`; читать может активный `company_manager` или активный участник компании, который состоит хотя бы в одном видимом отделе.
+- `company`: управляет только активный `company_manager`; читать может активный `company_manager` или активный участник компании, которому выдан явный доступ к папке (`/accesses`).
 - `department`: управляет активный `company_manager` или активный `department_leader` этого отдела; читать может активный `company_manager` или активный участник этого отдела.
 
 Назначение звонка проверяет совпадение scope: personal-папка принимает только personal-звонок владельца, company-папка только звонки этой компании, department-папка только звонки этой компании и отдела. Несовпадение возвращает `400 call_folder_scope_mismatch`. Удаленная папка не возвращается в списках и не принимает новые назначения. `GET /api/v1/calls/filters` пока не возвращает список папок.
@@ -606,8 +657,8 @@ Privacy and protected media:
 | Method | Path | Описание |
 | --- | --- | --- |
 | GET; PUT draft; POST preview/publish | `/api/v1/privacy-policies/personal[...]` | Личная политика: чтение, черновик, предпросмотр и публикация |
-| GET; PUT draft; POST preview/publish | `/api/v1/companies/{company_uuid}/privacy-policy[...]` | Политика компании |
-| GET; PUT draft; POST preview/publish | `/api/v1/companies/{company_uuid}/departments/{department_uuid}/privacy-policy[...]` | Политика отдела |
+| GET; PUT draft; POST preview/publish; GET versions[/{version}] | `/api/v1/companies/{company_uuid}/privacy-policy[...]` | Политика компании и её опубликованные версии |
+| GET; PUT draft; POST preview/publish; GET versions[/{version}] | `/api/v1/companies/{company_uuid}/departments/{department_uuid}/privacy-policy[...]` | Политика отдела и её опубликованные версии |
 | GET | `/api/v1/calls/{uuid}/privacy` | Состояние защиты конкретного звонка |
 | POST/GET | `/api/v1/calls/{uuid}/media-variants/redacted` | Создать или получить очищенную медиаверсию |
 | POST | `/api/v1/calls/{uuid}/media-access-sessions` | Получить ограниченную сессию доступа к оригиналу |
@@ -623,8 +674,10 @@ Reports:
 
 `POST /api/v1/calls/{uuid}/reports` и `POST /api/v1/reports` с `scope=call` используют один и тот же генератор отчета по звонку. Поддерживаемые форматы: `pdf`, `docx`, `md`, `xlsx`. Для `scope=company`, `department`, `manager`, `period` API возвращает `501 not_implemented`, пока в backend нет реального агрегированного генератора.
 
-Call-report принимает `content=full|transcription` и
-`transcription_revision`. `full` требует готового анализа и сохраняет тарифные
+`POST /api/v1/calls/{uuid}/reports` принимает `content=full|transcription`,
+`transcription_revision` и `privacy_variant` (допустимо только `redacted`).
+`POST /api/v1/reports` со `scope=call` эти поля не принимает и всегда строит
+`full`-отчёт. `full` требует готового анализа и сохраняет тарифные
 ограничения аналитического экспорта. `transcription` формирует отчёт только по
 выбранному неизменяемому снимку транскрипции, не требует анализа и доступен на
 всех тарифах. В таком отчёте `analysis_uuid=null`; имена спикеров и таймкоды
@@ -643,19 +696,35 @@ Analytics and monitoring:
 | POST | `/api/v1/analytics/deep-analyses` | Да | Создать или переиспользовать глубокий AI-анализ периода |
 | GET | `/api/v1/analytics/deep-analyses` | Да | Получить список видимых deep analyses |
 | GET | `/api/v1/analytics/deep-analyses/{uuid}` | Да | Получить один видимый deep analysis |
+| GET | `/api/v1/analytics/deep-analyses/{uuid}/events` | Да | SSE-поток статуса deep analysis (`status`, `error`) |
 | POST | `/api/v1/analytics/deep-analyses/{uuid}/reports` | Да | Создать экспорт отчета по готовому deep analysis |
 | GET | `/api/v1/analytics/deep-analyses/{uuid}/reports` | Да | Получить экспорты одного видимого deep analysis |
 | GET | `/api/v1/analytics/deep-analysis-reports/{report_uuid}/download` | Да | Скачать готовый deep-analysis report |
 | DELETE | `/api/v1/analytics/deep-analysis-reports/{report_uuid}` | Да | Удалить deep-analysis report |
-| GET | `/api/v1/monitoring/processing` | Да | Summary очереди обработки для `admin`/`superadmin` или `company_manager` своей компании |
+| GET | `/api/v1/monitoring/processing` | Да | Summary очереди обработки; требует permission `admin.monitoring.read` (`admin`/`superadmin`) |
 
 Search:
 
 | Method | Path | Auth | Описание |
 | --- | --- | --- | --- |
 | GET | `/api/v1/search` | Да | Глобальный поиск по видимым calls, companies, reports, instructions |
+| GET | `/api/v1/calls/content-search` | Да | Поиск по содержимому транскрипций и анализов видимых звонков |
 
-`GET /api/v1/search` принимает обязательный `q`, optional `types=calls,companies,reports,instructions` и optional `limit`. Пустой или слишком короткий `q` возвращает `400 invalid_search_input`. Поиск не обращается к CRM-клиентам, потому что таких сущностей в backend-контракте нет.
+`GET /api/v1/search` принимает обязательный `q` (минимум 2 символа), optional `types=calls,companies,reports,instructions` и optional `limit` (по умолчанию 10, максимум 50). Пустой или слишком короткий `q` возвращает `400 invalid_search_input`. Поиск не обращается к CRM-клиентам, потому что таких сущностей в backend-контракте нет.
+
+AI-ассистент по звонкам (**в разработке**, см. [implementation-status](docs/verification/semantic-search-ai-workspace/implementation-status.md)):
+
+| Method | Path | Auth | Описание |
+| --- | --- | --- | --- |
+| GET | `/api/v1/assistant/capabilities` | Да | Доступность ассистента и режим поиска |
+| GET/POST | `/api/v1/assistant/chats` | Да | Список чатов / создать чат |
+| DELETE | `/api/v1/assistant/chats/{chat_uuid}` | Да | Удалить чат |
+| GET | `/api/v1/assistant/chats/{chat_uuid}/export` | Да | Экспорт чата |
+| GET/POST | `/api/v1/assistant/chats/{chat_uuid}/messages` | Да | Сообщения чата / отправить вопрос |
+| GET | `/api/v1/assistant/runs/{run_uuid}` | Да | Статус генерации ответа |
+| GET/PATCH/DELETE | `/api/v1/assistant/draft` | Да | Черновик вопроса и выбранного scope |
+
+Индексатор режет транскрипции на фрагменты с сохранением спикера и таймкодов и добавляет текст сохранённых анализов. Поиск комбинирует векторную близость (pgvector, 1536 измерений) и полнотекстовый `tsvector('russian')`. Ответ ассистента — строгий JSON с цитатами на фрагменты звонков. Без `EMBEDDING_API_KEY`/`ANALYZER_API_KEY` используется только лексический поиск, а ассистент отключён.
 
 Ответ:
 
@@ -698,10 +767,12 @@ Notifications:
 | Method | Path | Auth | Описание |
 | --- | --- | --- | --- |
 | GET | `/api/v1/notifications` | Да | Получить уведомления текущего пользователя |
+| GET | `/api/v1/notifications/events` | Да | SSE-поток новых уведомлений (`event: notification`) |
 | POST | `/api/v1/notifications/{uuid}/read` | Да | Отметить одно свое уведомление прочитанным |
+| POST | `/api/v1/notifications/{uuid}/unread` | Да | Вернуть уведомлению статус непрочитанного |
 | POST | `/api/v1/notifications/read-all` | Да | Отметить все свои уведомления прочитанными |
 
-`GET /api/v1/notifications` принимает `unread_only=true|false`, `limit`, `offset` и возвращает `unread_count` по текущему пользователю. Сейчас backend реально создает notification типа `invitation` при создании company/department invitation. Типы `report_ready`, `subscription`, `processing_failed` закреплены в БД и service API для подключения будущих потоков, но статические события для них не имитируются.
+`GET /api/v1/notifications` принимает `unread_only=true|false`, `limit` (по умолчанию 20, максимум 100), `offset` и возвращает `unread_count` по текущему пользователю. Backend создаёт уведомления для приглашений (`invitation`), действий по звонкам (`action_assigned`, `action_reassigned`, `action_due_changed`, `action_cancelled`, `action_completed`, `action_transfer_*`, `action_reminder`, `action_grace_started`, `action_overdue`, `action_assignment_invalid`), support-доступа (`support_access_requested`, `support_access_decided`) и синхронизации действий с Bitrix24 (`action_external_sync_requested`, `action_external_sync_decided`). Типы `report_ready`, `subscription`, `processing_failed` закреплены в БД для будущих потоков, но пока не создаются.
 
 Ответ:
 
@@ -741,6 +812,8 @@ Notifications:
 ```json
 {
   "calls_total": 31,
+  "calls_created_today": 3,
+  "calls_with_transcription": 28,
   "calls_new": 2,
   "calls_processing": 1,
   "calls_transcribed": 8,
@@ -843,7 +916,9 @@ Deep aggregate analysis:
 
 Поддерживаемые scope: `personal`, `company`, `department`, `folder`. Для `folder` backend использует уже существующую модель call folders и проверяет права папки. Даты принимаются как `YYYY-MM-DD` или RFC3339; дата `period_to` в формате `YYYY-MM-DD` считается до конца дня UTC.
 
-Если уже есть non-failed deep analysis с тем же scope/subject/period и `force=false`, backend возвращает его и не тратит лимит. Если `force=true`, создается новый анализ и лимит тратится. Временный лимит для тестирования: 100 новых deep analyses в UTC-неделю, где неделя начинается в понедельник 00:00 UTC. Для `personal` и personal folder лимит считается по пользователю; для `company`, `department`, company folder и department folder лимит общий по компании.
+Создание асинхронное: `POST` сохраняет запись со `status=pending`, запускает обработку в фоне и сразу возвращает `201`. Итог отслеживается через `GET /analytics/deep-analyses/{uuid}` или SSE `/events`; ошибка провайдера переводит запись в `failed` уже в фоне. Фоновая обработка сейчас не является durable job: при перезапуске сервера незавершённый анализ остаётся в `pending`.
+
+Если уже есть non-failed deep analysis с тем же scope/subject/period, тем же `source_calls_count` (а для `done` — и тем же `source_set_hash`) и `force=false`, backend возвращает его (тоже `201`) и не тратит лимит. Иначе, в том числе при `force=true`, создается новый анализ и лимит тратится. Временный лимит для тестирования: 100 новых deep analyses в UTC-неделю (понедельник 00:00 UTC), причём считается неделя, в которую попадает `period_from`, а не дата запроса. Для `personal` и personal folder лимит считается по пользователю; для `company`, `department`, company folder и department folder лимит общий по компании.
 
 Deep analysis использует сохраненные `call_analyses.result_json` по analyzed calls, а не полные транскрипции. Backend загружает все видимые готовые per-call analyses за выбранный scope/period и строит детерминированный агрегированный dataset по всему набору: `source_summary`, `score_summary`, `issue_coverage`, `weak_criteria`, `business_outcomes`, `lost_reasons`, `customer_objections`, `risks`, `topics`, `next_step_summary`, `attention_calls`, `strong_calls`. В AI prompt отправляется полный dataset и ограниченный набор `representative_calls` только как доказательные примеры; representative calls не являются полной базой анализа. `source_calls_count` хранит полный count analyzed calls за период. Для контроля состава dataset содержит `source_set_hash`.
 
@@ -861,6 +936,9 @@ Deep analysis использует сохраненные `call_analyses.result_
   "period_from": "2026-07-01T00:00:00Z",
   "period_to": "2026-07-07T23:59:59Z",
   "status": "done",
+  "provider": "openrouter",
+  "model": "openai/gpt-5-mini",
+  "user_uuid": "user_uuid",
   "source_calls_count": 24,
   "result_json": {
     "summary": "...",
@@ -902,7 +980,7 @@ Deep analysis использует сохраненные `call_analyses.result_
 }
 ```
 
-Ошибки: `invalid_deep_analysis_input` -> 400, `aggregate_analysis_not_found` -> 404, `no_analyzed_calls_for_deep_analysis` -> 409, `deep_analysis_limit_exceeded` -> 429. Ошибка провайдера после сохранения failed status возвращается как 502. Subscription tiers, model tiers и analysis depth by plan в этом endpoint намеренно не реализованы.
+Ошибки: `invalid_deep_analysis_input` -> 400, `forbidden` -> 403 (company/department/folder scope без прав руководителя), `aggregate_analysis_not_found` -> 404, `no_analyzed_calls_for_deep_analysis` -> 409, `deep_analysis_limit_exceeded` -> 429; прочие непредвиденные ошибки -> 502. Subscription tiers, model tiers и analysis depth by plan в этом endpoint намеренно не реализованы.
 
 `GET /api/v1/monitoring/processing` принимает query-параметры:
 
@@ -914,9 +992,8 @@ Deep analysis использует сохраненные `call_analyses.result_
 
 Доступ:
 
-- `admin` и `superadmin` могут смотреть общий monitoring; optional `company_uuid` ограничивает выборку компанией.
-- `company_manager` может смотреть только свою компанию. Если `company_uuid` не передан, backend использует компанию, которой управляет текущий пользователь.
-- Другие пользователи получают `403 forbidden`.
+- Route защищён permission `admin.monitoring.read`, поэтому monitoring доступен только `admin` и `superadmin`; optional `company_uuid` ограничивает выборку компанией.
+- Остальные пользователи, включая `company_manager`, получают `403 forbidden`. Ветка доступа менеджера к своей компании в сервисе есть, но через текущий route недостижима.
 
 Ответ:
 
@@ -933,7 +1010,7 @@ Deep analysis использует сохраненные `call_analyses.result_
 }
 ```
 
-`queue.retry` считается как `pending` jobs с `attempts > 0`. `average_processing_seconds` считается по завершенным (`done`) jobs как разница `updated_at - created_at`. Пользовательский endpoint не отдает `last_error`, storage paths, имена внутренних сервисов или другие raw processing details.
+`queue.retry` считается как `pending` jobs с `attempts > 0`. `average_processing_seconds` считается по завершенным (`done`) jobs с заполненным `started_at` как разница `updated_at - started_at`. Пользовательский endpoint не отдает `last_error`, storage paths, имена внутренних сервисов или другие raw processing details.
 
 `POST /api/v1/reports`:
 
@@ -942,8 +1019,6 @@ Deep analysis использует сохраненные `call_analyses.result_
   "format": "pdf",
   "scope": "call",
   "call_uuid": "call_uuid",
-  "content": "full",
-  "transcription_revision": 2,
   "company_uuid": null,
   "department_uuid": null,
   "manager_user_uuid": null,
@@ -952,7 +1027,9 @@ Deep analysis использует сохраненные `call_analyses.result_
 }
 ```
 
-`GET /api/v1/reports` возвращает только отчеты по звонкам, которые видны текущему пользователю. Поддерживаемые query-параметры:
+`content` и `transcription_revision` задаются только через `POST /api/v1/calls/{uuid}/reports`.
+
+`GET /api/v1/reports` возвращает только неистёкшие отчеты по звонкам, которые видны текущему пользователю. Поддерживаемые query-параметры:
 
 | Параметр | Значение |
 | --- | --- |
@@ -1002,7 +1079,7 @@ Analysis instructions:
 | Method | Path | Auth | Описание |
 | --- | --- | --- | --- |
 | POST | `/api/v1/instructions` | Да | Создать MD-инструкцию или загрузить MD/PDF/DOCX/XLSX |
-| GET | `/api/v1/instructions` | Да | Получить неудалённые инструкции по scope от новых к старым; поддерживает `include_inactive`, `q`, `limit`, `offset` |
+| GET | `/api/v1/instructions` | Да | Получить неудалённые инструкции от новых к старым; обязателен `scope` (и `company_uuid`/`department_uuid` для соответствующего scope), поддерживает `include_inactive`, `q`, `limit`, `offset` |
 | GET | `/api/v1/instructions/{uuid}` | Да | Получить одну активную инструкцию при наличии права чтения |
 | PATCH | `/api/v1/instructions/{uuid}` | Да | Частично обновить `title`, `is_active`, `sort_order`; scope, владельца, путь и hash менять нельзя |
 | PUT | `/api/v1/instructions/{uuid}/file` | Да | Сохранить обновлённый файл как следующую версию инструкции |
@@ -1010,7 +1087,7 @@ Analysis instructions:
 | GET | `/api/v1/instructions/{uuid}/versions` | Да | Получить историю версий инструкции |
 | GET | `/api/v1/instructions/{uuid}/versions/{version_uuid}/file` | Да | Скачать файл конкретной версии |
 | PATCH | `/api/v1/instructions/reorder` | Да | Переупорядочить инструкции внутри одного редактируемого scope |
-| DELETE | `/api/v1/instructions/{uuid}` | Да | Мягко удалить инструкцию и поставить её в очередь retention |
+| DELETE | `/api/v1/instructions/{uuid}` | Да | Мягко удалить активную инструкцию и поставить её в очередь retention; для деактивированной (`is_active=false`) возвращает `404` |
 
 Company-инструкции доступны `company_manager` и активным участникам компании, которые уже состоят хотя бы в одном отделе. Активный участник компании без отдела считается находящимся на распределении и не может читать список или файл company-инструкции.
 
@@ -1038,24 +1115,38 @@ Frontend в соседнем репозитории отображает MD ка
 
 ## Администрирование
 
-Все маршруты требуют access token и соответствующую permission. `helper` имеет read-only доступ к пользователям, компаниям и подпискам; `admin` управляет helper, сессиями user/helper и подписками; `superadmin` дополнительно назначает и снимает admin. Первичное назначение выполняется из `Monolit`: `go run ./cmd/admin-bootstrap --email you@example.com`.
+Все маршруты требуют access token и соответствующую permission. `helper` имеет read-only доступ к пользователям, компаниям и подпискам. `admin` дополнительно управляет профилями пользователей, тегами компаний, ролью helper, сессиями, подписками и сбросом usage, читает звонки, monitoring, dashboard и audit, просматривает и администрирует действия. `superadmin` дополнительно назначает и снимает admin. Первичное назначение выполняется из `Monolit`: `go run ./cmd/admin-bootstrap --email you@example.com`.
+
+Данные клиентов (подписки, звонки и их медиа, звонки пользователя) требуют, помимо permission, активного временного support-доступа, одобренного владельцем данных; без него API возвращает `403`. Все admin-мутации принимают обязательный `reason` и пишутся в append-only audit log.
 
 | Method | Path | Роль | Описание |
 | --- | --- | --- | --- |
 | GET | `/api/v1/admin/capabilities` | helper+ | Роль и capabilities |
 | GET | `/api/v1/admin/users` | helper+ | Пользователи с фильтрами и пагинацией |
 | GET | `/api/v1/admin/users/{user_uuid}` | helper+ | Карточка пользователя |
+| PATCH | `/api/v1/admin/users/{user_uuid}/profile` | admin+ | Изменить профиль пользователя |
+| GET | `/api/v1/admin/users/{user_uuid}/calls` | admin+ | Звонки пользователя (нужен support-доступ) |
 | PATCH | `/api/v1/admin/users/{user_uuid}/role` | admin+ | Роль с `expected_role` и обязательным `reason` |
 | GET/DELETE | `/api/v1/admin/users/{user_uuid}/sessions` | admin+ | Просмотр и завершение всех сессий |
 | DELETE | `/api/v1/admin/users/{user_uuid}/sessions/{session_uuid}` | admin+ | Завершение одной сессии |
 | GET | `/api/v1/admin/companies` | helper+ | Компании и UUID |
-| GET | `/api/v1/admin/*/{uuid}/subscription` | helper+ | Активная подписка |
+| GET | `/api/v1/admin/companies/{company_uuid}` | helper+ | Карточка компании |
+| PATCH | `/api/v1/admin/companies/{uuid}/tag` | admin+ | Изменить тег компании |
+| GET | `/api/v1/admin/*/{uuid}/subscription` | helper+ | Активная подписка (нужен support-доступ) |
 | POST | `/api/v1/admin/*/{uuid}/subscription/grant` | admin+ | Выдать или продлить подписку |
 | POST | `/api/v1/admin/*/{uuid}/subscription/cancel` | admin+ | Отменить подписку |
-| GET | `/api/v1/admin/calls/{call_uuid}` | admin+ | Карточка любого звонка |
-| GET | `/api/v1/admin/calls/{call_uuid}/audio` | admin+ | Аудио любого звонка |
+| POST | `/api/v1/admin/{users\|companies}/{uuid}/usage/reset` | admin+ | Сбросить usage одного владельца |
+| POST | `/api/v1/admin/usage/reset/bulk` | admin+ | Массовый сброс usage (до 500 владельцев) |
+| POST/GET | `/api/v1/admin/usage/reset/batches[/preview\|/{batch_uuid}[/approve\|/execute]]` | admin+ | Пакетный сброс usage с предпросмотром, одобрением и исполнением |
+| GET | `/api/v1/admin/calls/{call_uuid}` | admin+ | Карточка звонка (нужен support-доступ) |
+| GET | `/api/v1/admin/calls/{call_uuid}/audio`, `/media` | admin+ | Медиа звонка (нужен support-доступ) |
+| GET | `/api/v1/admin/actions[/{action_uuid}]` | admin+ | Действия по звонкам |
+| GET | `/api/v1/admin/companies/{uuid}/action-assignees` | admin+ | Возможные ответственные в компании |
+| POST | `/api/v1/admin/actions/{action_uuid}/{complete\|cancel\|reschedule\|reassign\|reopen}` | admin+ | Административное изменение действия |
 
-Для выдачи передаются `plan_code`, `ends_at` в RFC3339 и обязательный `reason`; `starts_at` необязателен. Публичные mutation endpoints самостоятельной активации подписки отсутствуют.
+Для выдачи подписки передаются `plan_code`, `ends_at` в RFC3339 и обязательный `reason`; `starts_at` необязателен, но не может быть позже текущего момента более чем на минуту, а `ends_at` должен быть позже `starts_at`. Публичные mutation endpoints самостоятельной активации подписки отсутствуют.
+
+Support-доступ запрашивается и управляется через `POST /api/v1/support-access-requests`, `GET /api/v1/support-access-requests/{request_uuid}`, `POST .../{request_uuid}/approve|deny` и `POST /api/v1/support-access-grants/{grant_uuid}/revoke`. Доступ ограничен allowlist ресурсов и команд, сроком действия и аудитом.
 
 Billing:
 
@@ -1063,9 +1154,91 @@ Billing:
 | --- | --- | --- | --- |
 | GET | `/api/v1/plans` | Нет | Получить список тарифов |
 | GET | `/api/v1/subscription` | Да | Получить активную персональную подписку текущего пользователя |
+| GET | `/api/v1/subscription/usage` | Да | Расход лимитов персональной подписки |
 | GET | `/api/v1/companies/{uuid}/subscription` | Да | Получить активную бизнес-подписку компании |
+| GET | `/api/v1/companies/{uuid}/subscription/usage` | Да | Расход лимитов бизнес-подписки |
+| GET | `/api/v1/credits/dashboard` | Да | Персональный dashboard кредитов |
+| GET | `/api/v1/companies/{uuid}/credits/dashboard` | Да | Dashboard кредитов компании |
+| PATCH | `/api/v1/companies/{uuid}/credits/visibility` | Да | Показывать ли расход кредитов участникам компании |
+| POST | `/api/v1/credits/purchases/mock` | Да | Тестовое пополнение кредитов (без реального платёжного провайдера) |
+
+Тарифы: `personal_start`, `personal_plus`, `personal_pro`, `business_start`, `business_plus`, `business_pro`. Тариф определяет лимиты и режим транскрибации: `personal_start` — `standard`; `personal_plus` и `business_start` — `diarized`; `personal_pro`, `business_plus` и `business_pro` — `identified`.
 
 Личные звонки и персональные инструкции проверяются по персональной подписке пользователя. Звонки, отделы, участники, приглашения и инструкции компании проверяются по активной бизнес-подписке компании. Бизнес-подписка компании дает персональный бонус только менеджеру этой компании: `business_start` и `business_plus` дают эффективный `personal_plus`, `business_pro` дает эффективный `personal_pro`.
+
+Каждый вызов провайдера (транскрибация, шаги анализа, deep analysis, ассистент) сначала резервирует максимальную стоимость в credit ledger с детерминированным idempotency-ключом, а после ответа провайдера списывает фактическую стоимость; неоднозначные результаты уходят в `reconciling` и разбираются reconciliation worker. Операционные инварианты описаны в [runbook](docs/runbooks/credit-integration-platform.md).
+
+Developer platform и интеграции:
+
+| Method | Path | Auth | Описание |
+| --- | --- | --- | --- |
+| GET/POST | `/api/v1/developer/applications` | Да | Список / создание developer applications |
+| GET/PATCH | `/api/v1/developer/applications/{application_uuid}` | Да | Карточка / изменение приложения |
+| POST | `/api/v1/developer/applications/{application_uuid}/{disable\|enable\|revoke}` | Да | Управление состоянием приложения |
+| POST | `/api/v1/developer/applications/{application_uuid}/keys` | Да | Выпустить API key |
+| DELETE | `/api/v1/developer/keys/{key_uuid}` | Да | Отозвать ключ |
+| POST | `/api/v1/developer/keys/{key_uuid}/rotate` | Да | Ротация ключа с окном перекрытия |
+| GET/POST | `/api/v1/developer/applications/{application_uuid}/sandbox-wallet` | Да | Баланс / корректировка sandbox-кошелька |
+| GET/POST | `/api/v1/developer/applications/{application_uuid}/connections` | Да | Подключения приложения |
+| GET/PATCH/DELETE | `/api/v1/integrations/{connection_uuid}` | Да | Карточка, изменение, отзыв подключения |
+| POST | `/api/v1/integrations/{connection_uuid}/{enable\|disable}` | Да | Включить / выключить подключение |
+| GET/POST | `/api/v1/integrations/{connection_uuid}/service-accounts` | Да | Service accounts подключения |
+| GET/POST | `/api/v1/service-accounts/{service_account_uuid}/keys` | Да | Ключи service account |
+| DELETE | `/api/v1/service-accounts/{service_account_uuid}` | Да | Отозвать service account |
+| GET/POST | `/api/v1/integrations/{connection_uuid}/webhooks` | Да | Webhook endpoints |
+| DELETE | `/api/v1/integration-webhooks/{webhook_uuid}` | Да | Отозвать webhook |
+| POST | `/api/v1/integrations/{connection_uuid}/webhook/test` | Да | Тестовая доставка |
+| GET | `/api/v1/integrations/{connection_uuid}/webhook-deliveries` | Да | Журнал доставок |
+| POST | `/api/v1/webhook-deliveries/{delivery_uuid}/replay` | Да | Повторить доставку |
+| GET | `/api/v1/integrations/{connection_uuid}/ingest-items` | Да | Элементы ingest |
+| POST | `/api/v1/ingest-items/{ingest_item_uuid}/{retry\|cancel}` | Да | Повторить / отменить ingest |
+| GET | `/api/v1/integrations/{connection_uuid}/audit-events` | Да | Аудит подключения |
+
+Machine API по API key (`Authorization: Bearer vt_test_...`/`vt_live_...`) живёт вне `/api/v1`: `/api/sandbox/v1|v2/...` для тестовых ключей и `/api/production/v1|v2/...` для боевых. v1: `auth/validate`, `ingest/calls`, `ingest/calls/upload`, `ingest/items/{id}`; v2 дополнительно: `destinations`, `folders`, `calls`, `calls/{call_uuid}`, `calls/by-source-ref/{source_ref}`, `calls/{call_uuid}/transcription`, `calls/{call_uuid}/analysis`, `usage`. Swagger UI: `/docs/integrations`, OpenAPI 3.1: `/docs/integrations/openapi`. Подробности — [developer-integrations-v1](docs/api/developer-integrations-v1.md).
+
+Bitrix24 (при заданных `BITRIX24_*` и `INTEGRATION_MASTER_KEY_BASE64`): `POST /api/v1/integrations/bitrix24/oauth/start`, публичные `GET /api/v1/integrations/bitrix24/oauth/callback` и `POST /api/v1/integrations/bitrix24/events`, а также `/api/v1/integrations/{connection_uuid}/test|health|pause|resume|external-users|external-user-mappings[/bulk|/{external_user_id}]|mapping-preview|backfills[/preview|/{backfill_uuid}]` и синхронизация действий `/api/v1/actions/{action_uuid}/external-sync[-requests|-preview]`, `/api/v1/action-external-sync-requests/{sync_uuid}[/approve|/reject|/resolve]`.
+
+Human QA:
+
+| Method | Path | Auth | Описание |
+| --- | --- | --- | --- |
+| POST | `/api/v1/calls/{uuid}/quality-reviews` | Да | Создать ручную проверку звонка |
+| GET | `/api/v1/calls/{uuid}/quality-review-context` | Да | Контекст анализа для проверяющего |
+| POST | `/api/v1/calls/{uuid}/quality-review-challenge` | Да | Оспорить AI-анализ |
+| POST | `/api/v1/calls/{uuid}/analysis-comments` | Да | Комментарий к анализу (не меняет оценку) |
+| PATCH | `/api/v1/analysis-comments/{comment_uuid}` | Да | Изменить комментарий |
+| GET | `/api/v1/quality-reviews[/{review_uuid}]` | Да | Очередь / карточка проверки |
+| POST | `/api/v1/quality-reviews/{review_uuid}/claim` | Да | Взять проверку в работу |
+| PUT/DELETE | `/api/v1/quality-reviews/{review_uuid}/draft` | Да | Сохранить / отменить черновик |
+| POST | `/api/v1/quality-reviews/{review_uuid}/publish` | Да | Опубликовать неизменяемую ревизию |
+| POST | `/api/v1/quality-reviews/{review_uuid}/appeals` | Да | Подать апелляцию |
+| POST | `/api/v1/quality-review-appeals/{appeal_uuid}/resolve` | Да | Разрешить апелляцию |
+| GET | `/api/v1/quality-reviews/{review_uuid}/events` | Да | Журнал событий |
+
+Проверять звонки компании может руководитель; загрузивший звонок не может проверять собственный company-звонок. Личный звонок проверяет только его владелец.
+
+Действия по итогам звонка:
+
+| Method | Path | Auth | Описание |
+| --- | --- | --- | --- |
+| POST | `/api/v1/calls/{uuid}/actions` | Да | Создать действие с ответственным, сроком и evidence |
+| PUT | `/api/v1/calls/{uuid}/analyses/{analysis_uuid}/action-disposition` | Да | Отметить «действий не требуется» |
+| GET | `/api/v1/actions[/{action_uuid}]` | Да | Список / карточка действия |
+| POST | `/api/v1/actions/{action_uuid}/{start\|complete\|cancel\|reschedule\|reassign\|reopen}` | Да | Смена статуса, срока или ответственного |
+| POST | `/api/v1/actions/{action_uuid}/transfer-requests[/{request_uuid}/approve\|/reject]` | Да | Запрос и решение о передаче действия |
+| GET | `/api/v1/companies/{uuid}/action-assignees` | Да | Возможные ответственные |
+
+Мутации используют idempotency-ключи и `lock_version`; фоновый worker рассылает напоминания и помечает просроченные действия.
+
+Контакты, избранное и персонализация:
+
+| Method | Path | Auth | Описание |
+| --- | --- | --- | --- |
+| GET | `/api/v1/contacts`, `/api/v1/contacts/search` | Да | Контакты пользователя / поиск |
+| PUT/DELETE | `/api/v1/contacts/{user_uuid}` | Да | Добавить / удалить контакт |
+| GET | `/api/v1/favorite-calls` | Да | Избранные звонки |
+| PUT/DELETE | `/api/v1/favorite-calls/{call_uuid}` | Да | Добавить / убрать звонок из избранного |
+| GET/PUT | `/api/v1/analysis-personalization` | Да | Контекст персонализации анализа |
 
 Companies and departments:
 
@@ -1075,6 +1248,8 @@ Companies and departments:
 | GET | `/api/v1/companies` | Да | Получить список компаний пользователя |
 | GET | `/api/v1/companies/{uuid}` | Да | Получить компанию |
 | PATCH | `/api/v1/companies/{uuid}` | Да | Переименовать компанию. Доступ: `company_manager` |
+| PATCH | `/api/v1/companies/{uuid}/tag` | Да | Изменить тег компании |
+| POST | `/api/v1/companies/{uuid}/leave` | Да | Покинуть компанию |
 | DELETE | `/api/v1/companies/{uuid}` | Да | Архивировать компанию через `deleted_at`. Доступ: `company_manager` |
 | GET | `/api/v1/companies/{uuid}/members` | Да | Получить участников компании с фильтрами `status`, `role`, `department_uuid`, `q`, `limit`, `offset` |
 | POST | `/api/v1/companies/{uuid}/members` | Да | Добавить участника компании |
@@ -1261,27 +1436,40 @@ GET /api/v1/companies/{uuid}/members?status=active&role=department_leader&depart
 }
 ```
 
-Загрузка звонка использует `multipart/form-data`. Новый клиент отправляет файл в поле `media`; поле `audio` поддерживается для обратной совместимости:
+### Загрузка звонка
+
+Загрузка звонка использует `multipart/form-data` (максимум 500 MiB). Новый клиент отправляет файл в поле `media`; поле `audio` поддерживается для обратной совместимости:
 
 ```text
-title = Test call
-media = File
+media = File (обязательно)
+title = optional; по умолчанию имя файла
 company_uuid = optional UUID
 department_uuid = optional UUID
+folder_uuid = optional UUID папки, в которую сразу попадёт звонок
+processing_mode = analyze (по умолчанию) | transcribe
+use_custom_instructions / skip_custom_instructions = применять ли пользовательские инструкции
+speaker_hints = optional JSON: [{"userId","name","username","role":"self|manager|client|other","note"}]
+diarization_roles = optional JSON: [{"name","description"}]
 ```
+
+`speaker_hints` и `diarization_roles` вместе — не более 10 элементов.
 
 Поддерживаемые форматы загрузки: `.mp3`, `.wav`, `.m4a`, `.ogg`, `.mp4`, `.mov`, `.webm`, `.mkv`.
 
 ### Облачная транскрибация и диаризация
 
 Штатный production-провайдер — AssemblyAI (`TRANSCRIBER_PROVIDER=assemblyai`,
-`ASSEMBLYAI_API_KEY`). Worker готовит и повторно использует технический
-`asr.ogg` (mono 16 kHz, Opus 24 kbit/s), а оригинальный файл сохраняет для
-воспроизведения и fallback.
+`ASSEMBLYAI_API_KEY`, модель `universal-2` с автоопределением языка). Worker
+готовит и повторно использует технический `asr.ogg` (mono 16 kHz, Opus
+24 kbit/s), а оригинальный файл сохраняет для воспроизведения и fallback.
 
-Без выбранных кандидатов выполняется обычная транскрибация. Если клиент передал
-speaker hints, AssemblyAI выполняет диаризацию и идентификацию произвольного
-набора выбранных людей и ролей; фиксированной пары ролей в backend нет.
+Режим транскрибации задаётся тарифом (см. «Billing»): `standard` — без
+разделения на спикеров, `diarized` — с диаризацией, `identified` — с
+идентификацией спикеров. Идентификация использует speaker hints и
+diarization roles как кандидатов (фиксированной пары ролей в backend нет) и
+выполняется только когда кандидаты переданы и к звонку не применяется
+маскирование персональных данных. Маскирование выполняет AssemblyAI; после
+получения результата транскрипт на стороне провайдера удаляется.
 
 Запуск анализа не требует body и возвращает `202 Accepted` с записью анализа в статусе `pending`:
 
@@ -1289,7 +1477,84 @@ speaker hints, AssemblyAI выполняет диаризацию и идент�
 POST /api/v1/calls/{uuid}/analysis
 ```
 
-GET анализа возвращает сохраненный результат:
+### Контракт анализа (schema v3)
+
+OpenRouter analyzer работает поэтапно (`pipeline_version=universal-staged-v5`,
+`prompt_version=universal-v3.1`):
+
+1. инвентаризация вопросов и тем в транскрипции окнами ~6500 символов с аудитом покрытия;
+2. восстановление непокрытых сегментов;
+3. разбор инструкций на атомарные требования;
+4. оценка пунктов пакетами по 3 в 2 параллельных потока;
+5. итоговое резюме и рекомендации.
+
+Каждый шаг повторяется до 3 раз с передачей ошибок валидации модели, результаты
+шагов сохраняются в `call_analysis_tasks`, а промежуточный результат публикуется
+сразу, поэтому готовые карточки доступны до завершения анализа. Каждый шаг
+отдельно резервирует и списывает кредиты.
+
+GET анализа возвращает сохранённый `result_json` без преобразования:
+
+```json
+{
+  "schema_version": 3,
+  "prompt_version": "universal-v3.1",
+  "pipeline_version": "universal-staged-v5",
+  "summary": "...",
+  "purpose": "...",
+  "outcome": "...",
+  "conversation_types": [],
+  "strengths": [],
+  "work_on": [],
+  "recommendations": [{ "item_ids": ["..."] }],
+  "priority_recommendation_ids": [],
+  "items": [
+    {
+      "id": "...",
+      "kind": "question",
+      "title": "...",
+      "topic": "...",
+      "status": "mostly_met",
+      "weight": 2,
+      "score": 75,
+      "explanation": "...",
+      "strengths": [],
+      "gaps": [],
+      "evidence": [{ "segment_id": "...", "quote": "..." }],
+      "instruction_sources": []
+    }
+  ],
+  "coverage": {
+    "status": "complete",
+    "actual_question_count": 7,
+    "analyzed_actual_question_count": 7,
+    "limitations": []
+  },
+  "overall_score": 83,
+  "overall_score_label": "83 / 100",
+  "score": 83,
+  "score_scale": 100
+}
+```
+
+Статусы пунктов: `met` (100), `mostly_met` (75), `partially_met` (50),
+`minimally_met` (25), `missed` (0), а также `not_applicable`, `unclear`,
+`conflict`, `not_assessed` — они не входят в итог. Вес пункта 1..3. Backend
+пересчитывает `overall_score = round(Σ score·weight / Σ weight)` по пунктам с
+`contributes_to_overall != false`; при неполном покрытии (`coverage.status=partial`)
+или отсутствии весов итог равен `null`. `score` дублирует `overall_score`,
+`score_scale` равен `100`.
+
+Выбор глубины анализа или модели по тарифу для анализа звонка не реализован;
+тариф влияет только на режим транскрибации. Для sandbox-звонков developer API
+используется детерминированный mock-анализатор, а анализ sandbox-звонков,
+созданный до миграции `202608240003`, удалён.
+
+### Legacy-контракт (schema v2)
+
+Mock-анализатор и старые записи используют `schema_version=2`. Результаты не-v3
+нормализуются до v2 без изменения таблицы `call_analyses`; аналитика и отчёты
+продолжают читать v2-поля. Пример ответа mock-анализатора:
 
 ```json
 {
@@ -1334,17 +1599,11 @@ GET анализа возвращает сохраненный результа�
 }
 ```
 
-`call_analyses.result_json` нормализуется до `schema_version=2` без изменения таблицы `call_analyses`. Старые поля остаются в ответе для совместимости с API, отчетами и frontend.
+В v2 `score` хранится по шкале `0..100`, `score_scale` равен `100`. Если в `criteria_results` есть применимые критерии с баллами, итоговый `score` пересчитывается backend по формуле `round(sum(points_awarded) / sum(points_max) * 100)`. Критерии со статусом `not_applicable` принудительно получают `points_awarded=0` и `points_max=0`, поэтому исключаются из расчета. Если применимых критериев нет, backend сохраняет нормализованный входной score или ставит `0`.
 
-OpenRouter analyzer запрашивает у модели строгий JSON по v2-схеме без markdown-обертки. Prompt требует русские человекочитаемые строки, фактические evidence quotes из расшифровки, критерии со статусами `met`, `partially_met`, `missed`, `unclear`, `not_applicable` и не допускает выдуманные факты, возражения, риски или следующие шаги.
+Основные поля v2: `score_breakdown`, `criteria_results`, `business_outcome`, `customer_signals`, `next_step_quality`, `issue_codes`, `evidence_quotes`.
 
-`score` хранится по шкале `0..100`, `score_scale` равен `100`. Если в `criteria_results` есть применимые критерии с баллами, итоговый `score` пересчитывается backend по формуле `round(sum(points_awarded) / sum(points_max) * 100)`. Критерии со статусом `not_applicable` принудительно получают `points_awarded=0` и `points_max=0`, поэтому исключаются из расчета. Если применимых критериев нет, backend сохраняет нормализованный входной score или ставит `0`.
-
-Backend всё равно нормализует результат анализа и пересчитывает итоговый `score`, поэтому модель возвращает исходные критерии и evidence, а сервер сохраняет согласованный v2-контракт.
-
-Основные поля v2: `score_breakdown`, `criteria_results`, `business_outcome`, `customer_signals`, `next_step_quality`, `issue_codes`, `evidence_quotes`. Базовые критерии включают приветствие, выявление потребности, качество вопросов и ответов, релевантность решения, работу с возражениями, ясность цены/условий, профессиональный тон, качество следующего шага, ясность итога и выполнение дополнительных инструкций. `criteria_results` и короткие snake_case `issue_codes` используются для бесплатной аналитики и как основа для будущего deep analysis.
-
-Контракт анализа одного звонка не запускает deep analysis и не экспортирует агрегированные отчёты: для этого используются отдельные `/api/v1/analytics/deep-analyses` routes, описанные выше. Subscription-tier глубина анализа и выбор разных AI-моделей по тарифу в этом endpoint не реализованы. Папки звонков остаются ручной группировкой и фильтром.
+Контракт анализа одного звонка не запускает deep analysis и не экспортирует агрегированные отчёты: для этого используются отдельные `/api/v1/analytics/deep-analyses` routes, описанные выше. Папки звонков остаются группировкой и фильтром; привязанные к папке инструкции применяются при анализе её звонков.
 
 ## Формат ошибок API
 
@@ -1359,33 +1618,49 @@ Backend всё равно нормализует результат анализ
 }
 ```
 
+Некоторые ошибки дополнительно содержат `details`. Machine API (`/api/sandbox|production/...`) использует свой envelope: `{"error":{"code","message","request_id","retryable"}}`.
+
 ## Локальный запуск
 
-1. Скопировать env-файл:
+Все команды выполняются из `Monolit/` (приложение читает `./.env` из текущей директории). Нужны Go 1.25, Docker, [Task](https://taskfile.dev) и `ffmpeg`/`ffprobe` в `PATH`.
+
+1. Скопировать env-файл и заполнить секреты:
 
 ```powershell
+Set-Location C:\projects\VerbaTrace\Monolit
 Copy-Item .env.example .env
 ```
 
-2. Запустить PostgreSQL:
+`.env.example` по умолчанию выбирает `TRANSCRIBER_PROVIDER=assemblyai` и `ANALYZER_PROVIDER=openrouter`: без `ASSEMBLYAI_API_KEY` и `ANALYZER_API_KEY` приложение не стартует. Для работы без внешних провайдеров поставьте оба провайдера в `mock`.
+
+2. Вариант A — API локально, PostgreSQL в Docker:
 
 ```powershell
-docker compose up -d
-```
-
-3. Запустить API:
-
-```powershell
+task db
 go run ./cmd
 ```
 
-4. Проверить health:
+3. Вариант B — весь стек (API + PostgreSQL) в Docker Compose:
 
-```text
-http://localhost:8080/health
+```powershell
+task up
+task ps
+task logs
+task down
 ```
 
-Миграции выполняются при старте приложения из директории `MIGRATION_DIRECTORY`.
+Compose-файл: `deploy/docker-compose.yaml`. По умолчанию провайдеры там `mock`, данные хранятся в volumes `verbatrace_postgres_data` и `verbatrace_uploads`.
+
+4. Проверить health:
+
+```powershell
+task health
+task ready
+```
+
+Миграции выполняются при старте приложения из директории `MIGRATION_DIRECTORY`. Первого суперадминистратора назначает `go run ./cmd/admin-bootstrap --email you@example.com`.
+
+Для integration-тестов с внешними вызовами есть локальный эмулятор вендора: `go run ./cmd/integration-emulator` (по умолчанию `127.0.0.1:8091`, отдаёт тестовый WAV и принимает webhooks).
 
 ## Проверки и CI
 
@@ -1396,16 +1671,20 @@ Set-Location C:\projects\VerbaTrace
 .\scripts\verify-ci.ps1
 ```
 
-Она последовательно выполняет форматирование, `golangci-lint`, unit-тесты,
-integration-тесты с PostgreSQL, `go vet` и сборку Docker-образа. Репозиторный
-pre-commit hook запускает ту же проверку и отменяет создание коммита при любом
-ненулевом результате. Включение hook для нового checkout:
+Она запускает `task verify:int`: проверку форматирования, `golangci-lint`,
+unit-тесты, integration-тесты с PostgreSQL (`go test -p 1 -tags=integration`),
+`go vet` и сборку Docker-образа. Быстрая проверка без integration-тестов и
+Docker — `task verify` из `Monolit/`. Репозиторный pre-commit hook запускает
+полную проверку и отменяет создание коммита при любом ненулевом результате.
+Включение hook для нового checkout:
 
 ```powershell
 .\scripts\install-git-hooks.ps1
 ```
 
-GitHub Actions сводит обязательные backend jobs в check `CI Gate`. Чтобы
+GitHub Actions (`.github/workflows/backend.yml`) запускает job `unit` (fmt, lint,
+unit-тесты, vet) и после него job `integration` (fmt, lint, integration-тесты с
+mock-провайдерами, сборка образа) и сводит их в check `CI Gate`. Чтобы
 неуспешный удалённый CI блокировал merge, в branch protection/ruleset основной
 ветки check `CI Gate` должен быть отмечен как required. Frontend находится в
 соседнем репозитории `C:\projects\VerbaTrace-frontend` и имеет собственные
@@ -1413,76 +1692,68 @@ workflow, `CI Gate` и pre-commit build.
 
 ## Переменные окружения
 
-Смотри `.env.example`.
+Шаблон — `Monolit/.env.example`. Переменные без значения по умолчанию, отмеченные «обязательно», нужны для старта приложения.
 
-Основные переменные:
+| Группа | Переменные |
+| --- | --- |
+| HTTP | `HTTP_HOST`, `HTTP_PORT`, `HTTP_READ_TIMEOUT` — обязательно |
+| PostgreSQL | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_SSL_MODE`, `MIGRATION_DIRECTORY` — обязательно; `POSTGRES_TEST_DB` — база для integration-тестов |
+| Файлы и медиа | `UPLOAD_PATH` — обязательно; `FFMPEG_PATH` (`ffmpeg`), `FFPROBE_PATH` (`ffprobe`) |
+| Логи | `LOG_LEVEL` (`info`), `LOG_AS_JSON` (`false`) |
+| Workers | `WORKER_ENABLED` (`true`), `WORKER_POLL_INTERVAL` (`2s`), `WORKER_LIMIT` (`1`), `WORKER_RETRY_DELAY` (`1m`), `WORKER_STALE_AFTER` (`30m`), `WORKER_MAX_ATTEMPTS` (`5`) |
+| Retention | `CALL_RETENTION_INTERVAL` (`24h`), `CALL_RETENTION_BATCH` (`100`), `INSTRUCTION_RETENTION_INTERVAL` (`25h`, после worker звонков), `INSTRUCTION_RETENTION_BATCH` (`50`) |
+| Транскрибация | `TRANSCRIBER_PROVIDER` (`assemblyai` или `mock`), `ASSEMBLYAI_API_KEY` |
+| Анализ | `ANALYZER_PROVIDER` (`openrouter` или `mock`; по умолчанию `mock`), `ANALYZER_API_KEY`, `ANALYZER_MODEL` — обязательно для `openrouter`, в `.env.example` и compose — `openai/gpt-5-mini` |
+| Поиск и ассистент | `EMBEDDING_API_KEY` (по умолчанию `ANALYZER_API_KEY`), `EMBEDDING_MODEL` (`openai/text-embedding-3-small`), `ASSISTANT_API_KEY` (по умолчанию `ANALYZER_API_KEY`), `ASSISTANT_MODEL` (по умолчанию `ANALYZER_MODEL`). Без ключа поиск работает лексически, ассистент отключён. `EMBEDDING_PROVIDER`, `EMBEDDING_DIMENSIONS` и `ASSISTANT_PROVIDER` из `.env.example` кодом пока не читаются (размерность фиксирована — 1536) |
+| Auth | `PASSWORD_PEPPER`, `JWT_SECRET`, `JWT_ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_SECRET`, `REFRESH_TOKEN_TTL` — обязательно (секреты можно задавать с префиксом `base64:`); `AUTH_SESSION_TRUST_AGE` (`24h`) |
+| Интеграции | `INTEGRATION_MASTER_KEY_BASE64` (без него ingest и Bitrix24 workers выключены), `PUBLIC_APP_URL`, `BITRIX24_CLIENT_ID`, `BITRIX24_CLIENT_SECRET`, `BITRIX24_REDIRECT_URI`, `BITRIX24_TOKEN_URL` (необязательно; по умолчанию официальный OAuth endpoint), `BITRIX24_APPLICATION_TOKEN` (нужен для проверки входящих Bitrix24 events). В `.env.example` их нет — см. `deploy/docker-compose.yaml` |
+| Вспомогательные | `INTEGRATION_EMULATOR_ADDRESS` (`127.0.0.1:8091`) для `cmd/integration-emulator`; `ASSEMBLYAI_LIVE_AUDIO` для live-теста AssemblyAI |
 
-- `HTTP_HOST`
-- `HTTP_PORT`
-- `POSTGRES_HOST`
-- `POSTGRES_PORT`
-- `POSTGRES_DB`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
-- `MIGRATION_DIRECTORY`
-- `UPLOAD_PATH`
-- `FFPROBE_PATH`
-- `LOG_LEVEL`
-- `LOG_AS_JSON`
-- `WORKER_ENABLED`
-- `WORKER_POLL_INTERVAL`
-- `WORKER_LIMIT`
-- `WORKER_RETRY_DELAY`
-- `WORKER_STALE_AFTER`
-- `WORKER_MAX_ATTEMPTS`
-- `CALL_RETENTION_INTERVAL` (по умолчанию `24h`)
-- `CALL_RETENTION_BATCH` (по умолчанию `100`)
-- `INSTRUCTION_RETENTION_INTERVAL` (по умолчанию `25h`, после worker звонков)
-- `INSTRUCTION_RETENTION_BATCH` (по умолчанию `50`)
-- `TRANSCRIBER_PROVIDER`
-- `TRANSCRIBER_API_KEY`
-- `TRANSCRIBER_MODEL`
-- `ANALYZER_PROVIDER`
-- `ANALYZER_API_KEY`
-- `ANALYZER_MODEL`
-- `INTEGRATION_MASTER_KEY_BASE64`
-- `PUBLIC_APP_URL`
-- `BITRIX24_CLIENT_ID`
-- `BITRIX24_CLIENT_SECRET`
-- `BITRIX24_REDIRECT_URI`
-- `BITRIX24_TOKEN_URL` (необязательно; по умолчанию официальный OAuth endpoint)
-- `BITRIX24_APPLICATION_TOKEN` (нужен для проверки входящих Bitrix24 events)
-
-Для анализа через OpenRouter рекомендуется недорогая модель `mistralai/mistral-nemo`: она подходит для русских звонков, поддерживает структурированные JSON-ответы и не использует более строгие лимиты `:free` моделей.
-
-- `PASSWORD_PEPPER`
-- `JWT_SECRET`
-- `JWT_ACCESS_TOKEN_TTL`
-- `REFRESH_TOKEN_SECRET`
-- `REFRESH_TOKEN_TTL`
+Переменные поиска, ассистента и интеграций читаются напрямую в `cmd/main.go`, остальные — через `internal/config`.
 
 ## Структура проекта
 
+Внутри `Monolit/`:
+
 ```text
-cmd/                        Точка входа приложения
-internal/API/               HTTP handlers, DTO, response helpers
-internal/analyzer/          Абстракция и mock-провайдер анализа
-internal/auth/              Password, token, refresh helpers
-internal/config/            Конфигурация из env
-internal/converter/         Конвертеры domain -> API
-internal/httpserver/        Router и HTTP middleware
-internal/integrationcrypto/ Шифрование integration credentials и secrets
-internal/logger/            Logger приложения
-internal/migrator/          Обертка над goose migrator
-internal/models/            Доменные модели
-internal/repository/        PostgreSQL repositories
-internal/service/           Бизнес-логика
-internal/service/bitrix24/  OAuth, mapping, backfill, reconciliation и task write-back
-internal/service/supportaccess/ Запрашиваемый и аудируемый support-доступ
-internal/storage/audio/     Локальное хранение аудио
-internal/storage/instruction/ Локальное хранение файлов инструкций
-internal/transcriber/       Абстракция и mock-провайдер транскрибации
-migrations/                 SQL-миграции goose
-docs/api/                   Справочная документация integration API
-docs/runbooks/              Операционные инструкции и real-portal checklist
+cmd/main.go                     Точка входа: конфигурация, миграции, DI, workers, router
+cmd/admin-bootstrap/            Назначение первого superadmin по email
+cmd/integration-emulator/       Локальный эмулятор вендора для integration-тестов
+deploy/                         Dockerfile и docker-compose.yaml
+scripts/                        compose-up/down и проверка покрытия
+migrations/                     SQL-миграции goose
+internal/API/                   HTTP handlers по доменам, DTO, response helpers
+internal/analyzer/              Анализ: mock, openrouter, analysisflow (поэтапный пайплайн)
+internal/assistant/             Индексация, гибридный поиск и AI-ассистент
+internal/auth/                  Password, token, refresh helpers
+internal/billingcredits/        Расчёт кредитов по стоимости провайдера
+internal/config/                Конфигурация из env
+internal/converter/             Конвертеры domain <-> API
+internal/httpserver/            Router, middleware, Swagger UI integration API
+internal/instructioncontent/    Извлечение текста из MD/PDF/DOCX/XLSX
+internal/integrationcrypto/     AES-256-GCM шифрование integration credentials и secrets
+internal/integrationemulator/   Handler эмулятора вендора
+internal/logger/                Logger приложения
+internal/mediafetch/            Загрузка медиа по URL с защитой от SSRF
+internal/migrator/              Обертка над goose migrator
+internal/models/                Доменные модели
+internal/repository/            PostgreSQL repositories
+internal/service/               Бизнес-логика по доменам: call, processing, analysis,
+                                analytics, qualityreview, action, privacy, retention,
+                                transcriptionedit, billing, integration, bitrix24,
+                                supportaccess, report, admin, auth, company, department и др.
+internal/storage/               Локальное хранение: audio, avatar, instruction, report
+internal/transcriber/           Транскрибация: mock, assemblyai, cleaner
+internal/username/              Правила username
+```
+
+В корне репозитория:
+
+```text
+docs/api/                       Справочная документация integration API
+docs/runbooks/                  Операционные инструкции и real-portal checklist
+docs/verification/              Статусы проверки крупных фич
+scripts/                        verify-ci.ps1 и установка git hooks
+.githooks/                      pre-commit hook
+.github/workflows/              GitHub Actions
 ```
