@@ -128,7 +128,6 @@ type CreditWalletEntry struct {
 	Credits         int64
 	Reason          string
 	CreatedAt       time.Time
-	Details         []CreditWalletEntry
 }
 
 type SandboxWalletDashboard struct {
