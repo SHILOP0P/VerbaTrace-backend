@@ -163,7 +163,11 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 	}
 
 	if request.Task != nil {
-		payload.Messages = []message{{Role: "system", Content: request.Task.System}, {Role: "user", Content: request.Task.Input}}
+		payload.Messages = []message{{Role: "system", Content: request.Task.System}}
+		if request.Task.Context != "" {
+			payload.Messages = append(payload.Messages, message{Role: "user", Content: request.Task.Context})
+		}
+		payload.Messages = append(payload.Messages, message{Role: "user", Content: request.Task.Input})
 		payload.ResponseFormat = responseFormat{Type: "json_schema", JSONSchema: jsonSchema{Name: request.Task.Name, Strict: true, Schema: request.Task.Schema}}
 		payload.MaxCompletionTokens = request.Task.MaxTokens
 	}

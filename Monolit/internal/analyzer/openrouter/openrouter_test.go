@@ -163,6 +163,47 @@ func TestAnalyzeSendsTranscriptionAndInstructions(t *testing.T) {
 	}
 }
 
+func TestAnalyzeTaskSendsSharedContextAsSeparateMessage(t *testing.T) {
+	tests := []struct {
+		name    string
+		context string
+		want    []string
+	}{
+		{name: "with shared context", context: "shared transcript", want: []string{"system prompt", "shared transcript", "step input"}},
+		{name: "without shared context", want: []string{"system prompt", "step input"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var req chatRequest
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					t.Fatalf("decode request: %v", err)
+				}
+				got := make([]string, 0, len(req.Messages))
+				for _, message := range req.Messages {
+					got = append(got, message.Content)
+				}
+				if strings.Join(got, "|") != strings.Join(tt.want, "|") {
+					t.Fatalf("messages = %q, want %q", got, tt.want)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"{\"ok\":true}"},"finish_reason":"stop"}]}`))
+			}))
+			defer server.Close()
+			analyzer, err := New("sk-or-v1-test", "openai/gpt-5-mini")
+			if err != nil {
+				t.Fatalf("new analyzer: %v", err)
+			}
+			analyzer.baseURL = server.URL
+			analyzer.client = server.Client()
+			task := models.AnalysisTask{Name: "analysis_step", System: "system prompt", Context: tt.context, Input: "step input", Schema: map[string]any{"type": "object"}, MaxTokens: 100}
+			if _, err = analyzer.Analyze(context.Background(), models.AnalysisRequest{CallUUID: uuid.New(), Task: &task}); err != nil {
+				t.Fatalf("analyze: %v", err)
+			}
+		})
+	}
+}
+
 func TestMaxAnalysisTokensDependsOnTranscriptionWordCount(t *testing.T) {
 	tests := []struct {
 		name      string

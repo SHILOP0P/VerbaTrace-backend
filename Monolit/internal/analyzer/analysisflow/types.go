@@ -12,7 +12,7 @@ import (
 	"verbatrace/monolit/internal/models"
 )
 
-const Version = "universal-staged-v5"
+const Version = "universal-staged-v6"
 
 type Segment struct {
 	ID      string   `json:"id"`
@@ -63,6 +63,61 @@ type Runner struct {
 	units    []Unit
 	progress Progress
 	model    *string
+	// assessmentContext is the transcript and run-wide inputs shared verbatim by
+	// every assessment and audit step, so the provider can cache it once.
+	assessmentContext string
+
+	index          map[string]Segment
+	windows        [][]Segment
+	windowUnits    [][]Unit
+	windowDone     []bool
+	requirements   []Unit
+	contextReady   bool
+	requirementsOn bool
+	scheduled      map[unitRef]bool
+	assessed       map[string]map[string]any
+	tasks          *taskGroup
+	inventorySlots chan struct{}
+	assessSlots    chan struct{}
+}
+
+// unitRef addresses inventory unit index of window, before cross-window merging.
+type unitRef struct{ window, index int }
+
+// taskGroup runs pipeline tasks that may spawn further tasks. After the first
+// error it accepts no new tasks and steps stop sending provider requests.
+type taskGroup struct {
+	wg  sync.WaitGroup
+	mu  sync.Mutex
+	err error
+}
+
+func (g *taskGroup) Go(fn func() error) {
+	if g.failed() {
+		return
+	}
+	g.wg.Add(1)
+	go func() {
+		defer g.wg.Done()
+		if err := fn(); err != nil {
+			g.mu.Lock()
+			if g.err == nil {
+				g.err = err
+			}
+			g.mu.Unlock()
+		}
+	}()
+}
+
+func (g *taskGroup) failed() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.err != nil
+}
+
+func (g *taskGroup) Wait() error {
+	g.wg.Wait()
+	return g.err
 }
 
 func SourceSegments(t models.Transcription) []Segment {
@@ -87,6 +142,17 @@ func SourceSegments(t models.Transcription) []Segment {
 			result = append(result, Segment{ID: fmt.Sprintf("s%d.%d", i+1, part+1), Speaker: s.Speaker, Start: s.StartSeconds, End: s.EndSeconds, Text: string(runes[start:end])})
 			start = end
 		}
+	}
+	return result
+}
+
+// compactSegments renders segments as [id, speaker, text] tuples. Per-segment
+// JSON keys and timestamps are a large share of a long transcript prompt, and
+// evidence timing is always restored from the source segment anyway.
+func compactSegments(segments []Segment) [][3]string {
+	result := make([][3]string, 0, len(segments))
+	for _, s := range segments {
+		result = append(result, [3]string{s.ID, s.Speaker, s.Text})
 	}
 	return result
 }

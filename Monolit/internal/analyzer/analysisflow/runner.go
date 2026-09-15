@@ -5,76 +5,82 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
-	"sync"
 
 	"verbatrace/monolit/internal/models"
 )
 
+const (
+	// Provider requests of one call run in two lanes so a flood of assessments
+	// never delays the slowest inventory window, which gates the whole run.
+	// Latency is output-bound, so wall time scales with these bounds; they still
+	// keep a few concurrently analysed calls within provider rate limits.
+	inventoryConcurrency = 8
+	assessConcurrency    = 10
+	assessBatchSize      = 3
+	// Production runs showed that audit disagreements left after two targeted
+	// repairs only re-litigated wording while every round cost a full assessment.
+	maxAssessmentRepairs = 2
+	repairWarning        = "Ответ прошёл проверку структуры и доказательств, но аудитор сохранил замечание после повторных уточнений."
+)
+
+var (
+	auditCategories    = []string{"attribution", "missed_answer", "unsupported_claim", "unfair_penalty", "status_mismatch"}
+	speakerMarker      = regexp.MustCompile(`\{\{speaker:([^{}]*)\}\}`)
+	errPipelineStopped = errors.New("analysis pipeline stopped after an earlier step failed")
+)
+
+type auditIssue struct {
+	ID       string `json:"id"`
+	Category string `json:"category"`
+	Reason   string `json:"reason"`
+	MustFix  bool   `json:"must_fix"`
+}
+
+// Run inventories windows, decomposes instructions and assesses units as one
+// pipeline: a unit is assessed as soon as its final shape is known, instead of
+// waiting for the slowest inventory window.
 func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 	if len(r.Segments) == 0 {
 		return models.AnalysisResult{}, models.ErrInvalidAnalysisInput
 	}
+	r.index = sourceIndex(r.Segments)
+	r.windows = splitWindows(r.Segments)
+	r.windowUnits = make([][]Unit, len(r.windows))
+	r.windowDone = make([]bool, len(r.windows))
+	r.scheduled = map[unitRef]bool{}
+	r.assessed = map[string]map[string]any{}
+	r.tasks = &taskGroup{}
+	r.inventorySlots = make(chan struct{}, inventoryConcurrency)
+	r.assessSlots = make(chan struct{}, assessConcurrency)
 	r.progress.Stage = "inventory"
-	windows := splitWindows(r.Segments)
-	r.progress.WindowsTotal = len(windows)
-	if err := r.publish(ctx, nil); err != nil {
-		return models.AnalysisResult{}, err
-	}
-	for i, window := range windows {
-		if err := r.inventoryWindow(ctx, fmt.Sprintf("inventory/%d", i), window); err != nil {
-			return models.AnalysisResult{}, err
-		}
-	}
-	// A question, its answer and subsequent explanation form one review card.
-	// Inventory windows may still describe answer turns as episodes, so merge
-	// consecutive episodes into the preceding question before assessment.
-	r.units = mergeQuestionResponses(r.units)
-	segmentsByID := sourceIndex(r.Segments)
-	r.items = r.items[:0]
-	r.progress.QuestionsFound = 0
-	for i := range r.units {
-		if r.units[i].Kind == "question" && len(r.units[i].SegmentIDs) > 0 {
-			r.units[i].QuestionSpeaker = segmentsByID[r.units[i].SegmentIDs[0]].Speaker
-		}
-		// A conversational question becomes mandatory only through an explicit
-		// instruction requirement created below, never from provider inference.
-		r.units[i].RequiredQuestion = false
-		r.units[i].ID = fmt.Sprintf("u%d", i+1)
-		r.items = append(r.items, placeholder(r.units[i], i))
-		if r.units[i].Kind == "question" {
-			r.progress.QuestionsFound++
-		}
-	}
+	r.progress.WindowsTotal = len(r.windows)
 	if err := r.publish(ctx, nil); err != nil {
 		return models.AnalysisResult{}, err
 	}
 	if len(r.Request.Instructions) > 0 {
-		var req Inventory
-		if err := r.step(ctx, "requirements", requirementsPrompt, map[string]any{"instructions": r.Request.Instructions}, inventorySchema(), &req, func() error {
-			for _, u := range req.Units {
-				if u.Kind != "requirement" || !nonempty(u.Title) || len(u.Parts) == 0 {
-					return errors.New("invalid instruction requirement")
-				}
-			}
-			return nil
-		}); err != nil {
-			return models.AnalysisResult{}, err
-		}
-		for i, u := range req.Units {
-			u.ID = fmt.Sprintf("r%d", i+1)
-			r.units = append(r.units, u)
-			r.items = append(r.items, placeholder(u, len(r.items)))
-		}
+		// Requirements depend only on instructions, so they overlap the inventory.
+		r.tasks.Go(func() error { return r.decomposeInstructions(ctx) })
+	} else {
+		r.mu.Lock()
+		r.prepareAssessmentLocked()
+		r.mu.Unlock()
 	}
-	r.progress.Stage = "answers"
-	r.progress.ItemsTotal = len(r.units)
-	if err := r.publish(ctx, nil); err != nil {
+	for w := range r.windows {
+		r.tasks.Go(func() error { return r.inventoryWindow(ctx, w) })
+	}
+	if err := r.tasks.Wait(); err != nil {
 		return models.AnalysisResult{}, err
 	}
-	if err := r.assessAll(ctx); err != nil {
-		return models.AnalysisResult{}, err
+	r.mu.Lock()
+	r.refreshLocked()
+	unassessed := len(r.units) - len(r.assessed)
+	r.mu.Unlock()
+	if unassessed != 0 {
+		return models.AnalysisResult{}, fmt.Errorf("incomplete_coverage: %d units were not assessed", unassessed)
 	}
 	r.progress.Stage = "validation"
 	if err := r.publish(ctx, nil); err != nil {
@@ -86,7 +92,7 @@ func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 	for _, key := range []string{"summary", "purpose", "outcome", "conversation_types", "strengths", "work_on", "recommendations", "priority_recommendation_ids"} {
 		summaryProps[key] = props[key]
 	}
-	if err := r.step(ctx, "summary", summaryPrompt, map[string]any{"assessed_items": r.items}, object(summaryProps), &summary, func() error {
+	if err := r.step(ctx, nil, "summary", summaryPrompt, "", map[string]any{"assessed_items": summaryItems(r.items)}, object(summaryProps), &summary, func() error {
 		if !nonempty(text(summary["summary"])) {
 			return errors.New("empty summary")
 		}
@@ -117,6 +123,7 @@ func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 	}); err != nil {
 		return models.AnalysisResult{}, err
 	}
+	normalizeSpeakerMarkers(summary, r.Segments)
 	r.progress.Stage = "complete"
 	root := r.result(summary)
 	root["coverage"].(map[string]any)["status"] = "complete"
@@ -124,38 +131,194 @@ func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 	return models.AnalysisResult{ResultJSON: raw, Model: r.model}, err
 }
 
-func (r *Runner) assessAll(ctx context.Context) error {
-	var workers sync.WaitGroup
-	var workMu sync.Mutex
-	next := 0
-	var firstErr error
-	// Bound concurrency so large meetings do not monopolize provider capacity.
-	for worker := 0; worker < 2; worker++ {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			for {
-				workMu.Lock()
-				if firstErr != nil || next >= len(r.units) {
-					workMu.Unlock()
-					return
-				}
-				start := next
-				next += 3
-				workMu.Unlock()
-				if err := r.assess(ctx, r.units[start:min(start+3, len(r.units))]); err != nil {
-					workMu.Lock()
-					if firstErr == nil {
-						firstErr = err
-					}
-					workMu.Unlock()
-					return
-				}
+func (r *Runner) decomposeInstructions(ctx context.Context) error {
+	var req Inventory
+	if err := r.step(ctx, nil, "requirements", requirementsPrompt, "", map[string]any{"instructions": r.Request.Instructions}, inventorySchema(), &req, func() error {
+		for _, u := range req.Units {
+			if u.Kind != "requirement" || !nonempty(u.Title) || len(u.Parts) == 0 {
+				return errors.New("invalid instruction requirement")
 			}
-		}()
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
-	workers.Wait()
-	return firstErr
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i, u := range req.Units {
+		u.ID = fmt.Sprintf("r%d", i+1)
+		r.requirements = append(r.requirements, u)
+	}
+	r.prepareAssessmentLocked()
+	r.refreshLocked()
+	r.scheduleLocked(ctx)
+	return r.publishLocked(ctx, nil)
+}
+
+// prepareAssessmentLocked freezes the shared assessment context. Every
+// assessment reads all requirements, so none may start before they are known.
+func (r *Runner) prepareAssessmentLocked() {
+	r.assessmentContext = asJSON(map[string]any{
+		"source_segments": compactSegments(r.Segments), "instructions": r.Request.Instructions,
+		"personalization": r.Request.Personalization, "privacy_context": r.Request.Redaction,
+		"all_requirements": requirementUnits(r.requirements),
+	})
+	r.contextReady = true
+}
+
+func (r *Runner) inventoryWindow(ctx context.Context, w int) error {
+	units, err := r.extractWindow(ctx, fmt.Sprintf("inventory/%d", w), r.windows[w])
+	if err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.windowUnits[w], r.windowDone[w] = units, true
+	r.progress.WindowsDone++
+	r.refreshLocked()
+	r.scheduleLocked(ctx)
+	if err = r.publishLocked(ctx, nil); err != nil || r.progress.WindowsDone < len(r.windows) {
+		return err
+	}
+	r.progress.Stage = "answers"
+	return r.publishLocked(ctx, nil)
+}
+
+// refreshLocked rebuilds the published unit list in transcript order from the
+// finished windows, keeping assessed cards in place of their placeholders.
+func (r *Runner) refreshLocked() {
+	entries := layoutUnits(r.windowUnits, r.windowDone, r.index)
+	units := make([]Unit, 0, len(entries)+len(r.requirements))
+	questions := 0
+	for _, entry := range entries {
+		units = append(units, entry.unit)
+		if entry.unit.Kind == "question" {
+			questions++
+		}
+	}
+	units = append(units, r.requirements...)
+	items := make([]map[string]any, 0, len(units))
+	for i, u := range units {
+		if item, ok := r.assessed[u.ID]; ok {
+			item["order"] = i
+			items = append(items, item)
+			continue
+		}
+		items = append(items, placeholder(u, i))
+	}
+	r.units, r.items = units, items
+	r.progress.QuestionsFound = questions
+	r.progress.ItemsTotal = len(units)
+	r.progress.ItemsDone = len(r.assessed)
+}
+
+// scheduleLocked starts assessment of every batch whose cards reached their
+// final shape. A window's card list is fixed once none of its leading episodes
+// may still merge backwards; batches are then fixed ranges of that list, so
+// their composition, and therefore the durable step keys, never depend on the
+// order in which windows finish.
+func (r *Runner) scheduleLocked(ctx context.Context) {
+	if !r.contextReady {
+		return
+	}
+	byWindow := make([][]layoutEntry, len(r.windowUnits))
+	for _, entry := range layoutUnits(r.windowUnits, r.windowDone, r.index) {
+		byWindow[entry.head.window] = append(byWindow[entry.head.window], entry)
+	}
+	for w, entries := range byWindow {
+		if slices.ContainsFunc(entries, unresolvedEpisode) {
+			continue
+		}
+		for start := 0; start < len(entries); start += assessBatchSize {
+			batch := entries[start:min(start+assessBatchSize, len(entries))]
+			ref := unitRef{window: w, index: start}
+			if r.scheduled[ref] || slices.ContainsFunc(batch, notFinal) {
+				continue
+			}
+			r.scheduled[ref] = true
+			units := make([]Unit, 0, len(batch))
+			for _, entry := range batch {
+				units = append(units, entry.unit)
+			}
+			r.tasks.Go(func() error { return r.assess(ctx, units) })
+		}
+	}
+	if !r.requirementsOn {
+		r.requirementsOn = true
+		for start := 0; start < len(r.requirements); start += assessBatchSize {
+			batch := r.requirements[start:min(start+assessBatchSize, len(r.requirements))]
+			r.tasks.Go(func() error { return r.assess(ctx, batch) })
+		}
+	}
+}
+
+type layoutEntry struct {
+	unit  Unit
+	head  unitRef
+	final bool
+}
+
+func notFinal(entry layoutEntry) bool { return !entry.final }
+
+// unresolvedEpisode reports an episode that may still merge into a question of
+// an unfinished earlier window. Questions never merge backwards.
+func unresolvedEpisode(entry layoutEntry) bool { return entry.unit.Kind == "episode" && !entry.final }
+
+// layoutUnits lists units in transcript order and merges consecutive answer
+// episodes into the preceding question, because a question, its answer and the
+// subsequent explanation form one review card even across window boundaries.
+// An unfinished window is a barrier: the question before it may still absorb
+// episodes and episodes after it may still merge backwards, so those units are
+// not final yet.
+func layoutUnits(windows [][]Unit, done []bool, index map[string]Segment) []layoutEntry {
+	var entries []layoutEntry
+	afterBarrier := false
+	for w, units := range windows {
+		if !done[w] {
+			if last := len(entries) - 1; last >= 0 && entries[last].unit.Kind == "question" {
+				entries[last].final = false
+			}
+			afterBarrier = true
+			continue
+		}
+		for k, u := range units {
+			last := len(entries) - 1
+			if u.Kind == "episode" && !afterBarrier && last >= 0 && entries[last].unit.Kind == "question" {
+				mergeEpisode(&entries[last].unit, u)
+				continue
+			}
+			// An episode after a barrier, or after such an episode, may still merge
+			// into a question of the unfinished window.
+			unresolved := u.Kind == "episode" && (afterBarrier || (last >= 0 && entries[last].unit.Kind == "episode" && !entries[last].final))
+			unit := u
+			unit.ID = fmt.Sprintf("u%d.%d", w+1, k+1)
+			unit.SegmentIDs = append([]string(nil), u.SegmentIDs...)
+			unit.Parts = append([]string(nil), u.Parts...)
+			// A conversational question becomes mandatory only through an explicit
+			// instruction requirement, never from provider inference.
+			unit.RequiredQuestion = false
+			if unit.Kind == "question" && len(unit.SegmentIDs) > 0 {
+				unit.QuestionSpeaker = index[unit.SegmentIDs[0]].Speaker
+			}
+			entries = append(entries, layoutEntry{unit: unit, head: unitRef{window: w, index: k}, final: !unresolved})
+			afterBarrier = false
+		}
+	}
+	return entries
+}
+
+func mergeEpisode(question *Unit, episode Unit) {
+	seen := make(map[string]bool, len(question.SegmentIDs))
+	for _, id := range question.SegmentIDs {
+		seen[id] = true
+	}
+	for _, id := range episode.SegmentIDs {
+		if !seen[id] {
+			question.SegmentIDs = append(question.SegmentIDs, id)
+			seen[id] = true
+		}
+	}
+	question.Parts = append(question.Parts, episode.Parts...)
 }
 
 func splitWindows(segments []Segment) [][]Segment {
@@ -172,35 +335,32 @@ func splitWindows(segments []Segment) [][]Segment {
 	return windows
 }
 
-func (r *Runner) inventoryWindow(ctx context.Context, key string, owned []Segment) error {
-	index := sourceIndex(r.Segments)
+func (r *Runner) extractWindow(ctx context.Context, key string, owned []Segment) ([]Unit, error) {
+	positions := make(map[string]int, len(r.Segments))
+	for i, s := range r.Segments {
+		positions[s.ID] = i
+	}
 	ids := make([]string, 0, len(owned))
 	for _, s := range owned {
 		ids = append(ids, s.ID)
 	}
 	// Read neighbouring turns without granting them ownership in this window.
-	first, last := 0, 0
-	for i, s := range r.Segments {
-		if s.ID == owned[0].ID {
-			first = i
-		}
-		if s.ID == owned[len(owned)-1].ID {
-			last = i
-		}
-	}
-	input := map[string]any{"owned_segment_ids": ids, "context_segments": r.Segments[max(0, first-2):min(len(r.Segments), last+3)]}
+	first, last := positions[owned[0].ID], positions[owned[len(owned)-1].ID]
+	windowContext := asJSON(map[string]any{"context_segments": compactSegments(r.Segments[max(0, first-2):min(len(r.Segments), last+3)])})
 	var candidate Inventory
 	validate := func() error {
 		normalizeInventoryOwnership(&candidate, owned)
-		return validateInventoryStructure(candidate, owned, index)
+		return validateInventoryStructure(candidate, owned, r.index)
 	}
-	err := r.step(ctx, key+"/extract", inventoryPrompt, input, inventorySchema(), &candidate, validate)
+	err := r.step(ctx, r.inventorySlots, key+"/extract", inventoryPrompt, windowContext, map[string]any{"owned_segment_ids": ids}, inventorySchema(), &candidate, validate)
 	if err == nil {
-		input["candidate_inventory"] = candidate
-		err = r.step(ctx, key+"/audit", inventoryAuditPrompt, input, inventorySchema(), &candidate, validate)
+		// Freeze the candidate: the audit output is decoded into the same value.
+		auditInput := map[string]any{"owned_segment_ids": ids, "candidate_inventory": json.RawMessage(asJSON(candidate))}
+		candidate = Inventory{}
+		err = r.step(ctx, r.inventorySlots, key+"/audit", inventoryAuditPrompt, windowContext, auditInput, inventorySchema(), &candidate, validate)
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	missing := uncoveredOwned(candidate, owned)
 	if len(missing) > 0 {
@@ -209,11 +369,11 @@ func (r *Runner) inventoryWindow(ctx context.Context, key string, owned []Segmen
 			missingIDs = append(missingIDs, segment.ID)
 		}
 		var recovered Inventory
-		recoveryInput := map[string]any{"owned_segment_ids": missingIDs, "context_segments": missing}
-		if err = r.step(ctx, key+"/recover", inventoryRecoveryPrompt, recoveryInput, inventorySchema(), &recovered, func() error {
-			return validateInventory(recovered, missing, index)
+		recoveryContext := asJSON(map[string]any{"context_segments": compactSegments(missing)})
+		if err = r.step(ctx, r.inventorySlots, key+"/recover", inventoryRecoveryPrompt, recoveryContext, map[string]any{"owned_segment_ids": missingIDs}, inventorySchema(), &recovered, func() error {
+			return validateInventory(recovered, missing, r.index)
 		}); err != nil {
-			return err
+			return nil, err
 		}
 		for i := range recovered.Units {
 			recovered.Units[i].ID = fmt.Sprintf("recovered_%d_%s", i+1, recovered.Units[i].ID)
@@ -221,26 +381,13 @@ func (r *Runner) inventoryWindow(ctx context.Context, key string, owned []Segmen
 		candidate.Units = append(candidate.Units, recovered.Units...)
 		candidate.Excluded = append(candidate.Excluded, recovered.Excluded...)
 	}
-	if err = validateInventory(candidate, owned, index); err != nil {
-		return err
-	}
-	positions := map[string]int{}
-	for i, s := range r.Segments {
-		positions[s.ID] = i
+	if err = validateInventory(candidate, owned, r.index); err != nil {
+		return nil, err
 	}
 	sort.SliceStable(candidate.Units, func(i, j int) bool {
 		return positions[candidate.Units[i].SegmentIDs[0]] < positions[candidate.Units[j].SegmentIDs[0]]
 	})
-	for _, u := range candidate.Units {
-		u.ID = fmt.Sprintf("u%d", len(r.units)+1)
-		r.units = append(r.units, u)
-		r.items = append(r.items, placeholder(u, len(r.items)))
-		if u.Kind == "question" {
-			r.progress.QuestionsFound++
-		}
-	}
-	r.progress.WindowsDone++
-	return r.publish(ctx, nil)
+	return candidate.Units, nil
 }
 
 func validateInventory(in Inventory, owned []Segment, index map[string]Segment) error {
@@ -344,89 +491,29 @@ func normalizeInventoryOwnership(in *Inventory, owned []Segment) {
 	in.Excluded = excluded
 }
 
-func mergeQuestionResponses(units []Unit) []Unit {
-	merged := make([]Unit, 0, len(units))
-	for _, unit := range units {
-		if unit.Kind == "episode" && len(merged) > 0 && merged[len(merged)-1].Kind == "question" {
-			previous := &merged[len(merged)-1]
-			seen := make(map[string]bool, len(previous.SegmentIDs))
-			for _, id := range previous.SegmentIDs {
-				seen[id] = true
-			}
-			for _, id := range unit.SegmentIDs {
-				if !seen[id] {
-					previous.SegmentIDs = append(previous.SegmentIDs, id)
-					seen[id] = true
-				}
-			}
-			previous.Parts = append(previous.Parts, unit.Parts...)
-			continue
-		}
-		merged = append(merged, unit)
-	}
-	return merged
-}
-
-func (r *Runner) assess(ctx context.Context, units []Unit) error {
+// assessmentSchema asks the provider only for fields it decides. Title and topic
+// come from the inventory, order from the unit position and score from status.
+func (r *Runner) assessmentSchema() map[string]any {
 	props := r.Schema["properties"].(map[string]any)
 	// Copy the provider schema before replacing evidence proposals.
 	var itemSchema map[string]any
 	_ = json.Unmarshal([]byte(asJSON(props["items"].(map[string]any)["items"])), &itemSchema)
-	itemSchema["properties"].(map[string]any)["evidence"] = array(object(map[string]any{"segment_id": str(), "quote": str()}))
-	schema := object(map[string]any{"items": array(itemSchema)})
-	input := map[string]any{"assigned_units": units, "source_segments": r.Segments, "instructions": r.Request.Instructions, "personalization": r.Request.Personalization, "privacy_context": r.Request.Redaction, "all_requirements": requirementUnits(r.units)}
-	var output struct {
-		Items []map[string]any `json:"items"`
+	properties := itemSchema["properties"].(map[string]any)
+	properties["evidence"] = array(object(map[string]any{"segment_id": str(), "quote": str()}))
+	for _, key := range []string{"title", "topic", "order", "score"} {
+		delete(properties, key)
 	}
+	return object(map[string]any{"items": array(object(properties))})
+}
+
+func (r *Runner) assess(ctx context.Context, units []Unit) error {
+	schema := r.assessmentSchema()
 	key := "assess/" + units[0].ID
-	var err error
-	for repair := 0; repair < 5; repair++ {
-		err = r.step(ctx, fmt.Sprintf("%s/repair%d", key, repair), assessmentPrompt, input, schema, &output, func() error { return r.validateItems(output.Items, units) })
-		if err != nil {
-			break
-		}
-		var audit struct {
-			Issues []struct {
-				ID     string `json:"id"`
-				Reason string `json:"reason"`
-			} `json:"issues"`
-		}
-		auditInput := map[string]any{"assigned_units": units, "source_segments": r.Segments, "instructions": r.Request.Instructions, "candidate_result": output}
-		err = r.step(ctx, fmt.Sprintf("%s/audit%d", key, repair), assessmentAuditPrompt, auditInput, object(map[string]any{"issues": array(object(map[string]any{"id": str(), "reason": str()}))}), &audit, func() error {
-			for _, issue := range audit.Issues {
-				found := false
-				for _, u := range units {
-					if u.ID == issue.ID {
-						found = true
-					}
-				}
-				if !found || !nonempty(issue.Reason) {
-					return errors.New("invalid audit issue")
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			break
-		}
-		if len(audit.Issues) == 0 {
-			err = nil
-			break
-		}
-		input["validation_errors"] = audit.Issues
-		input["previous_output"] = output
-		err = errors.New("incomplete_coverage: answer audit still has unresolved issues")
+	byID := make(map[string]Unit, len(units))
+	for _, u := range units {
+		byID[u.ID] = u
 	}
-	if err != nil && strings.Contains(err.Error(), "incomplete_coverage: answer audit still has unresolved issues") {
-		// The candidate has already passed the structural and evidence checks and
-		// five independent repair rounds. Preserve it with an explicit warning so
-		// one subjective audit disagreement cannot abort an otherwise complete call.
-		for _, item := range output.Items {
-			item["validation_warning"] = "Ответ прошёл проверку структуры и доказательств, но аудитор сохранил замечание после пяти уточнений."
-		}
-		err = nil
-	}
-	if err != nil {
+	firstRoundFailure := func(err error) error {
 		if len(units) > 1 && strings.Contains(err.Error(), "incomplete_coverage") {
 			for _, u := range units {
 				if err = r.assess(ctx, []Unit{u}); err != nil {
@@ -437,23 +524,109 @@ func (r *Runner) assess(ctx context.Context, units []Unit) error {
 		}
 		return err
 	}
+	accepted := make(map[string]map[string]any, len(units))
+	pending := units
+	var issues []auditIssue
+	var previous []map[string]any
+	for round := 0; len(pending) > 0; round++ {
+		input := map[string]any{"assigned_units": pending}
+		if round > 0 {
+			// Re-assess only the flagged cards; accepted ones are never regenerated.
+			input["audit_issues"] = issues
+			input["previous_output"] = previous
+		}
+		current := pending
+		var output struct {
+			Items []map[string]any `json:"items"`
+		}
+		if err := r.step(ctx, r.assessSlots, fmt.Sprintf("%s/repair%d", key, round), assessmentPrompt, r.assessmentContext, input, schema, &output, func() error {
+			return r.validateItems(output.Items, current)
+		}); err != nil {
+			if round == 0 {
+				return firstRoundFailure(err)
+			}
+			// The previous candidates already passed the structural and evidence
+			// checks, so a failed repair keeps them with an explicit warning.
+			acceptWithWarning(accepted, previous)
+			break
+		}
+		var err error
+		if issues, err = r.auditAssessment(ctx, fmt.Sprintf("%s/audit%d", key, round), current, output.Items); err != nil {
+			if round == 0 {
+				return firstRoundFailure(err)
+			}
+			acceptWithWarning(accepted, output.Items)
+			break
+		}
+		flagged := make(map[string]bool, len(issues))
+		for _, issue := range issues {
+			flagged[issue.ID] = true
+		}
+		pending, previous = nil, nil
+		for _, item := range output.Items {
+			id := text(item["id"])
+			if flagged[id] {
+				pending = append(pending, byID[id])
+				previous = append(previous, item)
+				continue
+			}
+			accepted[id] = item
+		}
+		if len(pending) > 0 && round == maxAssessmentRepairs {
+			// One subjective audit disagreement must not abort an otherwise
+			// complete call; keep the checked candidate and show the warning.
+			acceptWithWarning(accepted, previous)
+			break
+		}
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for _, item := range output.Items {
-		for i, u := range r.units {
-			if u.ID == text(item["id"]) {
-				item["order"] = i
-				item["processing_status"] = "ready"
-				// Each real question and atomic requirement is scored once. A
-				// cross-cutting rule remains one aggregate requirement card.
-				item["contributes_to_overall"] = true
-				r.items[i] = item
-				break
-			}
+	for _, u := range units {
+		item := accepted[u.ID]
+		if item == nil {
+			return fmt.Errorf("incomplete_coverage: unit %s has no accepted assessment", u.ID)
 		}
-		r.progress.ItemsDone++
+		item["processing_status"] = "ready"
+		// Each real question and atomic requirement is scored once. A
+		// cross-cutting rule remains one aggregate requirement card.
+		item["contributes_to_overall"] = true
+		r.assessed[u.ID] = item
 	}
+	r.refreshLocked()
 	return r.publishLocked(ctx, nil)
+}
+
+func acceptWithWarning(accepted map[string]map[string]any, items []map[string]any) {
+	for _, item := range items {
+		item["validation_warning"] = repairWarning
+		accepted[text(item["id"])] = item
+	}
+}
+
+// auditAssessment returns only actionable must-fix issues. Unfiltered audits
+// listed confirmations and requests for unasked depth as issues, which forced
+// repair rounds that could not converge. An issue about a card outside the batch
+// or without a reason cannot be acted on, so it is dropped instead of retried.
+func (r *Runner) auditAssessment(ctx context.Context, key string, units []Unit, items []map[string]any) ([]auditIssue, error) {
+	var audit struct {
+		Issues []auditIssue `json:"issues"`
+	}
+	schema := object(map[string]any{"issues": array(object(map[string]any{"id": str(), "category": enum(auditCategories...), "reason": str(), "must_fix": map[string]any{"type": "boolean"}}))})
+	input := map[string]any{"assigned_units": units, "candidate_result": map[string]any{"items": items}}
+	if err := r.step(ctx, r.assessSlots, key, assessmentAuditPrompt, r.assessmentContext, input, schema, &audit, func() error { return nil }); err != nil {
+		return nil, err
+	}
+	assigned := make(map[string]bool, len(units))
+	for _, u := range units {
+		assigned[u.ID] = true
+	}
+	issues := make([]auditIssue, 0, len(audit.Issues))
+	for _, issue := range audit.Issues {
+		if issue.MustFix && assigned[issue.ID] && nonempty(issue.Reason) {
+			issues = append(issues, issue)
+		}
+	}
+	return issues, nil
 }
 
 func (r *Runner) validateItems(items []map[string]any, units []Unit) error {
@@ -464,7 +637,7 @@ func (r *Runner) validateItems(items []map[string]any, units []Unit) error {
 	for _, u := range units {
 		expected[u.ID] = u
 	}
-	index := sourceIndex(r.Segments)
+	index := r.index
 	for _, item := range items {
 		id := text(item["id"])
 		u, ok := expected[id]
@@ -475,6 +648,7 @@ func (r *Runner) validateItems(items []map[string]any, units []Unit) error {
 		if text(item["kind"]) != u.Kind || !nonempty(text(item["explanation"])) {
 			return errors.New("invalid assessment content")
 		}
+		normalizeSpeakerMarkers(item, r.Segments)
 		item["title"] = u.Title
 		item["topic"] = u.Topic
 		item["question_parts"] = u.Parts
@@ -559,15 +733,81 @@ func (r *Runner) validateItems(items []map[string]any, units []Unit) error {
 	return nil
 }
 
-func (r *Runner) step(ctx context.Context, key, prompt string, input map[string]any, schema map[string]any, out any, validate func() error) error {
+// normalizeSpeakerMarkers rewrites markers that cite a segment ID, e.g.
+// {{speaker:s218.1}}, to that segment's speaker so the name still resolves.
+func normalizeSpeakerMarkers(value any, segments []Segment) {
+	speakers := make(map[string]bool)
+	bySegment := make(map[string]string, len(segments))
+	for _, s := range segments {
+		speakers[s.Speaker] = true
+		bySegment[s.ID] = s.Speaker
+	}
+	var walk func(any) any
+	walk = func(value any) any {
+		switch v := value.(type) {
+		case string:
+			return speakerMarker.ReplaceAllStringFunc(v, func(marker string) string {
+				id := speakerMarker.FindStringSubmatch(marker)[1]
+				if speaker, ok := bySegment[id]; ok && !speakers[id] && speaker != "" {
+					return "{{speaker:" + speaker + "}}"
+				}
+				return marker
+			})
+		case map[string]any:
+			for key, nested := range v {
+				v[key] = walk(nested)
+			}
+		case []any:
+			for i, nested := range v {
+				v[i] = walk(nested)
+			}
+		}
+		return value
+	}
+	walk(value)
+}
+
+// summaryItems keeps each card's reasoning but drops evidence quotes and render
+// fields: recommendations cite cards by ID, and quotes were most of the input.
+func summaryItems(items []map[string]any) []map[string]any {
+	keys := []string{"id", "kind", "title", "topic", "question_speaker", "required_question", "status", "information_status", "fulfilled_earlier", "weight", "answer_summary", "explanation", "strengths", "gaps", "improvement_kind", "improvement", "instruction_sources", "validation_warning"}
+	result := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		compact := make(map[string]any, len(keys))
+		for _, key := range keys {
+			if value, ok := item[key]; ok {
+				compact[key] = value
+			}
+		}
+		result = append(result, compact)
+	}
+	return result
+}
+
+// step runs one structured provider request with validation retries. A nil
+// slots channel leaves the request outside the concurrency lanes.
+func (r *Runner) step(ctx context.Context, slots chan struct{}, key, prompt, sharedContext string, input map[string]any, schema map[string]any, out any, validate func() error) error {
 	input["input_version"] = Version
 	var last error
 	for attempt := 0; attempt < 3; attempt++ {
+		if r.tasks != nil && r.tasks.failed() {
+			return fmt.Errorf("%s: %w", key, errPipelineStopped)
+		}
 		if last != nil {
 			input["validation_errors"] = last.Error()
 		}
-		task := models.AnalysisTask{Name: "analysis_step", System: commonPrompt + "\n" + prompt, Input: asJSON(input), Schema: schema, MaxTokens: 12288}
+		task := models.AnalysisTask{Name: "analysis_step", System: commonPrompt + "\n" + prompt, Context: sharedContext, Input: asJSON(input), Schema: schema, MaxTokens: 12288}
+		if slots != nil {
+			select {
+			case slots <- struct{}{}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
 		result, err := r.Execute(ctx, fmt.Sprintf("%s/try%d", key, attempt), task)
+		if slots != nil {
+			<-slots
+		}
 		if err != nil {
 			last = err
 			continue

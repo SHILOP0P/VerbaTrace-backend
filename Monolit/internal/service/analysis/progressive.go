@@ -111,7 +111,7 @@ func (s *Service) analyzeProgressively(ctx context.Context, call models.Call, an
 		}
 		var operationID uuid.UUID
 		if s.creditMeter != nil {
-			if operationID, err = s.creditMeter.ReserveAnalysis(ctx, call, taskID, task.System+"\n"+task.Input, int64(task.MaxTokens)); err != nil {
+			if operationID, err = s.creditMeter.ReserveAnalysis(ctx, call, taskID, task.System+"\n"+task.Context+"\n"+task.Input, int64(task.MaxTokens)); err != nil {
 				_ = repository.ReleaseAnalysisTask(ctx, taskID)
 				return models.AnalysisResult{}, err
 			}

@@ -54,8 +54,11 @@ type AnalysisRequest struct {
 
 // AnalysisTask is a bounded, structured step of the server-owned analysis flow.
 type AnalysisTask struct {
-	Name      string
-	System    string
+	Name   string
+	System string
+	// Context is sent before Input as its own message. Steps of one run pass it
+	// byte-identical so providers can serve the long shared prefix from cache.
+	Context   string
 	Input     string
 	Schema    map[string]any
 	MaxTokens int
