@@ -59,7 +59,6 @@ docs/specs/
 postgres-data/
 pgdata/
 data/
-.rebrand-backups/
 
 # Obsidian local workspace settings
 **/.obsidian/
