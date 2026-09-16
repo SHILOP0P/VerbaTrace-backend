@@ -118,6 +118,13 @@ func nullableInt(v int64) any {
 	return v
 }
 
+// retentionClaim selects calls whose plan retention window is over.
+const retentionClaim = `retention_state IN ('active','grace','deletion_failed') AND retention_expires_at<=now() AND (retention_hold_until IS NULL OR retention_hold_until<=now())`
+
+// binClaim selects calls a user deleted whose 30-day grace period is over. They
+// go through the same deletion pipeline: manifest, files, audit, retry.
+const binClaim = `retention_state IN ('active','grace','deletion_failed') AND deleted_at IS NOT NULL AND purge_after<=now()`
+
 func (w *Worker) runCalls(ctx context.Context) {
 	ok, err := w.lock(ctx, callWorkerLock)
 	if err != nil || !ok {
@@ -127,9 +134,24 @@ func (w *Worker) runCalls(ctx context.Context) {
 	run := uuid.New()
 	_ = audit(ctx, w.service.db, run, uuid.Nil, "worker", uuid.Nil, "call_worker_run_started", -1, -1, map[string]any{"batch": w.batch})
 	w.resumePendingFiles(ctx, run)
-	rows, err := w.service.db.QueryContext(ctx, `SELECT call_uuid FROM calls WHERE retention_state IN ('active','grace','deletion_failed') AND retention_expires_at<=now() AND (retention_hold_until IS NULL OR retention_hold_until<=now()) ORDER BY retention_expires_at,call_uuid LIMIT $1`, w.batch)
+	completed := int64(0)
+	selected := 0
+	for _, claim := range []string{retentionClaim, binClaim} {
+		ids := w.selectCalls(ctx, run, claim)
+		selected += len(ids)
+		for _, id := range ids {
+			if w.deleteCall(ctx, run, id, claim) == nil {
+				completed++
+			}
+		}
+	}
+	_ = audit(ctx, w.service.db, run, uuid.Nil, "worker", uuid.Nil, "call_worker_run_completed", completed, -1, map[string]any{"selected": selected})
+}
+
+func (w *Worker) selectCalls(ctx context.Context, run uuid.UUID, claim string) []uuid.UUID {
+	rows, err := w.service.db.QueryContext(ctx, fmt.Sprintf(`SELECT call_uuid FROM calls WHERE %s ORDER BY COALESCE(purge_after,retention_expires_at),call_uuid LIMIT $1`, claim), w.batch)
 	if err != nil {
-		return
+		return nil
 	}
 	ids := make([]uuid.UUID, 0, w.batch)
 	for rows.Next() {
@@ -144,13 +166,7 @@ func (w *Worker) runCalls(ctx context.Context) {
 		meta[i] = id.String()
 	}
 	_ = audit(ctx, w.service.db, run, uuid.Nil, "call", uuid.Nil, "calls_selected_for_deletion", int64(len(ids)), -1, map[string]any{"call_uuids": meta})
-	completed := int64(0)
-	for _, id := range ids {
-		if w.deleteCall(ctx, run, id) == nil {
-			completed++
-		}
-	}
-	_ = audit(ctx, w.service.db, run, uuid.Nil, "worker", uuid.Nil, "call_worker_run_completed", completed, -1, map[string]any{"selected": len(ids)})
+	return ids
 }
 
 func (w *Worker) resumePendingFiles(ctx context.Context, run uuid.UUID) {
@@ -198,7 +214,7 @@ func (w *Worker) resumePendingFiles(ctx context.Context, run uuid.UUID) {
 	}
 }
 
-func (w *Worker) deleteCall(ctx context.Context, run, callID uuid.UUID) error {
+func (w *Worker) deleteCall(ctx context.Context, run, callID uuid.UUID, claim string) error {
 	tx, err := w.service.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -207,7 +223,7 @@ func (w *Worker) deleteCall(ctx context.Context, run, callID uuid.UUID) error {
 	var audioPath, cachePath string
 	var expires time.Time
 	var version int64
-	if err = tx.QueryRowContext(ctx, `SELECT audio_path,asr_cache_path,retention_expires_at,retention_version FROM calls WHERE call_uuid=$1 AND retention_expires_at<=now() AND retention_state IN ('active','grace','deletion_failed') FOR UPDATE`, callID).Scan(&audioPath, &cachePath, &expires, &version); err != nil {
+	if err = tx.QueryRowContext(ctx, fmt.Sprintf(`SELECT audio_path,asr_cache_path,COALESCE(purge_after,retention_expires_at),retention_version FROM calls WHERE call_uuid=$1 AND %s FOR UPDATE`, claim), callID).Scan(&audioPath, &cachePath, &expires, &version); err != nil {
 		return err
 	}
 	files := []fileRef{{Kind: "audio", Path: audioPath}}

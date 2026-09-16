@@ -1,7 +1,9 @@
 package call
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"verbatrace/monolit/internal/models"
 
@@ -9,75 +11,80 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func (s *ServiceSuite) TestDeleteCallSuccess() {
+func (s *ServiceSuite) TestDeleteCallMovesCallToBin() {
 	callID := uuid.New()
 	userID := uuid.New()
-	audioPath := "uploads/call.wav"
 
-	s.repository.EXPECT().GetByUUID(mock.Anything, callID, userID).
-		Return(models.Call{ID: callID, AudioPath: audioPath}, nil).
+	s.repository.EXPECT().
+		SoftDeleteCall(mock.Anything, callID, userID, mock.Anything, mock.Anything).
+		RunAndReturn(func(_ context.Context, id uuid.UUID, _ uuid.UUID, now time.Time, purgeAfter time.Time) (models.Call, error) {
+			s.Require().Equal(models.CallBinRetention, purgeAfter.Sub(now))
+			return models.Call{ID: id}, nil
+		}).
 		Once()
-	s.repository.EXPECT().DeleteCall(mock.Anything, callID, userID).Return(nil).Once()
-	s.audioStorage.EXPECT().Delete(mock.Anything, audioPath).Return(nil).Once()
-
-	err := s.service.DeleteCall(s.ctx, callID, userID)
-
-	s.Require().NoError(err)
-}
-
-func (s *ServiceSuite) TestDeleteCallRemovesASRCache() {
-	callID := uuid.New()
-	userID := uuid.New()
-	call := models.Call{ID: callID, AudioPath: "uploads/call.wav", ASRCachePath: "asr/call.ogg"}
-
-	s.repository.EXPECT().GetByUUID(mock.Anything, callID, userID).Return(call, nil).Once()
-	s.repository.EXPECT().DeleteCall(mock.Anything, callID, userID).Return(nil).Once()
-	s.audioStorage.EXPECT().Delete(mock.Anything, call.AudioPath).Return(nil).Once()
-	s.audioStorage.EXPECT().Delete(mock.Anything, call.ASRCachePath).Return(nil).Once()
 
 	s.Require().NoError(s.service.DeleteCall(s.ctx, callID, userID))
 }
 
-func (s *ServiceSuite) TestDeleteCallReturnsLookupError() {
+func (s *ServiceSuite) TestDeleteCallKeepsFiles() {
 	callID := uuid.New()
 	userID := uuid.New()
 
-	s.repository.EXPECT().GetByUUID(mock.Anything, callID, userID).
-		Return(models.Call{}, models.ErrCallNotFound).
+	// Files must survive the bin: a restore has to bring the audio back.
+	s.repository.EXPECT().
+		SoftDeleteCall(mock.Anything, callID, userID, mock.Anything, mock.Anything).
+		Return(models.Call{ID: callID, AudioPath: "uploads/call.wav", ASRCachePath: "asr/call.ogg"}, nil).
 		Once()
 
-	err := s.service.DeleteCall(s.ctx, callID, userID)
-
-	s.Require().ErrorIs(err, models.ErrCallNotFound)
+	s.Require().NoError(s.service.DeleteCall(s.ctx, callID, userID))
+	s.audioStorage.AssertNotCalled(s.T(), "Delete", mock.Anything, mock.Anything)
 }
 
-func (s *ServiceSuite) TestDeleteCallReturnsRepositoryDeleteError() {
+func (s *ServiceSuite) TestDeleteCallReturnsRepositoryError() {
 	callID := uuid.New()
 	userID := uuid.New()
 	repoErr := errors.New("delete failed")
 
-	s.repository.EXPECT().GetByUUID(mock.Anything, callID, userID).
-		Return(models.Call{ID: callID, AudioPath: "uploads/call.wav"}, nil).
+	s.repository.EXPECT().
+		SoftDeleteCall(mock.Anything, callID, userID, mock.Anything, mock.Anything).
+		Return(models.Call{}, repoErr).
 		Once()
-	s.repository.EXPECT().DeleteCall(mock.Anything, callID, userID).Return(repoErr).Once()
 
-	err := s.service.DeleteCall(s.ctx, callID, userID)
-
-	s.Require().ErrorIs(err, repoErr)
+	s.Require().ErrorIs(s.service.DeleteCall(s.ctx, callID, userID), repoErr)
 }
 
-func (s *ServiceSuite) TestDeleteCallReturnsAudioDeleteError() {
+func (s *ServiceSuite) TestRestoreCallReturnsCall() {
 	callID := uuid.New()
 	userID := uuid.New()
-	audioErr := errors.New("audio delete failed")
 
-	s.repository.EXPECT().GetByUUID(mock.Anything, callID, userID).
-		Return(models.Call{ID: callID, AudioPath: "uploads/call.wav"}, nil).
+	s.repository.EXPECT().RestoreCall(mock.Anything, callID, userID).Return(models.Call{ID: callID}, nil).Once()
+
+	call, err := s.service.RestoreCall(s.ctx, callID, userID)
+
+	s.Require().NoError(err)
+	s.Require().Equal(callID, call.ID)
+}
+
+func (s *ServiceSuite) TestRestoreCallMapsNotFound() {
+	callID := uuid.New()
+	userID := uuid.New()
+
+	s.repository.EXPECT().RestoreCall(mock.Anything, callID, userID).Return(models.Call{}, models.ErrCallNotFound).Once()
+
+	_, err := s.service.RestoreCall(s.ctx, callID, userID)
+
+	s.Require().ErrorIs(err, models.ErrCallNotFound)
+}
+
+func (s *ServiceSuite) TestListDeletedCallsNormalizesPaging() {
+	userID := uuid.New()
+
+	s.repository.EXPECT().
+		ListDeletedCalls(mock.Anything, models.ListDeletedCallsInput{UserID: userID, Limit: 20}).
+		Return(models.ListDeletedCallsResult{}, nil).
 		Once()
-	s.repository.EXPECT().DeleteCall(mock.Anything, callID, userID).Return(nil).Once()
-	s.audioStorage.EXPECT().Delete(mock.Anything, "uploads/call.wav").Return(audioErr).Once()
 
-	err := s.service.DeleteCall(s.ctx, callID, userID)
+	_, err := s.service.ListDeletedCalls(s.ctx, models.ListDeletedCallsInput{UserID: userID, Limit: 0, Offset: -5})
 
-	s.Require().ErrorIs(err, audioErr)
+	s.Require().NoError(err)
 }

@@ -181,15 +181,6 @@ func cleanupCompanyAccess(ctx context.Context, tx *sql.Tx, companyID uuid.UUID, 
 			args: []any{companyID, userID},
 		},
 		{
-			name: "revoke folder grants",
-			query: `DELETE FROM call_folder_accesses fa
-			        USING call_folders f
-			        WHERE f.folder_uuid = fa.folder_uuid
-			          AND f.company_uuid = $1
-			          AND fa.user_uuid = $2`,
-			args: []any{companyID, userID},
-		},
-		{
 			name: "clear selected company",
 			query: `UPDATE user_preferences
 			        SET active_company_uuid = NULL, updated_at = $3

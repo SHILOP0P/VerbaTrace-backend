@@ -148,6 +148,31 @@ type ListCallsResult struct {
 	NextCursor *CallListCursor
 }
 
+// CallBinRetention is how long a deleted call waits before it is purged along
+// with its files. The grace period exists so an accidental deletion can be
+// undone without a database restore.
+const CallBinRetention = 30 * 24 * time.Hour
+
+type DeletedCall struct {
+	Call              Call
+	DeletedAt         time.Time
+	PurgeAfter        time.Time
+	DeletedByUserUUID uuid.NullUUID
+}
+
+type ListDeletedCallsInput struct {
+	UserID uuid.UUID
+	Limit  int
+	Offset int
+}
+
+type ListDeletedCallsResult struct {
+	Items  []DeletedCall
+	Total  int
+	Limit  int
+	Offset int
+}
+
 type CallFilterOptionsInput struct {
 	UserID         uuid.UUID
 	CompanyUUID    uuid.NullUUID

@@ -615,7 +615,15 @@ func (r *analysisCallRepository) UpdateCallStatus(ctx context.Context, id uuid.U
 	return r.call, nil
 }
 
-func (r *analysisCallRepository) DeleteCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+func (r *analysisCallRepository) SoftDeleteCall(ctx context.Context, id uuid.UUID, userID uuid.UUID, now time.Time, purgeAfter time.Time) (models.Call, error) {
+	panic("not implemented")
+}
+
+func (r *analysisCallRepository) RestoreCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error) {
+	panic("not implemented")
+}
+
+func (r *analysisCallRepository) ListDeletedCalls(ctx context.Context, input models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error) {
 	panic("not implemented")
 }
 

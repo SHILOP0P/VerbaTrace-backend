@@ -234,63 +234,6 @@ func (_c *CallFolderService_Get_Call) RunAndReturn(run func(context.Context, uui
 	return _c
 }
 
-// GrantAccess provides a mock function with given fields: ctx, input
-func (_m *CallFolderService) GrantAccess(ctx context.Context, input models.GrantCallFolderAccessInput) (models.CallFolderAccess, error) {
-	ret := _m.Called(ctx, input)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GrantAccess")
-	}
-
-	var r0 models.CallFolderAccess
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.GrantCallFolderAccessInput) (models.CallFolderAccess, error)); ok {
-		return rf(ctx, input)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.GrantCallFolderAccessInput) models.CallFolderAccess); ok {
-		r0 = rf(ctx, input)
-	} else {
-		r0 = ret.Get(0).(models.CallFolderAccess)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, models.GrantCallFolderAccessInput) error); ok {
-		r1 = rf(ctx, input)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// CallFolderService_GrantAccess_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GrantAccess'
-type CallFolderService_GrantAccess_Call struct {
-	*mock.Call
-}
-
-// GrantAccess is a helper method to define mock.On call
-//   - ctx context.Context
-//   - input models.GrantCallFolderAccessInput
-func (_e *CallFolderService_Expecter) GrantAccess(ctx interface{}, input interface{}) *CallFolderService_GrantAccess_Call {
-	return &CallFolderService_GrantAccess_Call{Call: _e.mock.On("GrantAccess", ctx, input)}
-}
-
-func (_c *CallFolderService_GrantAccess_Call) Run(run func(ctx context.Context, input models.GrantCallFolderAccessInput)) *CallFolderService_GrantAccess_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(models.GrantCallFolderAccessInput))
-	})
-	return _c
-}
-
-func (_c *CallFolderService_GrantAccess_Call) Return(_a0 models.CallFolderAccess, _a1 error) *CallFolderService_GrantAccess_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *CallFolderService_GrantAccess_Call) RunAndReturn(run func(context.Context, models.GrantCallFolderAccessInput) (models.CallFolderAccess, error)) *CallFolderService_GrantAccess_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // List provides a mock function with given fields: ctx, input
 func (_m *CallFolderService) List(ctx context.Context, input models.ListCallFoldersInput) (models.ListCallFoldersResult, error) {
 	ret := _m.Called(ctx, input)
@@ -344,66 +287,6 @@ func (_c *CallFolderService_List_Call) Return(_a0 models.ListCallFoldersResult, 
 }
 
 func (_c *CallFolderService_List_Call) RunAndReturn(run func(context.Context, models.ListCallFoldersInput) (models.ListCallFoldersResult, error)) *CallFolderService_List_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ListAccesses provides a mock function with given fields: ctx, folderID, userID
-func (_m *CallFolderService) ListAccesses(ctx context.Context, folderID uuid.UUID, userID uuid.UUID) ([]models.CallFolderAccess, error) {
-	ret := _m.Called(ctx, folderID, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListAccesses")
-	}
-
-	var r0 []models.CallFolderAccess
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) ([]models.CallFolderAccess, error)); ok {
-		return rf(ctx, folderID, userID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) []models.CallFolderAccess); ok {
-		r0 = rf(ctx, folderID, userID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]models.CallFolderAccess)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
-		r1 = rf(ctx, folderID, userID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// CallFolderService_ListAccesses_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAccesses'
-type CallFolderService_ListAccesses_Call struct {
-	*mock.Call
-}
-
-// ListAccesses is a helper method to define mock.On call
-//   - ctx context.Context
-//   - folderID uuid.UUID
-//   - userID uuid.UUID
-func (_e *CallFolderService_Expecter) ListAccesses(ctx interface{}, folderID interface{}, userID interface{}) *CallFolderService_ListAccesses_Call {
-	return &CallFolderService_ListAccesses_Call{Call: _e.mock.On("ListAccesses", ctx, folderID, userID)}
-}
-
-func (_c *CallFolderService_ListAccesses_Call) Run(run func(ctx context.Context, folderID uuid.UUID, userID uuid.UUID)) *CallFolderService_ListAccesses_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
-	})
-	return _c
-}
-
-func (_c *CallFolderService_ListAccesses_Call) Return(_a0 []models.CallFolderAccess, _a1 error) *CallFolderService_ListAccesses_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *CallFolderService_ListAccesses_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) ([]models.CallFolderAccess, error)) *CallFolderService_ListAccesses_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -557,53 +440,6 @@ func (_c *CallFolderService_ReplaceInstructions_Call) Return(_a0 error) *CallFol
 }
 
 func (_c *CallFolderService_ReplaceInstructions_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID, []uuid.UUID) error) *CallFolderService_ReplaceInstructions_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// RevokeAccess provides a mock function with given fields: ctx, input
-func (_m *CallFolderService) RevokeAccess(ctx context.Context, input models.RevokeCallFolderAccessInput) error {
-	ret := _m.Called(ctx, input)
-
-	if len(ret) == 0 {
-		panic("no return value specified for RevokeAccess")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.RevokeCallFolderAccessInput) error); ok {
-		r0 = rf(ctx, input)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// CallFolderService_RevokeAccess_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RevokeAccess'
-type CallFolderService_RevokeAccess_Call struct {
-	*mock.Call
-}
-
-// RevokeAccess is a helper method to define mock.On call
-//   - ctx context.Context
-//   - input models.RevokeCallFolderAccessInput
-func (_e *CallFolderService_Expecter) RevokeAccess(ctx interface{}, input interface{}) *CallFolderService_RevokeAccess_Call {
-	return &CallFolderService_RevokeAccess_Call{Call: _e.mock.On("RevokeAccess", ctx, input)}
-}
-
-func (_c *CallFolderService_RevokeAccess_Call) Run(run func(ctx context.Context, input models.RevokeCallFolderAccessInput)) *CallFolderService_RevokeAccess_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(models.RevokeCallFolderAccessInput))
-	})
-	return _c
-}
-
-func (_c *CallFolderService_RevokeAccess_Call) Return(_a0 error) *CallFolderService_RevokeAccess_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *CallFolderService_RevokeAccess_Call) RunAndReturn(run func(context.Context, models.RevokeCallFolderAccessInput) error) *CallFolderService_RevokeAccess_Call {
 	_c.Call.Return(run)
 	return _c
 }

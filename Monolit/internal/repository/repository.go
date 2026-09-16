@@ -23,7 +23,9 @@ type CallRepository interface {
 	UpdateCallTitle(ctx context.Context, id uuid.UUID, userID uuid.UUID, title string) (models.Call, error)
 	UpdateCallStatus(ctx context.Context, id uuid.UUID, status models.CallStatus) (models.Call, error)
 	//DELETE
-	DeleteCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	SoftDeleteCall(ctx context.Context, id uuid.UUID, userID uuid.UUID, now time.Time, purgeAfter time.Time) (models.Call, error)
+	RestoreCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error)
+	ListDeletedCalls(ctx context.Context, input models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error)
 	//PROCESSING
 	TakeNextForProcessing(ctx context.Context) (models.Call, error)
 }
@@ -51,9 +53,6 @@ type CallFolderRepository interface {
 	AssignCall(ctx context.Context, input models.AssignCallToFolderInput) error
 	RemoveCall(ctx context.Context, input models.RemoveCallFromFolderInput) error
 	ListFolderCalls(ctx context.Context, input models.ListFolderCallsInput) (models.ListCallsResult, error)
-	GrantAccess(ctx context.Context, input models.GrantCallFolderAccessInput) (models.CallFolderAccess, error)
-	RevokeAccess(ctx context.Context, folderID uuid.UUID, targetUserID uuid.UUID) error
-	ListAccesses(ctx context.Context, folderID uuid.UUID) ([]models.CallFolderAccess, error)
 }
 
 type UserRepository interface {

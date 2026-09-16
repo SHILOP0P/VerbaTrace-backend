@@ -121,6 +121,7 @@ var ErrTranscriptionRevisionConflict = errors.New("transcription revision confli
 var ErrTranscriptionEditForbidden = errors.New("transcription edit forbidden")
 var ErrRedactedWordEditForbidden = errors.New("redacted word edit forbidden")
 var ErrTranscriptionNotEditable = errors.New("transcription not editable")
+var ErrTranscriptionLockedByReview = errors.New("transcription locked by quality review")
 var ErrNoCallsForProcessing = errors.New("no calls for processing")
 
 // TRANSCRIBER

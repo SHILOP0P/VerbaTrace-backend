@@ -348,7 +348,17 @@ func (f *fakeCallRepository) UpdateCallTitle(context.Context, uuid.UUID, uuid.UU
 func (f *fakeCallRepository) UpdateCallStatus(context.Context, uuid.UUID, models.CallStatus) (models.Call, error) {
 	return models.Call{}, nil
 }
-func (f *fakeCallRepository) DeleteCall(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+func (f *fakeCallRepository) SoftDeleteCall(context.Context, uuid.UUID, uuid.UUID, time.Time, time.Time) (models.Call, error) {
+	return models.Call{}, nil
+}
+
+func (f *fakeCallRepository) RestoreCall(context.Context, uuid.UUID, uuid.UUID) (models.Call, error) {
+	return models.Call{}, nil
+}
+
+func (f *fakeCallRepository) ListDeletedCalls(context.Context, models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error) {
+	return models.ListDeletedCallsResult{}, nil
+}
 func (f *fakeCallRepository) TakeNextForProcessing(context.Context) (models.Call, error) {
 	return models.Call{}, nil
 }

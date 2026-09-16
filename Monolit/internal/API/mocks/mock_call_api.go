@@ -327,6 +327,40 @@ func (_c *CallAPI_List_Call) RunAndReturn(run func(http.ResponseWriter, *http.Re
 	return _c
 }
 
+// ListDeletedCalls provides a mock function with given fields: w, r
+func (_m *CallAPI) ListDeletedCalls(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CallAPI_ListDeletedCalls_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListDeletedCalls'
+type CallAPI_ListDeletedCalls_Call struct {
+	*mock.Call
+}
+
+// ListDeletedCalls is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CallAPI_Expecter) ListDeletedCalls(w interface{}, r interface{}) *CallAPI_ListDeletedCalls_Call {
+	return &CallAPI_ListDeletedCalls_Call{Call: _e.mock.On("ListDeletedCalls", w, r)}
+}
+
+func (_c *CallAPI_ListDeletedCalls_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallAPI_ListDeletedCalls_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CallAPI_ListDeletedCalls_Call) Return() *CallAPI_ListDeletedCalls_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CallAPI_ListDeletedCalls_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_ListDeletedCalls_Call {
+	_c.Run(run)
+	return _c
+}
+
 // ListTranscriptionRevisions provides a mock function with given fields: w, r
 func (_m *CallAPI) ListTranscriptionRevisions(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -425,6 +459,40 @@ func (_c *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call) Return() *CallAPI
 }
 
 func (_c *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RestoreCall provides a mock function with given fields: w, r
+func (_m *CallAPI) RestoreCall(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CallAPI_RestoreCall_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RestoreCall'
+type CallAPI_RestoreCall_Call struct {
+	*mock.Call
+}
+
+// RestoreCall is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CallAPI_Expecter) RestoreCall(w interface{}, r interface{}) *CallAPI_RestoreCall_Call {
+	return &CallAPI_RestoreCall_Call{Call: _e.mock.On("RestoreCall", w, r)}
+}
+
+func (_c *CallAPI_RestoreCall_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallAPI_RestoreCall_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CallAPI_RestoreCall_Call) Return() *CallAPI_RestoreCall_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CallAPI_RestoreCall_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_RestoreCall_Call {
 	_c.Run(run)
 	return _c
 }

@@ -88,6 +88,14 @@ func (s *Service) CanManageCompany(ctx context.Context, companyID, userID uuid.U
 	return exists, err
 }
 
+func (s *Service) CanLeadDepartment(ctx context.Context, departmentID, userID uuid.UUID) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(
+		SELECT 1 FROM department_members WHERE department_uuid=$1 AND user_uuid=$2
+		AND role='department_leader' AND status='active')`, departmentID, userID).Scan(&exists)
+	return exists, err
+}
+
 func (s *Service) DepartmentCompanyID(ctx context.Context, departmentID uuid.UUID) (uuid.UUID, error) {
 	var companyID uuid.UUID
 	err := s.db.QueryRowContext(ctx, `SELECT company_uuid FROM departments WHERE department_uuid=$1`, departmentID).Scan(&companyID)

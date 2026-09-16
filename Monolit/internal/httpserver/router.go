@@ -261,6 +261,8 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Patch("/calls/{uuid}", callAPI.UpdateCallTitle)
 			//DELETE
 			r.With(authGuard).Delete("/calls/{uuid}", callAPI.DeleteCall)
+			r.With(authGuard).Get("/calls-bin", callAPI.ListDeletedCalls)
+			r.With(authGuard).Post("/calls/{uuid}/restore", callAPI.RestoreCall)
 
 			//CALL FOLDERS
 			r.With(authGuard).Get("/call-folders", callFolderAPI.List)
@@ -271,9 +273,6 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Get("/call-folders/{folder_uuid}/calls", callFolderAPI.ListCalls)
 			r.With(authGuard).Post("/call-folders/{folder_uuid}/calls", callFolderAPI.AssignCall)
 			r.With(authGuard).Delete("/call-folders/{folder_uuid}/calls/{call_uuid}", callFolderAPI.RemoveCall)
-			r.With(authGuard).Get("/call-folders/{folder_uuid}/accesses", callFolderAPI.ListAccesses)
-			r.With(authGuard).Put("/call-folders/{folder_uuid}/accesses/{user_uuid}", callFolderAPI.GrantAccess)
-			r.With(authGuard).Delete("/call-folders/{folder_uuid}/accesses/{user_uuid}", callFolderAPI.RevokeAccess)
 			r.With(authGuard).Put("/call-folders/{folder_uuid}/instructions", callFolderAPI.ReplaceInstructions)
 
 			//ANALYTICS

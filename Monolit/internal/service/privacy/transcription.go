@@ -200,15 +200,24 @@ func (s *Service) Capabilities(ctx context.Context, call models.Call, userID uui
 			return cap, err
 		}
 	}
+	// The leader answers for the calls of their department, so they count as a
+	// scope manager for the original recording as well.
+	isScopeManager := isManager
+	if !isScopeManager && call.DepartmentUUID.Valid {
+		isScopeManager, err = s.CanLeadDepartment(ctx, call.DepartmentUUID.UUID, userID)
+		if err != nil {
+			return cap, err
+		}
+	}
 	switch state.PolicySnapshot.OriginalMediaAccess {
 	case "uploader_only":
 		cap.CanReadOriginalMedia = isUploader
 	case "uploader_and_scope_managers":
-		cap.CanReadOriginalMedia = isUploader || isManager
+		cap.CanReadOriginalMedia = isUploader || isScopeManager
 	default:
 		cap.CanReadOriginalMedia = true
 	}
-	cap.CanReviewRedactions = isUploader || isManager
+	cap.CanReviewRedactions = isUploader || isScopeManager
 	cap.CanManagePrivacyPolicy = isManager || (!call.CompanyUUID.Valid && isUploader)
 	return cap, nil
 }

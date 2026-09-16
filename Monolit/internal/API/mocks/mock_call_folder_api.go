@@ -157,40 +157,6 @@ func (_c *CallFolderAPI_Get_Call) RunAndReturn(run func(http.ResponseWriter, *ht
 	return _c
 }
 
-// GrantAccess provides a mock function with given fields: w, r
-func (_m *CallFolderAPI) GrantAccess(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
-// CallFolderAPI_GrantAccess_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GrantAccess'
-type CallFolderAPI_GrantAccess_Call struct {
-	*mock.Call
-}
-
-// GrantAccess is a helper method to define mock.On call
-//   - w http.ResponseWriter
-//   - r *http.Request
-func (_e *CallFolderAPI_Expecter) GrantAccess(w interface{}, r interface{}) *CallFolderAPI_GrantAccess_Call {
-	return &CallFolderAPI_GrantAccess_Call{Call: _e.mock.On("GrantAccess", w, r)}
-}
-
-func (_c *CallFolderAPI_GrantAccess_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallFolderAPI_GrantAccess_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
-	})
-	return _c
-}
-
-func (_c *CallFolderAPI_GrantAccess_Call) Return() *CallFolderAPI_GrantAccess_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *CallFolderAPI_GrantAccess_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallFolderAPI_GrantAccess_Call {
-	_c.Run(run)
-	return _c
-}
-
 // List provides a mock function with given fields: w, r
 func (_m *CallFolderAPI) List(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -221,40 +187,6 @@ func (_c *CallFolderAPI_List_Call) Return() *CallFolderAPI_List_Call {
 }
 
 func (_c *CallFolderAPI_List_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallFolderAPI_List_Call {
-	_c.Run(run)
-	return _c
-}
-
-// ListAccesses provides a mock function with given fields: w, r
-func (_m *CallFolderAPI) ListAccesses(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
-// CallFolderAPI_ListAccesses_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAccesses'
-type CallFolderAPI_ListAccesses_Call struct {
-	*mock.Call
-}
-
-// ListAccesses is a helper method to define mock.On call
-//   - w http.ResponseWriter
-//   - r *http.Request
-func (_e *CallFolderAPI_Expecter) ListAccesses(w interface{}, r interface{}) *CallFolderAPI_ListAccesses_Call {
-	return &CallFolderAPI_ListAccesses_Call{Call: _e.mock.On("ListAccesses", w, r)}
-}
-
-func (_c *CallFolderAPI_ListAccesses_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallFolderAPI_ListAccesses_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
-	})
-	return _c
-}
-
-func (_c *CallFolderAPI_ListAccesses_Call) Return() *CallFolderAPI_ListAccesses_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *CallFolderAPI_ListAccesses_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallFolderAPI_ListAccesses_Call {
 	_c.Run(run)
 	return _c
 }
@@ -357,40 +289,6 @@ func (_c *CallFolderAPI_ReplaceInstructions_Call) Return() *CallFolderAPI_Replac
 }
 
 func (_c *CallFolderAPI_ReplaceInstructions_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallFolderAPI_ReplaceInstructions_Call {
-	_c.Run(run)
-	return _c
-}
-
-// RevokeAccess provides a mock function with given fields: w, r
-func (_m *CallFolderAPI) RevokeAccess(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
-// CallFolderAPI_RevokeAccess_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RevokeAccess'
-type CallFolderAPI_RevokeAccess_Call struct {
-	*mock.Call
-}
-
-// RevokeAccess is a helper method to define mock.On call
-//   - w http.ResponseWriter
-//   - r *http.Request
-func (_e *CallFolderAPI_Expecter) RevokeAccess(w interface{}, r interface{}) *CallFolderAPI_RevokeAccess_Call {
-	return &CallFolderAPI_RevokeAccess_Call{Call: _e.mock.On("RevokeAccess", w, r)}
-}
-
-func (_c *CallFolderAPI_RevokeAccess_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallFolderAPI_RevokeAccess_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
-	})
-	return _c
-}
-
-func (_c *CallFolderAPI_RevokeAccess_Call) Return() *CallFolderAPI_RevokeAccess_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *CallFolderAPI_RevokeAccess_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallFolderAPI_RevokeAccess_Call {
 	_c.Run(run)
 	return _c
 }

@@ -419,6 +419,63 @@ func (_c *CallService_List_Call) RunAndReturn(run func(context.Context, uuid.UUI
 	return _c
 }
 
+// ListDeletedCalls provides a mock function with given fields: ctx, input
+func (_m *CallService) ListDeletedCalls(ctx context.Context, input models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListDeletedCalls")
+	}
+
+	var r0 models.ListDeletedCallsResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListDeletedCallsInput) models.ListDeletedCallsResult); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Get(0).(models.ListDeletedCallsResult)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.ListDeletedCallsInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CallService_ListDeletedCalls_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListDeletedCalls'
+type CallService_ListDeletedCalls_Call struct {
+	*mock.Call
+}
+
+// ListDeletedCalls is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.ListDeletedCallsInput
+func (_e *CallService_Expecter) ListDeletedCalls(ctx interface{}, input interface{}) *CallService_ListDeletedCalls_Call {
+	return &CallService_ListDeletedCalls_Call{Call: _e.mock.On("ListDeletedCalls", ctx, input)}
+}
+
+func (_c *CallService_ListDeletedCalls_Call) Run(run func(ctx context.Context, input models.ListDeletedCallsInput)) *CallService_ListDeletedCalls_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.ListDeletedCallsInput))
+	})
+	return _c
+}
+
+func (_c *CallService_ListDeletedCalls_Call) Return(_a0 models.ListDeletedCallsResult, _a1 error) *CallService_ListDeletedCalls_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CallService_ListDeletedCalls_Call) RunAndReturn(run func(context.Context, models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error)) *CallService_ListDeletedCalls_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListFiltered provides a mock function with given fields: ctx, input
 func (_m *CallService) ListFiltered(ctx context.Context, input models.ListCallsInput) (models.ListCallsResult, error) {
 	ret := _m.Called(ctx, input)
@@ -472,6 +529,64 @@ func (_c *CallService_ListFiltered_Call) Return(_a0 models.ListCallsResult, _a1 
 }
 
 func (_c *CallService_ListFiltered_Call) RunAndReturn(run func(context.Context, models.ListCallsInput) (models.ListCallsResult, error)) *CallService_ListFiltered_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RestoreCall provides a mock function with given fields: ctx, id, userID
+func (_m *CallService) RestoreCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error) {
+	ret := _m.Called(ctx, id, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RestoreCall")
+	}
+
+	var r0 models.Call
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (models.Call, error)); ok {
+		return rf(ctx, id, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) models.Call); ok {
+		r0 = rf(ctx, id, userID)
+	} else {
+		r0 = ret.Get(0).(models.Call)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, id, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CallService_RestoreCall_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RestoreCall'
+type CallService_RestoreCall_Call struct {
+	*mock.Call
+}
+
+// RestoreCall is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - userID uuid.UUID
+func (_e *CallService_Expecter) RestoreCall(ctx interface{}, id interface{}, userID interface{}) *CallService_RestoreCall_Call {
+	return &CallService_RestoreCall_Call{Call: _e.mock.On("RestoreCall", ctx, id, userID)}
+}
+
+func (_c *CallService_RestoreCall_Call) Run(run func(ctx context.Context, id uuid.UUID, userID uuid.UUID)) *CallService_RestoreCall_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *CallService_RestoreCall_Call) Return(_a0 models.Call, _a1 error) *CallService_RestoreCall_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CallService_RestoreCall_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.Call, error)) *CallService_RestoreCall_Call {
 	_c.Call.Return(run)
 	return _c
 }

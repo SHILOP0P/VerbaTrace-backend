@@ -470,24 +470,60 @@ func (s *RepositorySuite) TestUpdateCallStatusIgnoresVisibility() {
 	s.Require().ErrorIs(err, models.ErrCallNotFound)
 }
 
-func (s *RepositorySuite) TestDeleteCallRequiresVisibility() {
+func (s *RepositorySuite) TestSoftDeleteCallRequiresVisibility() {
 	owner := s.createUser(uuid.NewString() + "@example.com")
 	outsider := s.createUser(uuid.NewString() + "@example.com")
 	call := testCall(owner.ID)
 	_, err := s.repository.CreateCall(s.ctx, call)
 	s.Require().NoError(err)
 
-	err = s.repository.DeleteCall(s.ctx, call.ID, outsider.ID)
+	now := time.Now().UTC()
+	_, err = s.repository.SoftDeleteCall(s.ctx, call.ID, outsider.ID, now, now.Add(models.CallBinRetention))
 	s.Require().ErrorIs(err, models.ErrCallNotFound)
 
-	err = s.repository.DeleteCall(s.ctx, call.ID, owner.ID)
+	_, err = s.repository.SoftDeleteCall(s.ctx, call.ID, owner.ID, now, now.Add(models.CallBinRetention))
 	s.Require().NoError(err)
 
+	// A call in the bin is invisible to every normal read, including the queue.
+	_, err = s.repository.GetByUUID(s.ctx, call.ID, owner.ID)
+	s.Require().ErrorIs(err, models.ErrCallNotFound)
 	_, err = s.repository.GetByUUIDForProcessing(s.ctx, call.ID)
 	s.Require().ErrorIs(err, models.ErrCallNotFound)
 }
 
-func (s *RepositorySuite) TestDeleteCallRemovesProcessingJobs() {
+func (s *RepositorySuite) TestDeletedCallsAreListedAndRestorable() {
+	owner := s.createUser(uuid.NewString() + "@example.com")
+	outsider := s.createUser(uuid.NewString() + "@example.com")
+	call := testCall(owner.ID)
+	_, err := s.repository.CreateCall(s.ctx, call)
+	s.Require().NoError(err)
+
+	now := time.Now().UTC()
+	_, err = s.repository.SoftDeleteCall(s.ctx, call.ID, owner.ID, now, now.Add(models.CallBinRetention))
+	s.Require().NoError(err)
+
+	bin, err := s.repository.ListDeletedCalls(s.ctx, models.ListDeletedCallsInput{UserID: owner.ID, Limit: 10})
+	s.Require().NoError(err)
+	s.Require().Len(bin.Items, 1)
+	s.Require().Equal(call.ID, bin.Items[0].Call.ID)
+	s.Require().Equal(owner.ID, bin.Items[0].DeletedByUserUUID.UUID)
+
+	empty, err := s.repository.ListDeletedCalls(s.ctx, models.ListDeletedCallsInput{UserID: outsider.ID, Limit: 10})
+	s.Require().NoError(err)
+	s.Require().Empty(empty.Items)
+
+	_, err = s.repository.RestoreCall(s.ctx, call.ID, outsider.ID)
+	s.Require().ErrorIs(err, models.ErrCallNotFound)
+
+	restored, err := s.repository.RestoreCall(s.ctx, call.ID, owner.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(call.ID, restored.ID)
+
+	_, err = s.repository.GetByUUID(s.ctx, call.ID, owner.ID)
+	s.Require().NoError(err)
+}
+
+func (s *RepositorySuite) TestSoftDeleteCallRemovesProcessingJobs() {
 	owner := s.createUser(uuid.NewString() + "@example.com")
 	call := testCall(owner.ID)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -509,7 +545,7 @@ func (s *RepositorySuite) TestDeleteCallRemovesProcessingJobs() {
 	s.Require().NoError(err)
 	s.Require().Positive(jobsBefore)
 
-	err = s.repository.DeleteCall(s.ctx, call.ID, owner.ID)
+	_, err = s.repository.SoftDeleteCall(s.ctx, call.ID, owner.ID, now, now.Add(models.CallBinRetention))
 	s.Require().NoError(err)
 
 	var jobsAfter int

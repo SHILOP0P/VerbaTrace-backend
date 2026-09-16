@@ -19,11 +19,13 @@ type CallAPI interface {
 	RestoreTranscriptionRevision(w http.ResponseWriter, r *http.Request)
 	ListTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request)
 	ReplaceTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request)
+	ListDeletedCalls(w http.ResponseWriter, r *http.Request)
 
 	//UPDATE
 	UpdateCallTitle(w http.ResponseWriter, r *http.Request)
 	//DELETE
 	DeleteCall(w http.ResponseWriter, r *http.Request)
+	RestoreCall(w http.ResponseWriter, r *http.Request)
 }
 
 type AnalyticsAPI interface {
@@ -47,9 +49,6 @@ type CallFolderAPI interface {
 	ListCalls(w http.ResponseWriter, r *http.Request)
 	AssignCall(w http.ResponseWriter, r *http.Request)
 	RemoveCall(w http.ResponseWriter, r *http.Request)
-	GrantAccess(w http.ResponseWriter, r *http.Request)
-	RevokeAccess(w http.ResponseWriter, r *http.Request)
-	ListAccesses(w http.ResponseWriter, r *http.Request)
 	ReplaceInstructions(w http.ResponseWriter, r *http.Request)
 }
 

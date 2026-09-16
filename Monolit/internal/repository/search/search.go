@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/call"
 )
 
 const defaultSearchLimit = 10
@@ -71,7 +72,7 @@ func (r *Repository) searchCalls(ctx context.Context, input models.SearchInput, 
 	  AND (LOWER(c.title) LIKE $2 OR LOWER(c.original_filename) LIKE $2)
 	ORDER BY c.created_at DESC
 	LIMIT $3
-	`, visibleCallCondition("c", "$1"))
+	`, call.VisibleToUserCondition("c", "$1"))
 
 	rows, err := r.db.QueryContext(ctx, query, input.UserUUID, pattern, input.Limit)
 	if err != nil {
@@ -136,7 +137,7 @@ func (r *Repository) searchReports(ctx context.Context, input models.SearchInput
 	  AND r.expires_at > now()
 	ORDER BY r.created_at DESC
 	LIMIT $3
-	`, visibleCallCondition("c", "$1"))
+	`, call.VisibleToUserCondition("c", "$1"))
 
 	rows, err := r.db.QueryContext(ctx, query, input.UserUUID, pattern, input.Limit)
 	if err != nil {
@@ -230,33 +231,4 @@ func (r *Repository) searchInstructions(ctx context.Context, input models.Search
 		return nil, fmt.Errorf("search instructions: %w", err)
 	}
 	return items, nil
-}
-
-func visibleCallCondition(callAlias string, userParam string) string {
-	return fmt.Sprintf(`
-	(
-	    %s.uploaded_by_user_uuid = %s
-	    OR (
-	        %s.company_uuid IS NOT NULL
-	        AND EXISTS (
-	            SELECT 1
-	            FROM company_members cm
-	            WHERE cm.company_uuid = %s.company_uuid
-	              AND cm.user_uuid = %s
-	              AND cm.role IN ('company_manager','company_deputy')
-	              AND cm.status = 'active'
-	        )
-	    )
-	    OR (
-	        %s.department_uuid IS NOT NULL
-	        AND EXISTS (
-	            SELECT 1
-	            FROM department_members dm
-	            WHERE dm.department_uuid = %s.department_uuid
-	              AND dm.user_uuid = %s
-	              AND dm.role = 'department_leader'
-	              AND dm.status = 'active'
-	        )
-	    )
-	)`, callAlias, userParam, callAlias, callAlias, userParam, callAlias, callAlias, userParam)
 }

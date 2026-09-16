@@ -46,6 +46,9 @@ func (s *Service) ReplaceSpeakerAssignments(ctx context.Context, callID, userID 
 	if _, err := s.callRepository.GetByUUID(ctx, callID, userID); err != nil {
 		return nil, err
 	}
+	if err := s.ensureNotUnderReview(ctx, callID); err != nil {
+		return nil, err
+	}
 	allowedRoles := map[string]bool{"unknown": true, "client": true, "manager": true, "operator": true, "partner": true, "other": true}
 	seen := make(map[string]bool, len(input))
 	for index := range input {

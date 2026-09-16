@@ -19,12 +19,14 @@ type CallService interface {
 	GetByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error)
 	GetAudioByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.File, error)
 	GetTranscriptionByCallUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Transcription, error)
+	ListDeletedCalls(ctx context.Context, input models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error)
 
 	//UPDATE
 	UpdateCallTitle(ctx context.Context, id uuid.UUID, userID uuid.UUID, title string) (models.Call, error)
 	UpdateCallStatus(ctx context.Context, input models.UpdateCallStatusInput) (models.Call, error)
 	//DELETE
 	DeleteCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	RestoreCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error)
 }
 
 type AnalyticsService interface {
@@ -47,9 +49,6 @@ type CallFolderService interface {
 	AssignCall(ctx context.Context, input models.AssignCallToFolderInput) error
 	RemoveCall(ctx context.Context, input models.RemoveCallFromFolderInput) error
 	ListFolderCalls(ctx context.Context, input models.ListFolderCallsInput) (models.ListCallsResult, error)
-	GrantAccess(ctx context.Context, input models.GrantCallFolderAccessInput) (models.CallFolderAccess, error)
-	RevokeAccess(ctx context.Context, input models.RevokeCallFolderAccessInput) error
-	ListAccesses(ctx context.Context, folderID uuid.UUID, userID uuid.UUID) ([]models.CallFolderAccess, error)
 	ReplaceInstructions(ctx context.Context, userID uuid.UUID, folderID uuid.UUID, instructionIDs []uuid.UUID) error
 }
 

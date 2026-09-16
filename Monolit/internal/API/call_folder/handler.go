@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
@@ -215,82 +214,6 @@ func (h *Handler) ListCalls(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = response.WriteJSON(w, http.StatusOK, resp)
-}
-
-func (h *Handler) GrantAccess(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromRequest(r)
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-	folderID, err := folderIDFromRequest(r)
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallFolderInput, "invalid call folder uuid")
-		return
-	}
-	targetUserID, err := uuid.Parse(chi.URLParam(r, "user_uuid"))
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallFolderInput, "invalid user uuid")
-		return
-	}
-	access, err := h.service.GrantAccess(r.Context(), models.GrantCallFolderAccessInput{UserID: userID, FolderUUID: folderID, TargetUserUUID: targetUserID})
-	if err != nil {
-		writeFolderError(w, err, response.CodeFailedToManageCallFolderAccess)
-		return
-	}
-	_ = response.WriteJSON(w, http.StatusOK, accessToAPI(access))
-}
-
-func (h *Handler) RevokeAccess(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromRequest(r)
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-	folderID, err := folderIDFromRequest(r)
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallFolderInput, "invalid call folder uuid")
-		return
-	}
-	targetUserID, err := uuid.Parse(chi.URLParam(r, "user_uuid"))
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallFolderInput, "invalid user uuid")
-		return
-	}
-	if err := h.service.RevokeAccess(r.Context(), models.RevokeCallFolderAccessInput{UserID: userID, FolderUUID: folderID, TargetUserUUID: targetUserID}); err != nil {
-		writeFolderError(w, err, response.CodeFailedToManageCallFolderAccess)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) ListAccesses(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromRequest(r)
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-	folderID, err := folderIDFromRequest(r)
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallFolderInput, "invalid call folder uuid")
-		return
-	}
-	items, err := h.service.ListAccesses(r.Context(), folderID, userID)
-	if err != nil {
-		writeFolderError(w, err, response.CodeFailedToManageCallFolderAccess)
-		return
-	}
-	responseItems := make([]dto.CallFolderAccessResponse, len(items))
-	for i, item := range items {
-		responseItems[i] = accessToAPI(item)
-	}
-	_ = response.WriteJSON(w, http.StatusOK, dto.CallFolderAccessesResponse{Items: responseItems})
-}
-
-func accessToAPI(access models.CallFolderAccess) dto.CallFolderAccessResponse {
-	return dto.CallFolderAccessResponse{
-		UserUUID: access.UserUUID.String(), GrantedByUserUUID: access.GrantedByUserUUID.String(), CreatedAt: access.CreatedAt.UTC().Format(time.RFC3339),
-	}
 }
 
 func callsListResultToAPI(result models.ListCallsResult) (dto.CallsListResponse, error) {

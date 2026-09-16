@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/call"
 	"verbatrace/monolit/internal/repository/converter"
 	repoModel "verbatrace/monolit/internal/repository/models"
 
@@ -23,13 +24,14 @@ SELECT f.folder_uuid,
        f.name,
        f.description,
        f.color,
-       COUNT(a.call_uuid)::int AS calls_count,
+       COUNT(ac.call_uuid)::int AS calls_count,
        f.created_by_user_uuid,
        f.created_at,
        f.updated_at,
        f.deleted_at
 FROM call_folders f
 LEFT JOIN call_folder_assignments a ON a.folder_uuid = f.folder_uuid
+LEFT JOIN calls ac ON ac.call_uuid = a.call_uuid AND ac.deleted_at IS NULL
 `
 
 func (r *Repository) Create(ctx context.Context, folder models.CallFolder) (models.CallFolder, error) {
@@ -194,64 +196,12 @@ func (r *Repository) RemoveCall(ctx context.Context, input models.RemoveCallFrom
 	return nil
 }
 
-func (r *Repository) GrantAccess(ctx context.Context, input models.GrantCallFolderAccessInput) (models.CallFolderAccess, error) {
-	const query = `
-INSERT INTO call_folder_accesses (folder_uuid, user_uuid, granted_by_user_uuid)
-VALUES ($1, $2, $3)
-ON CONFLICT (folder_uuid, user_uuid)
-DO UPDATE SET granted_by_user_uuid = EXCLUDED.granted_by_user_uuid, created_at = now()
-RETURNING folder_uuid, user_uuid, granted_by_user_uuid, created_at`
-
-	var access models.CallFolderAccess
-	if err := r.db.QueryRowContext(ctx, query, input.FolderUUID, input.TargetUserUUID, input.UserID).Scan(
-		&access.FolderUUID, &access.UserUUID, &access.GrantedByUserUUID, &access.CreatedAt,
-	); err != nil {
-		return models.CallFolderAccess{}, fmt.Errorf("grant call folder access: %w", err)
-	}
-	return access, nil
-}
-
-func (r *Repository) RevokeAccess(ctx context.Context, folderID uuid.UUID, targetUserID uuid.UUID) error {
-	res, err := r.db.ExecContext(ctx, `DELETE FROM call_folder_accesses WHERE folder_uuid = $1 AND user_uuid = $2`, folderID, targetUserID)
-	if err != nil {
-		return fmt.Errorf("revoke call folder access: %w", err)
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("revoke call folder access: %w", err)
-	}
-	if affected == 0 {
-		return models.ErrCallFolderNotFound
-	}
-	return nil
-}
-
-func (r *Repository) ListAccesses(ctx context.Context, folderID uuid.UUID) ([]models.CallFolderAccess, error) {
-	const query = `SELECT folder_uuid, user_uuid, granted_by_user_uuid, created_at
-FROM call_folder_accesses WHERE folder_uuid = $1 ORDER BY created_at ASC, user_uuid ASC`
-	rows, err := r.db.QueryContext(ctx, query, folderID)
-	if err != nil {
-		return nil, fmt.Errorf("list call folder accesses: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	items := []models.CallFolderAccess{}
-	for rows.Next() {
-		var access models.CallFolderAccess
-		if err := rows.Scan(&access.FolderUUID, &access.UserUUID, &access.GrantedByUserUUID, &access.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan call folder access: %w", err)
-		}
-		items = append(items, access)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list call folder accesses: %w", err)
-	}
-	return items, nil
-}
-
+// ListFolderCalls returns only the calls the caller may see anyway: a folder is
+// a shortcut to calls, never a way around call visibility.
 func (r *Repository) ListFolderCalls(ctx context.Context, input models.ListFolderCallsInput) (models.ListCallsResult, error) {
 	limit := input.Limit
 	offset := input.Offset
-	query := `
+	query := fmt.Sprintf(`
 SELECT c.call_uuid,
        c.title,
        c.status,
@@ -273,10 +223,11 @@ JOIN call_folder_assignments a ON a.call_uuid = c.call_uuid
 JOIN call_folders f ON f.folder_uuid = a.folder_uuid
 WHERE f.folder_uuid = $1
   AND f.deleted_at IS NULL
+  AND %s
 ORDER BY a.created_at DESC
-LIMIT $2 OFFSET $3`
+LIMIT $3 OFFSET $4`, call.VisibleToUserCondition("c", "$2"))
 
-	rows, err := r.db.QueryContext(ctx, query, input.FolderUUID, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, input.FolderUUID, input.UserID, limit, offset)
 	if err != nil {
 		return models.ListCallsResult{}, fmt.Errorf("list folder calls: %w", err)
 	}
@@ -341,58 +292,39 @@ func buildFolderListFilters(input models.ListCallFoldersInput) (string, []any) {
 	return strings.Join(conditions, " AND "), args
 }
 
+// visibleFolderCondition mirrors call visibility: a regular employee sees only
+// folders that hold their own calls, a department leader sees the folders of
+// their department, and the owner with the deputy see everything in the company.
 func visibleFolderCondition(userParam string) string {
 	return fmt.Sprintf(`(
     (f.scope = 'personal' AND f.user_uuid = %s)
     OR (
-        f.scope = 'company'
+        f.company_uuid IS NOT NULL
         AND EXISTS (
             SELECT 1 FROM company_members cm
             WHERE cm.company_uuid = f.company_uuid
               AND cm.user_uuid = %s
+              AND cm.role IN ('company_manager','company_deputy')
               AND cm.status = 'active'
-        )
-        AND (
-            EXISTS (
-                SELECT 1 FROM company_members cm
-                WHERE cm.company_uuid = f.company_uuid
-                  AND cm.user_uuid = %s
-                  AND cm.role IN ('company_manager','company_deputy')
-                  AND cm.status = 'active'
-            )
-            OR EXISTS (
-                SELECT 1 FROM call_folder_accesses fa
-                WHERE fa.folder_uuid = f.folder_uuid
-                  AND fa.user_uuid = %s
-            )
         )
     )
     OR (
         f.scope = 'department'
-        AND (
-            EXISTS (
-                SELECT 1 FROM company_members cm
-                WHERE cm.company_uuid = f.company_uuid
-                  AND cm.user_uuid = %s
-                  AND cm.role IN ('company_manager','company_deputy')
-                  AND cm.status = 'active'
-            )
-            OR EXISTS (
-                SELECT 1 FROM department_members dm
-                WHERE dm.department_uuid = f.department_uuid
-                  AND dm.user_uuid = %s
-                  AND dm.role IN ('department_leader', 'employee')
-                  AND dm.status = 'active'
-            )
-            OR EXISTS (
-                SELECT 1 FROM call_folder_accesses fa
-                JOIN department_members dm ON dm.user_uuid = fa.user_uuid
-                  AND dm.department_uuid = f.department_uuid
-                  AND dm.status = 'active'
-                WHERE fa.folder_uuid = f.folder_uuid
-                  AND fa.user_uuid = %s
-            )
+        AND EXISTS (
+            SELECT 1 FROM department_members dm
+            WHERE dm.department_uuid = f.department_uuid
+              AND dm.user_uuid = %s
+              AND dm.role = 'department_leader'
+              AND dm.status = 'active'
         )
     )
-)`, userParam, userParam, userParam, userParam, userParam, userParam, userParam)
+    OR EXISTS (
+        SELECT 1
+        FROM call_folder_assignments a
+        JOIN calls c ON c.call_uuid = a.call_uuid
+        WHERE a.folder_uuid = f.folder_uuid
+          AND c.uploaded_by_user_uuid = %s
+          AND c.deleted_at IS NULL
+    )
+)`, userParam, userParam, userParam, userParam)
 }

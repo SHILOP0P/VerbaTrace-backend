@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/call"
 
 	"github.com/google/uuid"
 )
@@ -370,8 +371,10 @@ func containsAny(value string, values ...string) bool {
 	return false
 }
 
+// callAccessSQL reuses the one predicate that decides who sees a call, so the
+// assistant can never surface a call the calls list itself hides.
 func callAccessSQL() string {
-	return `(c.company_uuid IS NULL AND c.uploaded_by_user_uuid=$1) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=c.company_uuid AND cm.user_uuid=$1 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')) OR c.uploaded_by_user_uuid=$1 OR (c.department_uuid IS NOT NULL AND EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=c.department_uuid AND dm.user_uuid=$1 AND dm.status='active' AND dm.role='department_leader'))`
+	return call.VisibleToUserCondition("c", "$1")
 }
 func validateDepartments(ids []uuid.UUID, c models.AssistantCapabilities) error {
 	if c.Role == "company_manager" {

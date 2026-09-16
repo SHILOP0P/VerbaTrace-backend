@@ -82,6 +82,20 @@ type CallsListResponse struct {
 	NextCursor *string        `json:"next_cursor,omitempty"`
 }
 
+type DeletedCallResponse struct {
+	Call              CallResponse `json:"call"`
+	DeletedAt         string       `json:"deleted_at"`
+	PurgeAfter        string       `json:"purge_after"`
+	DeletedByUserUUID *string      `json:"deleted_by_user_uuid,omitempty"`
+}
+
+type DeletedCallsListResponse struct {
+	Items  []DeletedCallResponse `json:"items"`
+	Total  int                   `json:"total"`
+	Limit  int                   `json:"limit"`
+	Offset int                   `json:"offset"`
+}
+
 type CallFilterOptionsResponse struct {
 	Statuses    []string                       `json:"statuses"`
 	Scopes      []string                       `json:"scopes"`

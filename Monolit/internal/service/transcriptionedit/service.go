@@ -77,12 +77,13 @@ func (s *Service) Restore(ctx context.Context, callID, userID uuid.UUID, expecte
 	if targetRevision < 1 {
 		return models.Transcription{}, Revision{}, models.ErrInvalidTranscriptionEdit
 	}
-	call, err := s.callRepository.GetByUUID(ctx, callID, userID)
-	if err != nil {
+	// Everybody who may read the call may correct its transcript; the read
+	// itself is the permission check.
+	if _, err := s.callRepository.GetByUUID(ctx, callID, userID); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
-	if call.UploadedByUserUUID.Valid && call.UploadedByUserUUID.UUID != userID {
-		return models.Transcription{}, Revision{}, models.ErrTranscriptionEditForbidden
+	if err := s.ensureNotUnderReview(ctx, callID); err != nil {
+		return models.Transcription{}, Revision{}, err
 	}
 	if expectedRevision < 1 {
 		expectedRevision = 1
@@ -94,7 +95,8 @@ func (s *Service) Restore(ctx context.Context, callID, userID uuid.UUID, expecte
 	defer func() { _ = tx.Rollback() }()
 	var transcriptionID uuid.UUID
 	var activeRevision int
-	err = tx.QueryRowContext(ctx, `SELECT t.transcription_uuid, COALESCE(s.active_revision, (SELECT max(r.revision) FROM call_transcription_revisions r WHERE r.transcription_uuid=t.transcription_uuid), 1) FROM call_transcriptions t LEFT JOIN call_transcription_revision_state s ON s.transcription_uuid=t.transcription_uuid WHERE t.call_uuid=$1 AND t.status='transcribed' FOR UPDATE OF t`, callID).Scan(&transcriptionID, &activeRevision)
+	var currentText string
+	err = tx.QueryRowContext(ctx, `SELECT t.transcription_uuid, COALESCE(s.active_revision, (SELECT max(r.revision) FROM call_transcription_revisions r WHERE r.transcription_uuid=t.transcription_uuid), 1), t.text FROM call_transcriptions t LEFT JOIN call_transcription_revision_state s ON s.transcription_uuid=t.transcription_uuid WHERE t.call_uuid=$1 AND t.status='transcribed' FOR UPDATE OF t`, callID).Scan(&transcriptionID, &activeRevision, &currentText)
 	if err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
@@ -155,6 +157,11 @@ func (s *Service) Restore(ctx context.Context, callID, userID uuid.UUID, expecte
 	if _, err = tx.ExecContext(ctx, `INSERT INTO call_transcription_edit_audit (audit_uuid, transcription_uuid, revision, actor_user_uuid, operation, reason, created_at) VALUES ($1,$2,$3,$4,'select_revision',$5,now())`, uuid.New(), transcriptionID, targetRevision, userID, "Выбрана версия транскрипции"); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
+	if payload.Text != currentText {
+		if err = markAnalysisStale(ctx, tx, callID); err != nil {
+			return models.Transcription{}, Revision{}, err
+		}
+	}
 	if err = tx.Commit(); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
@@ -167,6 +174,34 @@ type Service struct {
 	db             *sql.DB
 	callRepository repo.CallRepository
 	transcription  repo.TranscriptionRepository
+}
+
+// ensureNotUnderReview keeps the transcript frozen while a quality review is
+// open: the reviewer must judge the same words the reviewed person saw.
+func (s *Service) ensureNotUnderReview(ctx context.Context, callID uuid.UUID) error {
+	if s.db == nil {
+		return nil
+	}
+	var locked bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM call_quality_reviews WHERE call_uuid=$1 AND status IN ('unassigned','assigned','in_review','appealed'))`, callID).Scan(&locked)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return models.ErrTranscriptionLockedByReview
+	}
+	return nil
+}
+
+// markAnalysisStale is called when the words themselves changed: the analysis
+// was built on the old text and must be re-run before anyone trusts it again.
+// Renaming a speaker leaves the text intact, so it does not invalidate anything.
+func markAnalysisStale(ctx context.Context, tx *sql.Tx, callID uuid.UUID) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE call_analyses SET status='stale',error_message=NULL,updated_at=now() WHERE call_uuid=$1 AND status='done'`, callID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `UPDATE call_search_documents SET status='stale',updated_at=now() WHERE call_uuid=$1 AND status='ready'`, callID)
+	return err
 }
 
 func (s *Service) CurrentRevision(ctx context.Context, callID, userID uuid.UUID) (int, error) {
@@ -192,12 +227,11 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 	if err := validateReason(input.Reason); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
-	call, err := s.callRepository.GetByUUID(ctx, input.CallUUID, input.UserUUID)
-	if err != nil {
+	if _, err := s.callRepository.GetByUUID(ctx, input.CallUUID, input.UserUUID); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
-	if call.UploadedByUserUUID.Valid && call.UploadedByUserUUID.UUID != input.UserUUID {
-		return models.Transcription{}, Revision{}, models.ErrTranscriptionEditForbidden
+	if err := s.ensureNotUnderReview(ctx, input.CallUUID); err != nil {
+		return models.Transcription{}, Revision{}, err
 	}
 	if s.db == nil {
 		return models.Transcription{}, Revision{}, errors.New("transcription edit database is not configured")
@@ -248,6 +282,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 	words := append([]models.TranscriptionWord(nil), transcription.Words...)
 	seen := make(map[int]struct{}, len(input.Edits))
 	changed := make([]int, 0, len(input.Edits))
+	textChanged := false
 	for _, edit := range input.Edits {
 		if edit.WordIndex < 0 || edit.WordIndex >= len(words) {
 			return models.Transcription{}, Revision{}, models.ErrInvalidTranscriptionEdit
@@ -269,6 +304,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 			if value != word.Text {
 				word.Text = value
 				changedHere = true
+				textChanged = true
 			}
 		}
 		if edit.Speaker != nil {
@@ -336,6 +372,11 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 	_, err = tx.ExecContext(ctx, `UPDATE call_transcriptions SET text=$2, segments=$3::jsonb, words=$4::jsonb, updated_at=now() WHERE transcription_uuid=$1`, transcriptionID, text, mustJSON(segments), mustJSON(words))
 	if err != nil {
 		return models.Transcription{}, Revision{}, err
+	}
+	if textChanged {
+		if err = markAnalysisStale(ctx, tx, input.CallUUID); err != nil {
+			return models.Transcription{}, Revision{}, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return models.Transcription{}, Revision{}, err

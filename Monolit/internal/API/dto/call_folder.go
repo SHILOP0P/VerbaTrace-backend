@@ -43,13 +43,3 @@ type UpdateCallFolderRequest struct {
 type AssignCallToFolderRequest struct {
 	CallUUID string `json:"call_uuid"`
 }
-
-type CallFolderAccessResponse struct {
-	UserUUID          string `json:"user_uuid"`
-	GrantedByUserUUID string `json:"granted_by_user_uuid"`
-	CreatedAt         string `json:"created_at"`
-}
-
-type CallFolderAccessesResponse struct {
-	Items []CallFolderAccessResponse `json:"items"`
-}

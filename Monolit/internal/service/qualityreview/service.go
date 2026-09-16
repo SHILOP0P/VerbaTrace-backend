@@ -138,7 +138,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (models.QualityRev
 	err = tx.QueryRowContext(ctx, `
 		SELECT c.company_uuid,c.department_uuid,c.uploaded_by_user_uuid,c.visibility_scope,a.source_attempt_uuid,a.transcription_revision,a.status,a.result_json
 		FROM calls c JOIN call_analyses a ON a.call_uuid=c.call_uuid
-		WHERE c.call_uuid=$1 AND a.analysis_uuid=$2`, in.CallUUID, in.AnalysisUUID).
+		WHERE c.call_uuid=$1 AND a.analysis_uuid=$2 AND c.deleted_at IS NULL`, in.CallUUID, in.AnalysisUUID).
 		Scan(&companyID, &departmentID, &uploaderID, &visibility, &attemptID, &revision, &analysisStatus, &result)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.QualityReview{}, ErrNotFound

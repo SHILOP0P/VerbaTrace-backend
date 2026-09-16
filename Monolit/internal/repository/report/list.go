@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/repository/call"
 
 	"github.com/google/uuid"
 )
@@ -122,7 +123,7 @@ func (r *Repository) countReports(ctx context.Context, input models.ListReportsI
 
 func buildListReportFilters(input models.ListReportsInput, now time.Time) (string, []any) {
 	args := []any{input.UserUUID, now}
-	conditions := []string{visibleToUserCondition("c", "$1"), "r.expires_at > $2"}
+	conditions := []string{call.VisibleToUserCondition("c", "$1"), "r.expires_at > $2"}
 
 	if input.Format != "" {
 		args = append(args, string(input.Format))
@@ -196,35 +197,6 @@ func reportSortOrder(order models.SortOrder) string {
 		return "ASC"
 	}
 	return "DESC"
-}
-
-func visibleToUserCondition(callAlias string, userParam string) string {
-	return fmt.Sprintf(`
-	(
-	    %s.uploaded_by_user_uuid = %s
-	    OR (
-	        %s.company_uuid IS NOT NULL
-	        AND EXISTS (
-	            SELECT 1
-	            FROM company_members cm
-	            WHERE cm.company_uuid = %s.company_uuid
-	              AND cm.user_uuid = %s
-	              AND cm.role IN ('company_manager','company_deputy')
-	              AND cm.status = 'active'
-	        )
-	    )
-	    OR (
-	        %s.department_uuid IS NOT NULL
-	        AND EXISTS (
-	            SELECT 1
-	            FROM department_members dm
-	            WHERE dm.department_uuid = %s.department_uuid
-	              AND dm.user_uuid = %s
-	              AND dm.role = 'department_leader'
-	              AND dm.status = 'active'
-	        )
-	    )
-	)`, callAlias, userParam, callAlias, callAlias, userParam, callAlias, callAlias, userParam)
 }
 
 func (r *Repository) ListExpiredReady(ctx context.Context, now time.Time, limit int) ([]models.ReportExport, error) {

@@ -35,6 +35,7 @@ func (r *Repository) GetByUUIDForProcessing(ctx context.Context, callUUID uuid.U
 	       created_at
 	FROM calls c
 	WHERE c.call_uuid = $1
+	  AND c.deleted_at IS NULL
 	`
 
 	row := r.db.QueryRowContext(ctx, query, callUUID)

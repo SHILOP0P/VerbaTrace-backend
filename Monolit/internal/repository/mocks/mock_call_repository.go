@@ -8,6 +8,8 @@ import (
 
 	mock "github.com/stretchr/testify/mock"
 
+	time "time"
+
 	uuid "github.com/google/uuid"
 )
 
@@ -135,54 +137,6 @@ func (_c *CallRepository_CreateCallWithProcessingJob_Call) Return(_a0 models.Cal
 }
 
 func (_c *CallRepository_CreateCallWithProcessingJob_Call) RunAndReturn(run func(context.Context, models.Call, models.ProcessingJob) (models.Call, error)) *CallRepository_CreateCallWithProcessingJob_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// DeleteCall provides a mock function with given fields: ctx, id, userID
-func (_m *CallRepository) DeleteCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
-	ret := _m.Called(ctx, id, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DeleteCall")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
-		r0 = rf(ctx, id, userID)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// CallRepository_DeleteCall_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteCall'
-type CallRepository_DeleteCall_Call struct {
-	*mock.Call
-}
-
-// DeleteCall is a helper method to define mock.On call
-//   - ctx context.Context
-//   - id uuid.UUID
-//   - userID uuid.UUID
-func (_e *CallRepository_Expecter) DeleteCall(ctx interface{}, id interface{}, userID interface{}) *CallRepository_DeleteCall_Call {
-	return &CallRepository_DeleteCall_Call{Call: _e.mock.On("DeleteCall", ctx, id, userID)}
-}
-
-func (_c *CallRepository_DeleteCall_Call) Run(run func(ctx context.Context, id uuid.UUID, userID uuid.UUID)) *CallRepository_DeleteCall_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
-	})
-	return _c
-}
-
-func (_c *CallRepository_DeleteCall_Call) Return(_a0 error) *CallRepository_DeleteCall_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *CallRepository_DeleteCall_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) error) *CallRepository_DeleteCall_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -418,6 +372,63 @@ func (_c *CallRepository_List_Call) RunAndReturn(run func(context.Context, uuid.
 	return _c
 }
 
+// ListDeletedCalls provides a mock function with given fields: ctx, input
+func (_m *CallRepository) ListDeletedCalls(ctx context.Context, input models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListDeletedCalls")
+	}
+
+	var r0 models.ListDeletedCallsResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListDeletedCallsInput) models.ListDeletedCallsResult); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Get(0).(models.ListDeletedCallsResult)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.ListDeletedCallsInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CallRepository_ListDeletedCalls_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListDeletedCalls'
+type CallRepository_ListDeletedCalls_Call struct {
+	*mock.Call
+}
+
+// ListDeletedCalls is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.ListDeletedCallsInput
+func (_e *CallRepository_Expecter) ListDeletedCalls(ctx interface{}, input interface{}) *CallRepository_ListDeletedCalls_Call {
+	return &CallRepository_ListDeletedCalls_Call{Call: _e.mock.On("ListDeletedCalls", ctx, input)}
+}
+
+func (_c *CallRepository_ListDeletedCalls_Call) Run(run func(ctx context.Context, input models.ListDeletedCallsInput)) *CallRepository_ListDeletedCalls_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.ListDeletedCallsInput))
+	})
+	return _c
+}
+
+func (_c *CallRepository_ListDeletedCalls_Call) Return(_a0 models.ListDeletedCallsResult, _a1 error) *CallRepository_ListDeletedCalls_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CallRepository_ListDeletedCalls_Call) RunAndReturn(run func(context.Context, models.ListDeletedCallsInput) (models.ListDeletedCallsResult, error)) *CallRepository_ListDeletedCalls_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListFiltered provides a mock function with given fields: ctx, input
 func (_m *CallRepository) ListFiltered(ctx context.Context, input models.ListCallsInput) (models.ListCallsResult, error) {
 	ret := _m.Called(ctx, input)
@@ -471,6 +482,124 @@ func (_c *CallRepository_ListFiltered_Call) Return(_a0 models.ListCallsResult, _
 }
 
 func (_c *CallRepository_ListFiltered_Call) RunAndReturn(run func(context.Context, models.ListCallsInput) (models.ListCallsResult, error)) *CallRepository_ListFiltered_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RestoreCall provides a mock function with given fields: ctx, id, userID
+func (_m *CallRepository) RestoreCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error) {
+	ret := _m.Called(ctx, id, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RestoreCall")
+	}
+
+	var r0 models.Call
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (models.Call, error)); ok {
+		return rf(ctx, id, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) models.Call); ok {
+		r0 = rf(ctx, id, userID)
+	} else {
+		r0 = ret.Get(0).(models.Call)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, id, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CallRepository_RestoreCall_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RestoreCall'
+type CallRepository_RestoreCall_Call struct {
+	*mock.Call
+}
+
+// RestoreCall is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - userID uuid.UUID
+func (_e *CallRepository_Expecter) RestoreCall(ctx interface{}, id interface{}, userID interface{}) *CallRepository_RestoreCall_Call {
+	return &CallRepository_RestoreCall_Call{Call: _e.mock.On("RestoreCall", ctx, id, userID)}
+}
+
+func (_c *CallRepository_RestoreCall_Call) Run(run func(ctx context.Context, id uuid.UUID, userID uuid.UUID)) *CallRepository_RestoreCall_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *CallRepository_RestoreCall_Call) Return(_a0 models.Call, _a1 error) *CallRepository_RestoreCall_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CallRepository_RestoreCall_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.Call, error)) *CallRepository_RestoreCall_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SoftDeleteCall provides a mock function with given fields: ctx, id, userID, now, purgeAfter
+func (_m *CallRepository) SoftDeleteCall(ctx context.Context, id uuid.UUID, userID uuid.UUID, now time.Time, purgeAfter time.Time) (models.Call, error) {
+	ret := _m.Called(ctx, id, userID, now, purgeAfter)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SoftDeleteCall")
+	}
+
+	var r0 models.Call
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, time.Time, time.Time) (models.Call, error)); ok {
+		return rf(ctx, id, userID, now, purgeAfter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, time.Time, time.Time) models.Call); ok {
+		r0 = rf(ctx, id, userID, now, purgeAfter)
+	} else {
+		r0 = ret.Get(0).(models.Call)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, id, userID, now, purgeAfter)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CallRepository_SoftDeleteCall_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SoftDeleteCall'
+type CallRepository_SoftDeleteCall_Call struct {
+	*mock.Call
+}
+
+// SoftDeleteCall is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - userID uuid.UUID
+//   - now time.Time
+//   - purgeAfter time.Time
+func (_e *CallRepository_Expecter) SoftDeleteCall(ctx interface{}, id interface{}, userID interface{}, now interface{}, purgeAfter interface{}) *CallRepository_SoftDeleteCall_Call {
+	return &CallRepository_SoftDeleteCall_Call{Call: _e.mock.On("SoftDeleteCall", ctx, id, userID, now, purgeAfter)}
+}
+
+func (_c *CallRepository_SoftDeleteCall_Call) Run(run func(ctx context.Context, id uuid.UUID, userID uuid.UUID, now time.Time, purgeAfter time.Time)) *CallRepository_SoftDeleteCall_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID), args[3].(time.Time), args[4].(time.Time))
+	})
+	return _c
+}
+
+func (_c *CallRepository_SoftDeleteCall_Call) Return(_a0 models.Call, _a1 error) *CallRepository_SoftDeleteCall_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CallRepository_SoftDeleteCall_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID, time.Time, time.Time) (models.Call, error)) *CallRepository_SoftDeleteCall_Call {
 	_c.Call.Return(run)
 	return _c
 }

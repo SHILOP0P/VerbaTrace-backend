@@ -20,6 +20,7 @@ func (r *Repository) TakeNextForProcessing(ctx context.Context) (models.Call, er
 		SELECT call_uuid
 		FROM calls
 		WHERE status = $2
+		  AND deleted_at IS NULL
 		ORDER BY created_at
 		FOR UPDATE SKIP LOCKED
 		LIMIT 1

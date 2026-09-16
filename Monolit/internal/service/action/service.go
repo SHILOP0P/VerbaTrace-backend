@@ -30,7 +30,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 	var company uuid.NullUUID
 	var uploadedBy uuid.UUID
 	var revision int
-	err = tx.QueryRowContext(ctx, `SELECT c.company_uuid,c.uploaded_by_user_uuid,COALESCE(rs.active_revision,1) FROM calls c JOIN call_analyses a ON a.call_uuid=c.call_uuid LEFT JOIN call_transcriptions t ON t.call_uuid=c.call_uuid LEFT JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid WHERE c.call_uuid=$1 AND a.analysis_uuid=$2 AND a.status='done' AND c.uploaded_by_user_uuid IS NOT NULL`, in.CallUUID, in.AnalysisUUID).Scan(&company, &uploadedBy, &revision)
+	err = tx.QueryRowContext(ctx, `SELECT c.company_uuid,c.uploaded_by_user_uuid,COALESCE(rs.active_revision,1) FROM calls c JOIN call_analyses a ON a.call_uuid=c.call_uuid LEFT JOIN call_transcriptions t ON t.call_uuid=c.call_uuid LEFT JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid WHERE c.call_uuid=$1 AND a.analysis_uuid=$2 AND a.status='done' AND c.deleted_at IS NULL AND c.uploaded_by_user_uuid IS NOT NULL`, in.CallUUID, in.AnalysisUUID).Scan(&company, &uploadedBy, &revision)
 	if err == sql.ErrNoRows {
 		return Item{}, ErrNotFound
 	}
@@ -119,7 +119,7 @@ func (s *Service) SetNoActionRequired(ctx context.Context, actor, callID, analys
 	defer func() { _ = tx.Rollback() }()
 	var company uuid.UUID
 	var revision int
-	err = tx.QueryRowContext(ctx, `SELECT c.company_uuid,COALESCE(rs.active_revision,1) FROM calls c JOIN call_analyses a ON a.call_uuid=c.call_uuid LEFT JOIN call_transcriptions t ON t.call_uuid=c.call_uuid LEFT JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid WHERE c.call_uuid=$1 AND a.analysis_uuid=$2 AND a.status='done' AND c.company_uuid IS NOT NULL`, callID, analysisID).Scan(&company, &revision)
+	err = tx.QueryRowContext(ctx, `SELECT c.company_uuid,COALESCE(rs.active_revision,1) FROM calls c JOIN call_analyses a ON a.call_uuid=c.call_uuid LEFT JOIN call_transcriptions t ON t.call_uuid=c.call_uuid LEFT JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid WHERE c.call_uuid=$1 AND a.analysis_uuid=$2 AND a.status='done' AND c.deleted_at IS NULL AND c.company_uuid IS NOT NULL`, callID, analysisID).Scan(&company, &revision)
 	if err == sql.ErrNoRows {
 		return ErrNotFound
 	}

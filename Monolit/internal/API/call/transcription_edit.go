@@ -183,6 +183,8 @@ func writeTranscriptionEditError(w http.ResponseWriter, err error) {
 		response.WriteError(w, http.StatusForbidden, response.CodeTranscriptionEditForbidden, "transcription edit forbidden")
 	case errors.Is(err, models.ErrRedactedWordEditForbidden):
 		response.WriteError(w, http.StatusUnprocessableEntity, response.CodeRedactedWordEditForbidden, "Скрытые данные изменяются только через проверку маски")
+	case errors.Is(err, models.ErrTranscriptionLockedByReview):
+		response.WriteError(w, http.StatusConflict, response.CodeTranscriptionLockedByReview, "Транскрипцию нельзя менять, пока идёт проверка качества")
 	case errors.Is(err, models.ErrTranscriptionNotEditable):
 		response.WriteError(w, http.StatusConflict, response.CodeTranscriptionNotEditable, "transcription is not editable")
 	case errors.Is(err, models.ErrCallNotFound):
