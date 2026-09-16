@@ -157,6 +157,9 @@ type CompanyAPI interface {
 	List(w http.ResponseWriter, r *http.Request)
 	GetByUUID(w http.ResponseWriter, r *http.Request)
 	GetCompanyMembersOverview(w http.ResponseWriter, r *http.Request)
+	FreezeCompany(w http.ResponseWriter, r *http.Request)
+	ActivateCompany(w http.ResponseWriter, r *http.Request)
+	GetCompanyLifecycle(w http.ResponseWriter, r *http.Request)
 }
 
 type DepartmentTransferAPI interface {
@@ -240,6 +243,9 @@ type BillingAPI interface {
 	ActivatePersonalSubscription(w http.ResponseWriter, r *http.Request)
 	ActivateCompanySubscription(w http.ResponseWriter, r *http.Request)
 	CancelCompanySubscription(w http.ResponseWriter, r *http.Request)
+	SetCompanyCreditLimit(w http.ResponseWriter, r *http.Request)
+	SetDepartmentCreditLimit(w http.ResponseWriter, r *http.Request)
+	GetCompanyCreditForecast(w http.ResponseWriter, r *http.Request)
 }
 
 type IntegrationAPI interface {

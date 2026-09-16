@@ -183,3 +183,12 @@ type InvitationResponse struct {
 	CreatedAt         string  `json:"created_at"`
 	UpdatedAt         string  `json:"updated_at"`
 }
+
+type CompanyLifecycleResponse struct {
+	CompanyUUID   string  `json:"company_uuid"`
+	State         string  `json:"state"`
+	FrozenAt      *string `json:"frozen_at,omitempty"`
+	SoftDeletedAt *string `json:"soft_deleted_at,omitempty"`
+	PurgeAfter    *string `json:"purge_after,omitempty"`
+	RestoreUsed   bool    `json:"restore_used"`
+}

@@ -37,7 +37,10 @@ func (s *RepositorySuite) TestListAndGetAdminCompanies() {
 func (s *RepositorySuite) TestGrantExtendAndCancelPersonalSubscription() {
 	actor := s.createUser(models.UserRoleAdmin)
 	target := s.createUser(models.UserRoleUser)
-	now := time.Now().UTC().Truncate(time.Second)
+	// The subscription must already be running when it is canceled, so the grant
+	// starts in the past: a start time equal to now made the test depend on how
+	// long the grant itself took.
+	now := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
 	reason := "manual payment"
 	granted, err := s.repository.GrantAdminSubscription(s.ctx, models.GrantAdminSubscriptionInput{
 		ActorUserUUID: actor.ID, UserUUID: target.ID, PlanCode: models.PlanCodePersonalPlus,

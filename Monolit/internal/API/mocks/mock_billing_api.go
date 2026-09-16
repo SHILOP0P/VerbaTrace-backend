@@ -123,6 +123,40 @@ func (_c *BillingAPI_CancelCompanySubscription_Call) RunAndReturn(run func(http.
 	return _c
 }
 
+// GetCompanyCreditForecast provides a mock function with given fields: w, r
+func (_m *BillingAPI) GetCompanyCreditForecast(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// BillingAPI_GetCompanyCreditForecast_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetCompanyCreditForecast'
+type BillingAPI_GetCompanyCreditForecast_Call struct {
+	*mock.Call
+}
+
+// GetCompanyCreditForecast is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *BillingAPI_Expecter) GetCompanyCreditForecast(w interface{}, r interface{}) *BillingAPI_GetCompanyCreditForecast_Call {
+	return &BillingAPI_GetCompanyCreditForecast_Call{Call: _e.mock.On("GetCompanyCreditForecast", w, r)}
+}
+
+func (_c *BillingAPI_GetCompanyCreditForecast_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *BillingAPI_GetCompanyCreditForecast_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *BillingAPI_GetCompanyCreditForecast_Call) Return() *BillingAPI_GetCompanyCreditForecast_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BillingAPI_GetCompanyCreditForecast_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *BillingAPI_GetCompanyCreditForecast_Call {
+	_c.Run(run)
+	return _c
+}
+
 // GetCompanySubscription provides a mock function with given fields: w, r
 func (_m *BillingAPI) GetCompanySubscription(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -289,6 +323,74 @@ func (_c *BillingAPI_ListPlans_Call) Return() *BillingAPI_ListPlans_Call {
 }
 
 func (_c *BillingAPI_ListPlans_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *BillingAPI_ListPlans_Call {
+	_c.Run(run)
+	return _c
+}
+
+// SetCompanyCreditLimit provides a mock function with given fields: w, r
+func (_m *BillingAPI) SetCompanyCreditLimit(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// BillingAPI_SetCompanyCreditLimit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetCompanyCreditLimit'
+type BillingAPI_SetCompanyCreditLimit_Call struct {
+	*mock.Call
+}
+
+// SetCompanyCreditLimit is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *BillingAPI_Expecter) SetCompanyCreditLimit(w interface{}, r interface{}) *BillingAPI_SetCompanyCreditLimit_Call {
+	return &BillingAPI_SetCompanyCreditLimit_Call{Call: _e.mock.On("SetCompanyCreditLimit", w, r)}
+}
+
+func (_c *BillingAPI_SetCompanyCreditLimit_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *BillingAPI_SetCompanyCreditLimit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *BillingAPI_SetCompanyCreditLimit_Call) Return() *BillingAPI_SetCompanyCreditLimit_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BillingAPI_SetCompanyCreditLimit_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *BillingAPI_SetCompanyCreditLimit_Call {
+	_c.Run(run)
+	return _c
+}
+
+// SetDepartmentCreditLimit provides a mock function with given fields: w, r
+func (_m *BillingAPI) SetDepartmentCreditLimit(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// BillingAPI_SetDepartmentCreditLimit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetDepartmentCreditLimit'
+type BillingAPI_SetDepartmentCreditLimit_Call struct {
+	*mock.Call
+}
+
+// SetDepartmentCreditLimit is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *BillingAPI_Expecter) SetDepartmentCreditLimit(w interface{}, r interface{}) *BillingAPI_SetDepartmentCreditLimit_Call {
+	return &BillingAPI_SetDepartmentCreditLimit_Call{Call: _e.mock.On("SetDepartmentCreditLimit", w, r)}
+}
+
+func (_c *BillingAPI_SetDepartmentCreditLimit_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *BillingAPI_SetDepartmentCreditLimit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *BillingAPI_SetDepartmentCreditLimit_Call) Return() *BillingAPI_SetDepartmentCreditLimit_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *BillingAPI_SetDepartmentCreditLimit_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *BillingAPI_SetDepartmentCreditLimit_Call {
 	_c.Run(run)
 	return _c
 }

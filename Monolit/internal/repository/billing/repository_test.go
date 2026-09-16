@@ -66,7 +66,8 @@ func (s *RepositorySuite) TestEnsureCurrentCreditUsageIsSafeUnderConcurrentDashb
 	s.Require().Equal(1, grants)
 }
 
-func (s *RepositorySuite) TestUserBusinessSubscriptionDoesNotCoverCompany() {
+// The plan belongs to the owner and covers the companies they own.
+func (s *RepositorySuite) TestOwnerBusinessSubscriptionCoversTheirCompany() {
 	managerID := s.createUser("manager-business-user@example.com")
 	companyID := s.createCompany(managerID)
 
@@ -79,6 +80,13 @@ func (s *RepositorySuite) TestUserBusinessSubscriptionDoesNotCoverCompany() {
 	s.Require().NoError(err)
 	s.Require().Equal(models.PlanCodeBusinessPro, created.Plan.Code)
 
+	covering, err := s.repository.GetActiveBusinessSubscription(s.ctx, companyID)
+	s.Require().NoError(err)
+	s.Require().Equal(created.ID, covering.ID)
+
+	// A frozen company is not covered even while the owner keeps paying.
+	_, err = s.db.ExecContext(s.ctx, `UPDATE companies SET lifecycle_state='frozen', frozen_at=now() WHERE company_uuid=$1`, companyID)
+	s.Require().NoError(err)
 	_, err = s.repository.GetActiveBusinessSubscription(s.ctx, companyID)
 	s.Require().ErrorIs(err, models.ErrSubscriptionNotFound)
 }
@@ -100,10 +108,21 @@ func (s *RepositorySuite) TestGetBestActiveBusinessSubscriptionForManager() {
 	}, time.Now().UTC().Add(-time.Hour))
 	s.Require().NoError(err)
 
+	// One owner has one business plan: granting it again for another company
+	// upgrades the same subscription instead of creating a second one.
+	s.Require().Equal(start.ID, pro.ID)
+
 	best, err := s.repository.GetBestActiveBusinessSubscriptionForManager(s.ctx, managerID)
 	s.Require().NoError(err)
 	s.Require().Equal(pro.ID, best.ID)
-	s.Require().NotEqual(start.ID, best.ID)
+	s.Require().Equal(models.PlanCodeBusinessPro, best.Plan.Code)
+
+	// Both companies are covered by that one plan.
+	for _, companyID := range []uuid.UUID{firstCompanyID, secondCompanyID} {
+		covering, coverErr := s.repository.GetActiveBusinessSubscription(s.ctx, companyID)
+		s.Require().NoError(coverErr)
+		s.Require().Equal(best.ID, covering.ID)
+	}
 }
 
 func (s *RepositorySuite) TestActivateAndCancelCompanySubscription() {
@@ -118,8 +137,8 @@ func (s *RepositorySuite) TestActivateAndCancelCompanySubscription() {
 	s.Require().NoError(err)
 	s.Require().Equal(models.PlanCodeBusinessPlus, created.Plan.Code)
 	s.Require().Equal(models.SubscriptionStatusActive, created.Status)
-	s.Require().True(created.CompanyUUID.Valid)
-	s.Require().Equal(companyID, created.CompanyUUID.UUID)
+	s.Require().True(created.UserUUID.Valid)
+	s.Require().Equal(ownerID, created.UserUUID.UUID)
 
 	updated, err := s.repository.ActivateCompanySubscription(s.ctx, models.ActivateCompanySubscriptionInput{
 		CompanyUUID: companyID,
@@ -350,28 +369,6 @@ func (s *RepositorySuite) TestDeveloperApplicationSeparatesSandboxAndRevealsKeyO
 	var sandboxBalance int64
 	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT COALESCE(sum(p.amount_credits),0) FROM credit_ledger_postings p JOIN credit_ledger_accounts a USING(credit_ledger_account_uuid) WHERE a.billing_account_uuid=$1 AND a.environment='sandbox' AND a.account_type='customer_available'`, app.BillingAccountUUID).Scan(&sandboxBalance))
 	s.Require().Equal(int64(100_000), sandboxBalance)
-}
-
-func (s *RepositorySuite) TestMockPurchaseIsIdempotentAndDoesNotChangeAllowance() {
-	userID := s.createUser("mock-purchase@example.com")
-	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
-	s.Require().NoError(err)
-	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
-	before, err := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now)
-	s.Require().NoError(err)
-	input := models.MockCreditPurchaseInput{OwnerType: "user", OwnerUUID: userID, ActorUUID: userID, Credits: 25_000, RequestID: "purchase-test-1"}
-	first, err := s.repository.MockPurchaseCredits(s.ctx, input)
-	s.Require().NoError(err)
-	second, err := s.repository.MockPurchaseCredits(s.ctx, input)
-	s.Require().NoError(err)
-	s.Require().Equal(first, second)
-	after, err := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now)
-	s.Require().NoError(err)
-	s.Require().Equal(before.AllowanceRemaining, after.AllowanceRemaining)
-	s.Require().Equal(int64(25_000), after.WalletCredits)
-	var purchases int
-	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM credit_ledger_transactions WHERE transaction_type='purchase'`).Scan(&purchases))
-	s.Require().Equal(1, purchases)
 }
 
 func (s *RepositorySuite) TestSandboxWalletIsApplicationScopedAndAdjustmentsAreIdempotent() {

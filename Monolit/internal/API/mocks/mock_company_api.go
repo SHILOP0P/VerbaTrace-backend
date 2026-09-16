@@ -55,6 +55,40 @@ func (_c *CompanyAPI_AcceptOwnership_Call) RunAndReturn(run func(http.ResponseWr
 	return _c
 }
 
+// ActivateCompany provides a mock function with given fields: w, r
+func (_m *CompanyAPI) ActivateCompany(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_ActivateCompany_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ActivateCompany'
+type CompanyAPI_ActivateCompany_Call struct {
+	*mock.Call
+}
+
+// ActivateCompany is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) ActivateCompany(w interface{}, r interface{}) *CompanyAPI_ActivateCompany_Call {
+	return &CompanyAPI_ActivateCompany_Call{Call: _e.mock.On("ActivateCompany", w, r)}
+}
+
+func (_c *CompanyAPI_ActivateCompany_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_ActivateCompany_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_ActivateCompany_Call) Return() *CompanyAPI_ActivateCompany_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_ActivateCompany_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_ActivateCompany_Call {
+	_c.Run(run)
+	return _c
+}
+
 // CancelOwnershipOffer provides a mock function with given fields: w, r
 func (_m *CompanyAPI) CancelOwnershipOffer(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -191,6 +225,40 @@ func (_c *CompanyAPI_Delete_Call) RunAndReturn(run func(http.ResponseWriter, *ht
 	return _c
 }
 
+// FreezeCompany provides a mock function with given fields: w, r
+func (_m *CompanyAPI) FreezeCompany(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_FreezeCompany_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FreezeCompany'
+type CompanyAPI_FreezeCompany_Call struct {
+	*mock.Call
+}
+
+// FreezeCompany is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) FreezeCompany(w interface{}, r interface{}) *CompanyAPI_FreezeCompany_Call {
+	return &CompanyAPI_FreezeCompany_Call{Call: _e.mock.On("FreezeCompany", w, r)}
+}
+
+func (_c *CompanyAPI_FreezeCompany_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_FreezeCompany_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_FreezeCompany_Call) Return() *CompanyAPI_FreezeCompany_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_FreezeCompany_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_FreezeCompany_Call {
+	_c.Run(run)
+	return _c
+}
+
 // GetByUUID provides a mock function with given fields: w, r
 func (_m *CompanyAPI) GetByUUID(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -221,6 +289,40 @@ func (_c *CompanyAPI_GetByUUID_Call) Return() *CompanyAPI_GetByUUID_Call {
 }
 
 func (_c *CompanyAPI_GetByUUID_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_GetByUUID_Call {
+	_c.Run(run)
+	return _c
+}
+
+// GetCompanyLifecycle provides a mock function with given fields: w, r
+func (_m *CompanyAPI) GetCompanyLifecycle(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_GetCompanyLifecycle_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetCompanyLifecycle'
+type CompanyAPI_GetCompanyLifecycle_Call struct {
+	*mock.Call
+}
+
+// GetCompanyLifecycle is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) GetCompanyLifecycle(w interface{}, r interface{}) *CompanyAPI_GetCompanyLifecycle_Call {
+	return &CompanyAPI_GetCompanyLifecycle_Call{Call: _e.mock.On("GetCompanyLifecycle", w, r)}
+}
+
+func (_c *CompanyAPI_GetCompanyLifecycle_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_GetCompanyLifecycle_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_GetCompanyLifecycle_Call) Return() *CompanyAPI_GetCompanyLifecycle_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_GetCompanyLifecycle_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_GetCompanyLifecycle_Call {
 	_c.Run(run)
 	return _c
 }

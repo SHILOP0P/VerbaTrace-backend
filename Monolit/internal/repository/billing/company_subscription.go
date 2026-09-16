@@ -12,6 +12,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// ActivateCompanySubscription grants a business plan for a company, which means
+// granting it to the owner of that company: one plan covers every company they
+// own, up to the number the plan allows.
 func (r *Repository) ActivateCompanySubscription(ctx context.Context, input models.ActivateCompanySubscriptionInput, startsAt time.Time) (models.Subscription, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -29,6 +32,12 @@ func (r *Repository) ActivateCompanySubscription(ctx context.Context, input mode
 	    WHERE code = $2
 	      AND type = 'business'
 	),
+	owner AS (
+	    SELECT manager_user_uuid
+	    FROM companies
+	    WHERE company_uuid = $3
+	      AND deleted_at IS NULL
+	),
 	upserted AS (
 	    INSERT INTO subscriptions (
 	        subscription_uuid,
@@ -40,11 +49,10 @@ func (r *Repository) ActivateCompanySubscription(ctx context.Context, input mode
 	        starts_at,
 	        ends_at
 	    )
-	    SELECT $1, plan_uuid, type, NULL, $3, 'active', $4, NULL
-	    FROM selected_plan
-	    ON CONFLICT (company_uuid) WHERE status = 'active' AND company_uuid IS NOT NULL
+	    SELECT $1, selected_plan.plan_uuid, selected_plan.type, owner.manager_user_uuid, NULL, 'active', $4, NULL
+	    FROM selected_plan, owner
+	    ON CONFLICT (type, user_uuid) WHERE status = 'active' AND user_uuid IS NOT NULL
 	    DO UPDATE SET plan_uuid = EXCLUDED.plan_uuid,
-	                  type = EXCLUDED.type,
 	                  status = 'active',
 	                  starts_at = EXCLUDED.starts_at,
 	                  ends_at = NULL,
@@ -74,6 +82,8 @@ func (r *Repository) ActivateCompanySubscription(ctx context.Context, input mode
 	return subscription, nil
 }
 
+// CancelCompanySubscription cancels the owner's business plan, which stops every
+// company they own.
 func (r *Repository) CancelCompanySubscription(ctx context.Context, companyID uuid.UUID, canceledAt time.Time) (models.Subscription, error) {
 	if canceledAt.IsZero() {
 		canceledAt = time.Now().UTC()
@@ -89,7 +99,7 @@ func (r *Repository) CancelCompanySubscription(ctx context.Context, companyID uu
 	        END,
 	        updated_at = now()
 	    WHERE type = 'business'
-	      AND company_uuid = $1
+	      AND user_uuid IN (SELECT manager_user_uuid FROM companies WHERE company_uuid = $1 AND deleted_at IS NULL)
 	      AND status = 'active'
 	      AND starts_at <= $2
 	      AND (ends_at IS NULL OR ends_at > $2)

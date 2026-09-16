@@ -750,63 +750,6 @@ func (_c *developerRepository_ListIntegrationServiceAccounts_Call) RunAndReturn(
 	return _c
 }
 
-// MockPurchaseCredits provides a mock function with given fields: _a0, _a1
-func (_m *developerRepository) MockPurchaseCredits(_a0 context.Context, _a1 models.MockCreditPurchaseInput) (int64, error) {
-	ret := _m.Called(_a0, _a1)
-
-	if len(ret) == 0 {
-		panic("no return value specified for MockPurchaseCredits")
-	}
-
-	var r0 int64
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.MockCreditPurchaseInput) (int64, error)); ok {
-		return rf(_a0, _a1)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.MockCreditPurchaseInput) int64); ok {
-		r0 = rf(_a0, _a1)
-	} else {
-		r0 = ret.Get(0).(int64)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, models.MockCreditPurchaseInput) error); ok {
-		r1 = rf(_a0, _a1)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// developerRepository_MockPurchaseCredits_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MockPurchaseCredits'
-type developerRepository_MockPurchaseCredits_Call struct {
-	*mock.Call
-}
-
-// MockPurchaseCredits is a helper method to define mock.On call
-//   - _a0 context.Context
-//   - _a1 models.MockCreditPurchaseInput
-func (_e *developerRepository_Expecter) MockPurchaseCredits(_a0 interface{}, _a1 interface{}) *developerRepository_MockPurchaseCredits_Call {
-	return &developerRepository_MockPurchaseCredits_Call{Call: _e.mock.On("MockPurchaseCredits", _a0, _a1)}
-}
-
-func (_c *developerRepository_MockPurchaseCredits_Call) Run(run func(_a0 context.Context, _a1 models.MockCreditPurchaseInput)) *developerRepository_MockPurchaseCredits_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(models.MockCreditPurchaseInput))
-	})
-	return _c
-}
-
-func (_c *developerRepository_MockPurchaseCredits_Call) Return(_a0 int64, _a1 error) *developerRepository_MockPurchaseCredits_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *developerRepository_MockPurchaseCredits_Call) RunAndReturn(run func(context.Context, models.MockCreditPurchaseInput) (int64, error)) *developerRepository_MockPurchaseCredits_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // RevokeIntegrationAPIKey provides a mock function with given fields: _a0, _a1, _a2
 func (_m *developerRepository) RevokeIntegrationAPIKey(_a0 context.Context, _a1 uuid.UUID, _a2 uuid.UUID) error {
 	ret := _m.Called(_a0, _a1, _a2)

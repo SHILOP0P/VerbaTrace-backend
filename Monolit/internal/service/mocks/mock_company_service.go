@@ -24,6 +24,54 @@ func (_m *CompanyService) EXPECT() *CompanyService_Expecter {
 	return &CompanyService_Expecter{mock: &_m.Mock}
 }
 
+// ActivateCompany provides a mock function with given fields: ctx, companyID, requestUser
+func (_m *CompanyService) ActivateCompany(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error {
+	ret := _m.Called(ctx, companyID, requestUser)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ActivateCompany")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, companyID, requestUser)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// CompanyService_ActivateCompany_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ActivateCompany'
+type CompanyService_ActivateCompany_Call struct {
+	*mock.Call
+}
+
+// ActivateCompany is a helper method to define mock.On call
+//   - ctx context.Context
+//   - companyID uuid.UUID
+//   - requestUser uuid.UUID
+func (_e *CompanyService_Expecter) ActivateCompany(ctx interface{}, companyID interface{}, requestUser interface{}) *CompanyService_ActivateCompany_Call {
+	return &CompanyService_ActivateCompany_Call{Call: _e.mock.On("ActivateCompany", ctx, companyID, requestUser)}
+}
+
+func (_c *CompanyService_ActivateCompany_Call) Run(run func(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID)) *CompanyService_ActivateCompany_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *CompanyService_ActivateCompany_Call) Return(_a0 error) *CompanyService_ActivateCompany_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *CompanyService_ActivateCompany_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) error) *CompanyService_ActivateCompany_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CancelOwnershipOffer provides a mock function with given fields: ctx, transferID, requestUser
 func (_m *CompanyService) CancelOwnershipOffer(ctx context.Context, transferID uuid.UUID, requestUser uuid.UUID) (models.CompanyOwnershipTransfer, error) {
 	ret := _m.Called(ctx, transferID, requestUser)
@@ -243,6 +291,54 @@ func (_c *CompanyService_DeleteCompany_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
+// FreezeCompany provides a mock function with given fields: ctx, companyID, requestUser
+func (_m *CompanyService) FreezeCompany(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error {
+	ret := _m.Called(ctx, companyID, requestUser)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FreezeCompany")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, companyID, requestUser)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// CompanyService_FreezeCompany_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FreezeCompany'
+type CompanyService_FreezeCompany_Call struct {
+	*mock.Call
+}
+
+// FreezeCompany is a helper method to define mock.On call
+//   - ctx context.Context
+//   - companyID uuid.UUID
+//   - requestUser uuid.UUID
+func (_e *CompanyService_Expecter) FreezeCompany(ctx interface{}, companyID interface{}, requestUser interface{}) *CompanyService_FreezeCompany_Call {
+	return &CompanyService_FreezeCompany_Call{Call: _e.mock.On("FreezeCompany", ctx, companyID, requestUser)}
+}
+
+func (_c *CompanyService_FreezeCompany_Call) Run(run func(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID)) *CompanyService_FreezeCompany_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *CompanyService_FreezeCompany_Call) Return(_a0 error) *CompanyService_FreezeCompany_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *CompanyService_FreezeCompany_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) error) *CompanyService_FreezeCompany_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetCompanyByUUID provides a mock function with given fields: ctx, companyID, userID
 func (_m *CompanyService) GetCompanyByUUID(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.Company, error) {
 	ret := _m.Called(ctx, companyID, userID)
@@ -297,6 +393,64 @@ func (_c *CompanyService_GetCompanyByUUID_Call) Return(_a0 models.Company, _a1 e
 }
 
 func (_c *CompanyService_GetCompanyByUUID_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.Company, error)) *CompanyService_GetCompanyByUUID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetCompanyLifecycle provides a mock function with given fields: ctx, companyID, requestUser
+func (_m *CompanyService) GetCompanyLifecycle(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) (models.CompanyLifecycle, error) {
+	ret := _m.Called(ctx, companyID, requestUser)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetCompanyLifecycle")
+	}
+
+	var r0 models.CompanyLifecycle
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (models.CompanyLifecycle, error)); ok {
+		return rf(ctx, companyID, requestUser)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) models.CompanyLifecycle); ok {
+		r0 = rf(ctx, companyID, requestUser)
+	} else {
+		r0 = ret.Get(0).(models.CompanyLifecycle)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, companyID, requestUser)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CompanyService_GetCompanyLifecycle_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetCompanyLifecycle'
+type CompanyService_GetCompanyLifecycle_Call struct {
+	*mock.Call
+}
+
+// GetCompanyLifecycle is a helper method to define mock.On call
+//   - ctx context.Context
+//   - companyID uuid.UUID
+//   - requestUser uuid.UUID
+func (_e *CompanyService_Expecter) GetCompanyLifecycle(ctx interface{}, companyID interface{}, requestUser interface{}) *CompanyService_GetCompanyLifecycle_Call {
+	return &CompanyService_GetCompanyLifecycle_Call{Call: _e.mock.On("GetCompanyLifecycle", ctx, companyID, requestUser)}
+}
+
+func (_c *CompanyService_GetCompanyLifecycle_Call) Run(run func(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID)) *CompanyService_GetCompanyLifecycle_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *CompanyService_GetCompanyLifecycle_Call) Return(_a0 models.CompanyLifecycle, _a1 error) *CompanyService_GetCompanyLifecycle_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CompanyService_GetCompanyLifecycle_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.CompanyLifecycle, error)) *CompanyService_GetCompanyLifecycle_Call {
 	_c.Call.Return(run)
 	return _c
 }

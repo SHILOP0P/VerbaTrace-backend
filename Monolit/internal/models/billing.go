@@ -160,13 +160,18 @@ type ReserveCreditsInput struct {
 	OperationUUID   uuid.UUID
 	ApplicationUUID uuid.NullUUID
 	CallUUID        uuid.NullUUID
-	OperationType   string
-	Environment     string
-	Provider        string
-	Model           string
-	Mode            string
-	IdempotencyKey  string
-	MaximumCharge   int64
+	// CompanyUUID and DepartmentUUID say whose budget this spending belongs to:
+	// credits are shared across the owner's companies, so the limits are the
+	// only thing keeping one company or department from eating the whole pot.
+	CompanyUUID    uuid.NullUUID
+	DepartmentUUID uuid.NullUUID
+	OperationType  string
+	Environment    string
+	Provider       string
+	Model          string
+	Mode           string
+	IdempotencyKey string
+	MaximumCharge  int64
 }
 
 type CreditOperation struct {
@@ -251,14 +256,6 @@ type CreateIntegrationAPIKeyInput struct {
 	TemporaryCreditLimit   *int64
 	TemporaryLimitStartsAt *time.Time
 	TemporaryLimitEndsAt   *time.Time
-}
-
-type MockCreditPurchaseInput struct {
-	OwnerType string
-	OwnerUUID uuid.UUID
-	ActorUUID uuid.UUID
-	Credits   int64
-	RequestID string
 }
 
 type IntegrationPrincipal struct {

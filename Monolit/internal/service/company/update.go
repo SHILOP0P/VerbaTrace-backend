@@ -3,6 +3,7 @@ package company
 import (
 	"context"
 	"strings"
+	"time"
 
 	"verbatrace/monolit/internal/models"
 	"verbatrace/monolit/internal/username"
@@ -82,6 +83,13 @@ func (s *Service) DeleteCompany(ctx context.Context, input models.DeleteCompanyI
 	}
 	if others > 0 {
 		return models.ErrCompanyNotEmpty
+	}
+
+	// Deleting a company starts its lifecycle rather than ending it: 30 days
+	// frozen, 30 days soft deleted, and only then gone. Data that somebody
+	// wants to keep has to be moved out before that runs out.
+	if lifecycle, ok := s.companyRepository.(lifecycleRepository); ok {
+		return lifecycle.FreezeCompany(ctx, input.CompanyUUID, time.Now().UTC())
 	}
 
 	return s.companyRepository.ArchiveCompany(ctx, input.CompanyUUID)

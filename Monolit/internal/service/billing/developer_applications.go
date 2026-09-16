@@ -13,7 +13,6 @@ type developerRepository interface {
 	CreateDeveloperApplication(context.Context, models.CreateDeveloperApplicationInput) (models.DeveloperApplication, error)
 	ListDeveloperApplications(context.Context, string, uuid.UUID) ([]models.DeveloperApplication, error)
 	CreateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error)
-	MockPurchaseCredits(context.Context, models.MockCreditPurchaseInput) (int64, error)
 	AuthenticateIntegrationKey(context.Context, string, string, string) (models.IntegrationPrincipal, error)
 	RevokeIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID) error
 	RotateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, time.Duration) (models.IntegrationAPIKey, string, error)
@@ -30,61 +29,50 @@ type developerRepository interface {
 }
 
 func (s *Service) RevokeIntegrationServiceAccount(ctx context.Context, service, actor uuid.UUID) error {
-	return s.creditRepository.(developerRepository).RevokeIntegrationServiceAccount(ctx, service, actor)
+	return s.developerRepository.RevokeIntegrationServiceAccount(ctx, service, actor)
 }
 
 func (s *Service) UpdateDeveloperApplication(ctx context.Context, input models.UpdateDeveloperApplicationInput) (models.DeveloperApplication, error) {
-	return s.creditRepository.(developerRepository).UpdateDeveloperApplication(ctx, input)
+	return s.developerRepository.UpdateDeveloperApplication(ctx, input)
 }
 func (s *Service) ListIntegrationAPIKeys(ctx context.Context, service, actor uuid.UUID) ([]models.IntegrationAPIKey, error) {
-	return s.creditRepository.(developerRepository).ListIntegrationAPIKeys(ctx, service, actor)
+	return s.developerRepository.ListIntegrationAPIKeys(ctx, service, actor)
 }
 
 func (s *Service) AdjustSandboxWallet(ctx context.Context, app, actor uuid.UUID, mode string, credits int64, requestID string) (int64, error) {
-	return s.creditRepository.(developerRepository).AdjustSandboxWallet(ctx, app, actor, mode, credits, requestID)
+	return s.developerRepository.AdjustSandboxWallet(ctx, app, actor, mode, credits, requestID)
 }
 
 func (s *Service) GetSandboxWallet(ctx context.Context, app, actor uuid.UUID) (models.SandboxWalletDashboard, error) {
-	return s.creditRepository.(developerRepository).GetSandboxWallet(ctx, app, actor)
+	return s.developerRepository.GetSandboxWallet(ctx, app, actor)
 }
 
 func (s *Service) GetDeveloperApplication(ctx context.Context, app, actor uuid.UUID) (models.DeveloperApplication, error) {
-	return s.creditRepository.(developerRepository).GetDeveloperApplication(ctx, app, actor)
+	return s.developerRepository.GetDeveloperApplication(ctx, app, actor)
 }
 func (s *Service) ChangeDeveloperApplicationStatus(ctx context.Context, app, actor uuid.UUID, status string) (models.DeveloperApplication, error) {
-	return s.creditRepository.(developerRepository).ChangeDeveloperApplicationStatus(ctx, app, actor, status)
+	return s.developerRepository.ChangeDeveloperApplicationStatus(ctx, app, actor, status)
 }
 
 func (s *Service) CreateIntegrationServiceAccount(ctx context.Context, connection, actor uuid.UUID, name string, scopes []string) (models.IntegrationServiceAccount, error) {
-	return s.creditRepository.(developerRepository).CreateIntegrationServiceAccount(ctx, connection, actor, name, scopes)
+	return s.developerRepository.CreateIntegrationServiceAccount(ctx, connection, actor, name, scopes)
 }
 func (s *Service) ListIntegrationServiceAccounts(ctx context.Context, connection, actor uuid.UUID) ([]models.IntegrationServiceAccount, error) {
-	return s.creditRepository.(developerRepository).ListIntegrationServiceAccounts(ctx, connection, actor)
+	return s.developerRepository.ListIntegrationServiceAccounts(ctx, connection, actor)
 }
 func (s *Service) CreateIntegrationAPIKeyForServiceAccount(ctx context.Context, serviceAccount, actor uuid.UUID, input models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error) {
-	return s.creditRepository.(developerRepository).CreateIntegrationAPIKeyForServiceAccount(ctx, serviceAccount, actor, input)
+	return s.developerRepository.CreateIntegrationAPIKeyForServiceAccount(ctx, serviceAccount, actor, input)
 }
 
 func (s *Service) RevokeIntegrationAPIKey(ctx context.Context, id, actor uuid.UUID) error {
-	return s.creditRepository.(developerRepository).RevokeIntegrationAPIKey(ctx, id, actor)
+	return s.developerRepository.RevokeIntegrationAPIKey(ctx, id, actor)
 }
 func (s *Service) RotateIntegrationAPIKey(ctx context.Context, id, actor uuid.UUID, overlap time.Duration) (models.IntegrationAPIKey, string, error) {
-	return s.creditRepository.(developerRepository).RotateIntegrationAPIKey(ctx, id, actor, overlap)
+	return s.developerRepository.RotateIntegrationAPIKey(ctx, id, actor, overlap)
 }
 
 func (s *Service) AuthenticateIntegrationKey(ctx context.Context, key, environment, scope string) (models.IntegrationPrincipal, error) {
-	return s.creditRepository.(developerRepository).AuthenticateIntegrationKey(ctx, key, environment, scope)
-}
-
-func (s *Service) MockPurchaseCredits(ctx context.Context, input models.MockCreditPurchaseInput) (int64, error) {
-	if input.OwnerType == "user" {
-		if input.OwnerUUID != input.ActorUUID {
-			return 0, models.ErrForbidden
-		}
-	} else if err := s.requireCompanyManager(ctx, input.OwnerUUID, input.ActorUUID); err != nil {
-		return 0, err
-	}
-	return s.creditRepository.(developerRepository).MockPurchaseCredits(ctx, input)
+	return s.developerRepository.AuthenticateIntegrationKey(ctx, key, environment, scope)
 }
 
 func (s *Service) CreateDeveloperApplication(ctx context.Context, input models.CreateDeveloperApplicationInput) (models.DeveloperApplication, error) {
@@ -104,7 +92,7 @@ func (s *Service) CreateDeveloperApplication(ctx context.Context, input models.C
 	} else if err := s.CanAccessAPI(ctx, input.OwnerUUID); err != nil {
 		return models.DeveloperApplication{}, err
 	}
-	return s.creditRepository.(developerRepository).CreateDeveloperApplication(ctx, input)
+	return s.developerRepository.CreateDeveloperApplication(ctx, input)
 }
 
 func (s *Service) ListDeveloperApplications(ctx context.Context, ownerType string, ownerID, actorID uuid.UUID) ([]models.DeveloperApplication, error) {
@@ -127,9 +115,9 @@ func (s *Service) ListDeveloperApplications(ctx context.Context, ownerType strin
 			return nil, err
 		}
 	}
-	return s.creditRepository.(developerRepository).ListDeveloperApplications(ctx, ownerType, ownerID)
+	return s.developerRepository.ListDeveloperApplications(ctx, ownerType, ownerID)
 }
 
 func (s *Service) CreateIntegrationAPIKey(ctx context.Context, applicationID, actorID uuid.UUID, input models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error) {
-	return s.creditRepository.(developerRepository).CreateIntegrationAPIKey(ctx, applicationID, actorID, input)
+	return s.developerRepository.CreateIntegrationAPIKey(ctx, applicationID, actorID, input)
 }

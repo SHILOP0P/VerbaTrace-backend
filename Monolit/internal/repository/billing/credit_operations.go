@@ -100,13 +100,21 @@ func (r *Repository) ReserveCredits(ctx context.Context, subscription models.Sub
 		return models.CreditOperation{}, models.ErrInsufficientCredits
 	}
 
+	if input.Environment == "production" && input.CompanyUUID.Valid {
+		if err = checkCreditLimits(ctx, tx, input, now); err != nil {
+			return models.CreditOperation{}, err
+		}
+	}
+
 	if _, err = tx.ExecContext(ctx, `
 		INSERT INTO usage_operations(
 			usage_operation_uuid,billing_account_uuid,application_uuid,key_uuid,call_uuid,
+			company_uuid,department_uuid,
 			operation_type,environment,provider,model,mode,pricing_catalog_version_uuid,
 			idempotency_key,status,maximum_charge_credits,reserved_credits,started_at
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'reserved',$13,$13,$14)
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'reserved',$15,$15,$16)
 	`, input.OperationUUID, accountID, nullableUUID(input.ApplicationUUID), nullableUUID(keyID), nullableUUID(input.CallUUID),
+		nullableUUID(input.CompanyUUID), nullableUUID(input.DepartmentUUID),
 		input.OperationType, input.Environment, input.Provider, input.Model, input.Mode,
 		pricingID, input.IdempotencyKey, input.MaximumCharge, now.UTC()); err != nil {
 		return models.CreditOperation{}, fmt.Errorf("create usage operation: %w", err)

@@ -57,4 +57,10 @@ func (w *MembershipMaintenanceWorker) runOnce(ctx context.Context) {
 	} else if cleaned > 0 {
 		w.service.log.Info(ctx, "membership restrictions cleaned", zap.Int64("count", cleaned))
 	}
+
+	if softDeleted, purged, err := w.service.RunLifecycleMaintenance(ctx, 20); err != nil {
+		w.service.log.Warn(ctx, "failed to advance company lifecycle", zap.Error(err))
+	} else if softDeleted > 0 || purged > 0 {
+		w.service.log.Info(ctx, "company lifecycle advanced", zap.Int64("soft_deleted", softDeleted), zap.Int("purged", purged))
+	}
 }

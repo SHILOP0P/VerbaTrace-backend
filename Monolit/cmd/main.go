@@ -284,7 +284,12 @@ func main() {
 	invitationSvc := invitationService.NewService(invitationRepository, userRepository, companyRepository, departmentRepository, appLogger)
 	instructionSvc := analysisInstructionService.NewService(analysisInstructionRepository, companyRepository, departmentRepository, instructionStorage, appLogger)
 	billingSvc := billingService.NewService(billingRepository)
-	billingSvc.SetCreditRepository(billingRepository)
+	// A billing repository that cannot serve one of the credit interfaces used
+	// to panic on the first request that needed it. Fail at startup instead.
+	if err := billingSvc.SetCreditRepository(billingRepository); err != nil {
+		appLogger.Error(ctx, "failed to wire billing credit repository", zap.Error(err))
+		return
+	}
 	creditReconciliationDone := billingService.NewReconciliationWorker(billingRepository, appLogger).Run(ctx)
 	processingSvc.SetCreditMeter(billingSvc)
 	analysisSvc.SetCreditMeter(billingSvc)
@@ -299,6 +304,7 @@ func main() {
 	searchSvc := searchService.NewService(searchRepository)
 	notificationSvc := notificationService.NewService(notificationRepository)
 	billingSvc.SetCompanyRepository(companyRepository)
+	billingSvc.SetDepartmentRepository(departmentRepository)
 	callSvc.SetBillingLimiter(billingSvc)
 	callSvc.SetTranscriptionModeResolver(billingSvc)
 	companySvc.SetBillingLimiter(billingSvc)

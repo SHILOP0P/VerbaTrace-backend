@@ -39,17 +39,17 @@ func (s *Service) ReserveAssistantGeneration(ctx context.Context, userID, compan
 	if err != nil {
 		return uuid.Nil, err
 	}
-	maximum, err := s.creditRepository.(creditOperationRepository).MaximumGenerationCredits(ctx, inputTokens, maxOutputTokens, provider, model, s.now())
+	maximum, err := s.creditOperations.MaximumGenerationCredits(ctx, inputTokens, maxOutputTokens, provider, model, s.now())
 	if err != nil {
 		return uuid.Nil, err
 	}
 	operationID := uuid.NewSHA1(uuid.NameSpaceOID, []byte("assistant_generation:"+runID.String()))
-	_, err = s.creditRepository.(creditOperationRepository).ReserveCredits(ctx, subscription, models.ReserveCreditsInput{
-		OperationUUID: operationID, OperationType: "assistant_generation", Environment: "production",
+	_, err = s.creditOperations.ReserveCredits(ctx, subscription, models.ReserveCreditsInput{
+		OperationUUID: operationID, CompanyUUID: uuid.NullUUID{UUID: companyID, Valid: companyID != uuid.Nil}, OperationType: "assistant_generation", Environment: "production",
 		Provider: provider, Model: model, Mode: "chat", IdempotencyKey: "assistant_generation:" + runID.String(), MaximumCharge: maximum,
 	}, s.now())
 	if err == nil {
-		err = s.creditRepository.(creditOperationRepository).MarkCreditOperationProviderRunning(ctx, operationID)
+		err = s.creditOperations.MarkCreditOperationProviderRunning(ctx, operationID)
 	}
 	return operationID, err
 }
@@ -59,7 +59,7 @@ func (s *Service) SettleAssistantGeneration(ctx context.Context, operationID uui
 }
 
 func (s *Service) IsSandboxMockCall(ctx context.Context, callID uuid.UUID) (bool, error) {
-	return s.creditRepository.(creditOperationRepository).IsSandboxMockCall(ctx, callID)
+	return s.creditOperations.IsSandboxMockCall(ctx, callID)
 }
 
 func (s *Service) ReserveTranscription(ctx context.Context, call models.Call, mode models.TranscriptionMode) (uuid.UUID, error) {
@@ -67,33 +67,33 @@ func (s *Service) ReserveTranscription(ctx context.Context, call models.Call, mo
 	if err != nil {
 		return uuid.Nil, err
 	}
-	maximum, err := s.creditRepository.(creditOperationRepository).MaximumTranscriptionCredits(ctx, int64(call.DurationSeconds), string(mode), s.now())
+	maximum, err := s.creditOperations.MaximumTranscriptionCredits(ctx, int64(call.DurationSeconds), string(mode), s.now())
 	if err != nil {
 		return uuid.Nil, err
 	}
 	operationID := uuid.NewSHA1(uuid.NameSpaceOID, []byte("transcription:"+call.ID.String()))
-	applicationID, environment, err := s.creditRepository.(creditOperationRepository).IntegrationBillingContextForCall(ctx, call.ID)
+	applicationID, environment, err := s.creditOperations.IntegrationBillingContextForCall(ctx, call.ID)
 	if err != nil {
 		return uuid.Nil, err
 	}
-	_, err = s.creditRepository.(creditOperationRepository).ReserveCredits(ctx, subscription, models.ReserveCreditsInput{OperationUUID: operationID, ApplicationUUID: applicationID, CallUUID: uuid.NullUUID{UUID: call.ID, Valid: true}, OperationType: "transcription", Environment: environment, Provider: "assemblyai", Model: "universal-2", Mode: string(mode), IdempotencyKey: "transcription:" + call.ID.String(), MaximumCharge: maximum}, s.now())
+	_, err = s.creditOperations.ReserveCredits(ctx, subscription, models.ReserveCreditsInput{OperationUUID: operationID, ApplicationUUID: applicationID, CallUUID: uuid.NullUUID{UUID: call.ID, Valid: true}, CompanyUUID: call.CompanyUUID, DepartmentUUID: call.DepartmentUUID, OperationType: "transcription", Environment: environment, Provider: "assemblyai", Model: "universal-2", Mode: string(mode), IdempotencyKey: "transcription:" + call.ID.String(), MaximumCharge: maximum}, s.now())
 	if err == nil {
-		err = s.creditRepository.(creditOperationRepository).MarkCreditOperationProviderRunning(ctx, operationID)
+		err = s.creditOperations.MarkCreditOperationProviderRunning(ctx, operationID)
 	}
 	return operationID, err
 }
 
 func (s *Service) SettleTranscription(ctx context.Context, operationID uuid.UUID, call models.Call, mode models.TranscriptionMode) error {
-	cost, err := s.creditRepository.(creditOperationRepository).TranscriptionProviderCostNanoUSD(ctx, operationID, int64(call.DurationSeconds))
+	cost, err := s.creditOperations.TranscriptionProviderCostNanoUSD(ctx, operationID, int64(call.DurationSeconds))
 	if err != nil {
 		return err
 	}
-	credits, err := s.creditRepository.(creditOperationRepository).CreditsForOperationProviderCost(ctx, operationID, cost)
+	credits, err := s.creditOperations.CreditsForOperationProviderCost(ctx, operationID, cost)
 	if err != nil {
 		return err
 	}
 	usage, _ := json.Marshal(map[string]any{"duration_seconds": call.DurationSeconds, "mode": mode})
-	_, err = s.creditRepository.(creditOperationRepository).SettleCredits(ctx, models.SettleCreditsInput{OperationUUID: operationID, ActualChargeCredits: credits, ProviderCostNanoUSD: cost, ProviderUsageJSON: usage}, s.now())
+	_, err = s.creditOperations.SettleCredits(ctx, models.SettleCreditsInput{OperationUUID: operationID, ActualChargeCredits: credits, ProviderCostNanoUSD: cost, ProviderUsageJSON: usage}, s.now())
 	return err
 }
 
@@ -106,31 +106,31 @@ func (s *Service) ReserveAnalysis(ctx context.Context, call models.Call, analysi
 	if maxOutputTokens <= 0 {
 		return uuid.Nil, models.ErrInvalidBillingInput
 	}
-	maximum, err := s.creditRepository.(creditOperationRepository).MaximumAnalysisCredits(ctx, int64(inputTokens), int64(maxOutputTokens), s.now())
+	maximum, err := s.creditOperations.MaximumAnalysisCredits(ctx, int64(inputTokens), int64(maxOutputTokens), s.now())
 	if err != nil {
 		return uuid.Nil, err
 	}
 	operationID := uuid.NewSHA1(uuid.NameSpaceOID, []byte("analysis:"+analysisID.String()))
-	applicationID, environment, err := s.creditRepository.(creditOperationRepository).IntegrationBillingContextForCall(ctx, call.ID)
+	applicationID, environment, err := s.creditOperations.IntegrationBillingContextForCall(ctx, call.ID)
 	if err != nil {
 		return uuid.Nil, err
 	}
-	_, err = s.creditRepository.(creditOperationRepository).ReserveCredits(ctx, subscription, models.ReserveCreditsInput{OperationUUID: operationID, ApplicationUUID: applicationID, CallUUID: uuid.NullUUID{UUID: call.ID, Valid: true}, OperationType: "analysis", Environment: environment, Provider: "openrouter", Model: "openai/gpt-5-mini", IdempotencyKey: "analysis:" + analysisID.String(), MaximumCharge: maximum}, s.now())
+	_, err = s.creditOperations.ReserveCredits(ctx, subscription, models.ReserveCreditsInput{OperationUUID: operationID, ApplicationUUID: applicationID, CallUUID: uuid.NullUUID{UUID: call.ID, Valid: true}, CompanyUUID: call.CompanyUUID, DepartmentUUID: call.DepartmentUUID, OperationType: "analysis", Environment: environment, Provider: "openrouter", Model: "openai/gpt-5-mini", IdempotencyKey: "analysis:" + analysisID.String(), MaximumCharge: maximum}, s.now())
 	if err == nil {
-		err = s.creditRepository.(creditOperationRepository).MarkCreditOperationProviderRunning(ctx, operationID)
+		err = s.creditOperations.MarkCreditOperationProviderRunning(ctx, operationID)
 	}
 	return operationID, err
 }
 
 func (s *Service) MarkCreditOperationReconciling(ctx context.Context, id uuid.UUID, reason string) error {
-	return s.creditRepository.(creditOperationRepository).MarkCreditOperationReconciling(ctx, id, reason)
+	return s.creditOperations.MarkCreditOperationReconciling(ctx, id, reason)
 }
 
 func (s *Service) SettleAnalysis(ctx context.Context, operationID uuid.UUID, usage *models.ProviderUsage) error {
 	if usage == nil {
 		return fmt.Errorf("analysis provider usage missing")
 	}
-	credits, err := s.creditRepository.(creditOperationRepository).CreditsForOperationProviderCost(ctx, operationID, usage.CostNanoUSD)
+	credits, err := s.creditOperations.CreditsForOperationProviderCost(ctx, operationID, usage.CostNanoUSD)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (s *Service) SettleAnalysis(ctx context.Context, operationID uuid.UUID, usa
 	if err != nil {
 		return err
 	}
-	_, err = s.creditRepository.(creditOperationRepository).SettleCredits(ctx, models.SettleCreditsInput{OperationUUID: operationID, ActualChargeCredits: credits, ProviderCostNanoUSD: usage.CostNanoUSD, ProviderUsageJSON: payload}, s.now())
+	_, err = s.creditOperations.SettleCredits(ctx, models.SettleCreditsInput{OperationUUID: operationID, ActualChargeCredits: credits, ProviderCostNanoUSD: usage.CostNanoUSD, ProviderUsageJSON: payload}, s.now())
 	return err
 }
 

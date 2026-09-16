@@ -366,6 +366,17 @@ type fakeBillingService struct {
 	cancel           func(context.Context, models.CancelCompanySubscriptionInput) (models.Subscription, error)
 }
 
+func (f *fakeBillingService) SetCompanyCreditLimit(context.Context, models.SetCreditLimitInput) error {
+	return nil
+}
+
+func (f *fakeBillingService) SetDepartmentCreditLimit(context.Context, models.SetCreditLimitInput) error {
+	return nil
+}
+
+func (f *fakeBillingService) CompanyCreditForecast(context.Context, uuid.UUID, uuid.UUID) (models.CompanyCreditForecast, error) {
+	return models.CompanyCreditForecast{}, nil
+}
 func (f *fakeBillingService) ListPlans(ctx context.Context) ([]models.Plan, error) {
 	return f.list(ctx)
 }

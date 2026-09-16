@@ -195,6 +195,64 @@ func (_c *BillingService_CancelCompanySubscription_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// CompanyCreditForecast provides a mock function with given fields: ctx, companyID, userID
+func (_m *BillingService) CompanyCreditForecast(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.CompanyCreditForecast, error) {
+	ret := _m.Called(ctx, companyID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CompanyCreditForecast")
+	}
+
+	var r0 models.CompanyCreditForecast
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (models.CompanyCreditForecast, error)); ok {
+		return rf(ctx, companyID, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) models.CompanyCreditForecast); ok {
+		r0 = rf(ctx, companyID, userID)
+	} else {
+		r0 = ret.Get(0).(models.CompanyCreditForecast)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, companyID, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// BillingService_CompanyCreditForecast_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CompanyCreditForecast'
+type BillingService_CompanyCreditForecast_Call struct {
+	*mock.Call
+}
+
+// CompanyCreditForecast is a helper method to define mock.On call
+//   - ctx context.Context
+//   - companyID uuid.UUID
+//   - userID uuid.UUID
+func (_e *BillingService_Expecter) CompanyCreditForecast(ctx interface{}, companyID interface{}, userID interface{}) *BillingService_CompanyCreditForecast_Call {
+	return &BillingService_CompanyCreditForecast_Call{Call: _e.mock.On("CompanyCreditForecast", ctx, companyID, userID)}
+}
+
+func (_c *BillingService_CompanyCreditForecast_Call) Run(run func(ctx context.Context, companyID uuid.UUID, userID uuid.UUID)) *BillingService_CompanyCreditForecast_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *BillingService_CompanyCreditForecast_Call) Return(_a0 models.CompanyCreditForecast, _a1 error) *BillingService_CompanyCreditForecast_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *BillingService_CompanyCreditForecast_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.CompanyCreditForecast, error)) *BillingService_CompanyCreditForecast_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetCompanySubscription provides a mock function with given fields: ctx, input
 func (_m *BillingService) GetCompanySubscription(ctx context.Context, input models.GetCompanySubscriptionInput) (models.Subscription, error) {
 	ret := _m.Called(ctx, input)
@@ -477,6 +535,100 @@ func (_c *BillingService_ListPlans_Call) Return(_a0 []models.Plan, _a1 error) *B
 }
 
 func (_c *BillingService_ListPlans_Call) RunAndReturn(run func(context.Context) ([]models.Plan, error)) *BillingService_ListPlans_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetCompanyCreditLimit provides a mock function with given fields: ctx, input
+func (_m *BillingService) SetCompanyCreditLimit(ctx context.Context, input models.SetCreditLimitInput) error {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetCompanyCreditLimit")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.SetCreditLimitInput) error); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// BillingService_SetCompanyCreditLimit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetCompanyCreditLimit'
+type BillingService_SetCompanyCreditLimit_Call struct {
+	*mock.Call
+}
+
+// SetCompanyCreditLimit is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.SetCreditLimitInput
+func (_e *BillingService_Expecter) SetCompanyCreditLimit(ctx interface{}, input interface{}) *BillingService_SetCompanyCreditLimit_Call {
+	return &BillingService_SetCompanyCreditLimit_Call{Call: _e.mock.On("SetCompanyCreditLimit", ctx, input)}
+}
+
+func (_c *BillingService_SetCompanyCreditLimit_Call) Run(run func(ctx context.Context, input models.SetCreditLimitInput)) *BillingService_SetCompanyCreditLimit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.SetCreditLimitInput))
+	})
+	return _c
+}
+
+func (_c *BillingService_SetCompanyCreditLimit_Call) Return(_a0 error) *BillingService_SetCompanyCreditLimit_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *BillingService_SetCompanyCreditLimit_Call) RunAndReturn(run func(context.Context, models.SetCreditLimitInput) error) *BillingService_SetCompanyCreditLimit_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SetDepartmentCreditLimit provides a mock function with given fields: ctx, input
+func (_m *BillingService) SetDepartmentCreditLimit(ctx context.Context, input models.SetCreditLimitInput) error {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetDepartmentCreditLimit")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.SetCreditLimitInput) error); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// BillingService_SetDepartmentCreditLimit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetDepartmentCreditLimit'
+type BillingService_SetDepartmentCreditLimit_Call struct {
+	*mock.Call
+}
+
+// SetDepartmentCreditLimit is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.SetCreditLimitInput
+func (_e *BillingService_Expecter) SetDepartmentCreditLimit(ctx interface{}, input interface{}) *BillingService_SetDepartmentCreditLimit_Call {
+	return &BillingService_SetDepartmentCreditLimit_Call{Call: _e.mock.On("SetDepartmentCreditLimit", ctx, input)}
+}
+
+func (_c *BillingService_SetDepartmentCreditLimit_Call) Run(run func(ctx context.Context, input models.SetCreditLimitInput)) *BillingService_SetDepartmentCreditLimit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.SetCreditLimitInput))
+	})
+	return _c
+}
+
+func (_c *BillingService_SetDepartmentCreditLimit_Call) Return(_a0 error) *BillingService_SetDepartmentCreditLimit_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *BillingService_SetDepartmentCreditLimit_Call) RunAndReturn(run func(context.Context, models.SetCreditLimitInput) error) *BillingService_SetDepartmentCreditLimit_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -20,7 +20,6 @@ type developerService interface {
 	CreateDeveloperApplication(context.Context, models.CreateDeveloperApplicationInput) (models.DeveloperApplication, error)
 	ListDeveloperApplications(context.Context, string, uuid.UUID, uuid.UUID) ([]models.DeveloperApplication, error)
 	CreateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, models.CreateIntegrationAPIKeyInput) (models.IntegrationAPIKey, string, error)
-	MockPurchaseCredits(context.Context, models.MockCreditPurchaseInput) (int64, error)
 	AuthenticateIntegrationKey(context.Context, string, string, string) (models.IntegrationPrincipal, error)
 	RevokeIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID) error
 	RotateIntegrationAPIKey(context.Context, uuid.UUID, uuid.UUID, time.Duration) (models.IntegrationAPIKey, string, error)
@@ -349,33 +348,6 @@ func (h *Handler) validateIntegrationKey(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	_ = response.WriteJSON(w, http.StatusOK, map[string]any{"application_uuid": principal.ApplicationUUID, "environment": principal.Environment, "scopes": principal.Scopes, "authenticated": true})
-}
-
-func (h *Handler) MockPurchaseCredits(w http.ResponseWriter, r *http.Request) {
-	actor, ok := userIDFromRequest(r)
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-	var req struct {
-		OwnerType string    `json:"owner_type"`
-		OwnerUUID uuid.UUID `json:"owner_uuid"`
-		Credits   int64     `json:"credits"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidBillingInput, "invalid request")
-		return
-	}
-	if req.OwnerType == "user" && req.OwnerUUID == uuid.Nil {
-		req.OwnerUUID = actor
-	}
-	requestID := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
-	credits, err := h.service.(developerService).MockPurchaseCredits(r.Context(), models.MockCreditPurchaseInput{OwnerType: req.OwnerType, OwnerUUID: req.OwnerUUID, ActorUUID: actor, Credits: req.Credits, RequestID: requestID})
-	if err != nil {
-		writeBillingError(w, err, response.CodeInvalidBillingInput, "mock purchase failed")
-		return
-	}
-	_ = response.WriteJSON(w, http.StatusCreated, map[string]any{"credited": credits, "payment_mode": "mock", "idempotency_key": requestID})
 }
 
 type developerApplicationRequest struct {

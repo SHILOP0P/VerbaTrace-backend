@@ -16,26 +16,23 @@ func (r *Repository) GetActivePersonalSubscription(ctx context.Context, userID u
 	return r.getSubscription(ctx, query, userID)
 }
 
+// GetActiveBusinessSubscription answers with the subscription that covers this
+// company. The plan belongs to the owner and covers several companies, so a
+// frozen company has no subscription even while its owner keeps paying.
 func (r *Repository) GetActiveBusinessSubscription(ctx context.Context, companyID uuid.UUID) (models.Subscription, error) {
-	query := activeSubscriptionQuery("s.type = 'business' AND s.company_uuid = $1")
+	query := activeSubscriptionQuery(`s.type = 'business'
+	  AND s.user_uuid IN (
+	      SELECT manager_user_uuid
+	      FROM companies
+	      WHERE company_uuid = $1
+	        AND deleted_at IS NULL
+	        AND lifecycle_state = 'active'
+	  )`)
 	return r.getSubscription(ctx, query, companyID)
 }
 
 func (r *Repository) GetBestActiveBusinessSubscriptionForManager(ctx context.Context, managerID uuid.UUID) (models.Subscription, error) {
-	query := activeSubscriptionQuery(`s.type = 'business'
-	  AND s.company_uuid IN (
-	      SELECT company_uuid
-	      FROM companies
-	      WHERE manager_user_uuid = $1
-	        AND deleted_at IS NULL
-	  )
-	ORDER BY CASE p.code
-	    WHEN 'business_pro' THEN 3
-	    WHEN 'business_plus' THEN 2
-	    WHEN 'business_start' THEN 1
-	    ELSE 0
-	END DESC
-	LIMIT 1`)
+	query := activeSubscriptionQuery("s.type = 'business' AND s.user_uuid = $1")
 	return r.getSubscription(ctx, query, managerID)
 }
 

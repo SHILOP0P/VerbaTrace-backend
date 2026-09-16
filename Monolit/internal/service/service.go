@@ -114,6 +114,9 @@ type AdminService interface {
 }
 
 type CompanyService interface {
+	FreezeCompany(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error
+	ActivateCompany(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error
+	GetCompanyLifecycle(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) (models.CompanyLifecycle, error)
 	CreateCompany(ctx context.Context, input models.CreateCompanyInput) (models.Company, error)
 	UpdateCompany(ctx context.Context, input models.UpdateCompanyInput) (models.Company, error)
 	UpdateCompanyTag(ctx context.Context, input models.UpdateCompanyTagInput) (models.Company, error)
@@ -189,6 +192,9 @@ type BillingService interface {
 	ActivatePersonalSubscription(ctx context.Context, input models.ActivatePersonalSubscriptionInput) (models.Subscription, error)
 	ActivateCompanySubscription(ctx context.Context, input models.ActivateCompanySubscriptionInput) (models.Subscription, error)
 	CancelCompanySubscription(ctx context.Context, input models.CancelCompanySubscriptionInput) (models.Subscription, error)
+	SetCompanyCreditLimit(ctx context.Context, input models.SetCreditLimitInput) error
+	SetDepartmentCreditLimit(ctx context.Context, input models.SetCreditLimitInput) error
+	CompanyCreditForecast(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.CompanyCreditForecast, error)
 }
 
 type InvitationService interface {

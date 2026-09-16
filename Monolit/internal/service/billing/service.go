@@ -2,6 +2,7 @@ package billing
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"verbatrace/monolit/internal/models"
@@ -36,14 +37,47 @@ type CreditRepository interface {
 }
 
 type Service struct {
-	repository        Repository
-	companyRepository CompanyRepository
-	creditRepository  CreditRepository
-	now               func() time.Time
+	repository           Repository
+	companyRepository    CompanyRepository
+	departmentRepository DepartmentRepository
+	creditRepository     CreditRepository
+	creditOperations     creditOperationRepository
+	creditLimits         creditLimitRepository
+	creditDashboardRepo  creditDashboardRepository
+	developerRepository  developerRepository
+	now                  func() time.Time
 }
 
-func (s *Service) SetCreditRepository(repository CreditRepository) {
+// SetCreditRepository wires the credit ledger. The ledger is used through
+// several narrow interfaces, and a repository that does not satisfy one of them
+// used to panic on the first call that needed it. The check happens here, at
+// startup, so a wrong wiring stops the process instead of one request.
+func (s *Service) SetCreditRepository(repository CreditRepository) error {
 	s.creditRepository = repository
+
+	operations, ok := repository.(creditOperationRepository)
+	if !ok {
+		return fmt.Errorf("credit repository does not support credit operations")
+	}
+	limits, ok := repository.(creditLimitRepository)
+	if !ok {
+		return fmt.Errorf("credit repository does not support credit limits")
+	}
+	dashboard, ok := repository.(creditDashboardRepository)
+	if !ok {
+		return fmt.Errorf("credit repository does not support the credit dashboard")
+	}
+	developer, ok := repository.(developerRepository)
+	if !ok {
+		return fmt.Errorf("credit repository does not support developer applications")
+	}
+
+	s.creditOperations = operations
+	s.creditLimits = limits
+	s.creditDashboardRepo = dashboard
+	s.developerRepository = developer
+
+	return nil
 }
 
 func NewService(repository Repository) *Service {

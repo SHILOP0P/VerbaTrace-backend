@@ -80,11 +80,10 @@ func (s *Service) UpdateCompanyCreditVisibility(ctx context.Context, input model
 }
 
 func (s *Service) creditDashboard(ctx context.Context, subscription models.Subscription, from, to time.Time) (models.CreditDashboard, error) {
-	repository, ok := s.creditRepository.(creditDashboardRepository)
-	if !ok {
+	if s.creditDashboardRepo == nil {
 		return models.CreditDashboard{}, models.ErrInvalidBillingInput
 	}
-	return repository.GetCreditDashboard(ctx, subscription, from, to)
+	return s.creditDashboardRepo.GetCreditDashboard(ctx, subscription, from, to)
 }
 
 func validActivityRange(from, to time.Time) bool {
