@@ -29,6 +29,9 @@ func (s *RepositorySuite) TestListPlansIncludesDefaultPlans() {
 	s.Require().NotNil(plans[5].InstructionsPerDepartmentLimit)
 	s.Require().Equal(10, *plans[5].InstructionsPerDepartmentLimit)
 	s.Require().True(plans[5].APIAccessEnabled)
+	// Personal Pro may connect a portal to its own calls: the way to try the
+	// integration before buying a business plan.
+	s.Require().True(plans[2].APIAccessEnabled)
 	s.Require().True(plans[5].WebhooksEnabled)
 	s.Require().Nil(plans[5].MembersPerCompanyLimit)
 	s.Require().Equal(int64(9_990_000), plans[5].MonthlyPriceMinor)

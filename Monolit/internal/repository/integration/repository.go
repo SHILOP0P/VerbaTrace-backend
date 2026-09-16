@@ -266,6 +266,17 @@ func (r *Repository) acceptIngest(ctx context.Context, p models.IntegrationPrinc
 	if err != nil {
 		return models.IngestItem{}, false, err
 	}
+	// The call belongs to the person who made it. For a company connection that
+	// means the mapped portal user; an unmapped call is refused instead of
+	// quietly landing on whoever connected the portal.
+	uploader, mappedDepartment, err := resolveMappedUploader(ctx, tx, p.ConnectionUUID, placement.CompanyID, in.Participants)
+	if err != nil {
+		return models.IngestItem{}, false, err
+	}
+	if mappedDepartment.Valid {
+		placement.Scope = "department"
+		placement.DepartmentID = mappedDepartment
+	}
 	placementJSON, _ := json.Marshal(placement)
 	requestHash = sha256.Sum256(append(requestHash[:], placementJSON...))
 	var existing models.IngestItem
@@ -302,7 +313,7 @@ func (r *Repository) acceptIngest(ctx context.Context, p models.IntegrationPrinc
 		billingEnvironment = "sandbox"
 	}
 	sourceRef := makeSourceRef(p.ConnectionUUID, in.ExternalCallID)
-	_, err = tx.ExecContext(ctx, `INSERT INTO ingest_items(ingest_item_uuid,connection_uuid,event_uuid,application_uuid,billing_account_uuid,key_uuid,external_call_id,source_ref,idempotency_key,request_sha256,source_kind,recording_locator_ciphertext,recording_locator_key_version,locator_expires_at,title,original_filename,occurred_at,metadata_redacted,status,stage,connection_settings_version,placement_snapshot,instruction_snapshot,ai_mode,billing_environment,destination_scope,destination_user_uuid,destination_company_uuid,destination_department_uuid,destination_folder_uuid,placement_source) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'received','received',$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)`, itemID, p.ConnectionUUID, eventID, appID, accountID, nullUUID(uuid.NullUUID{UUID: p.KeyUUID, Valid: p.KeyUUID != uuid.Nil}), in.ExternalCallID, sourceRef, idempotency, requestHash[:], sourceKind, locator, r.cipher.Version(), expires, strings.TrimSpace(in.Title), nullableString(in.OriginalFilename), in.OccurredAt, metadata, settingsVersion, placementSnapshot, instructionSnapshot, in.AIMode, billingEnvironment, placement.Scope, nullUUID(placement.UserID), nullUUID(placement.CompanyID), nullUUID(placement.DepartmentID), nullUUID(placement.FolderID), placement.Source)
+	_, err = tx.ExecContext(ctx, `INSERT INTO ingest_items(ingest_item_uuid,connection_uuid,event_uuid,application_uuid,billing_account_uuid,key_uuid,external_call_id,source_ref,idempotency_key,request_sha256,source_kind,recording_locator_ciphertext,recording_locator_key_version,locator_expires_at,title,original_filename,occurred_at,metadata_redacted,status,stage,connection_settings_version,placement_snapshot,instruction_snapshot,ai_mode,billing_environment,destination_scope,destination_user_uuid,destination_company_uuid,destination_department_uuid,destination_folder_uuid,placement_source,uploader_user_uuid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'received','received',$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`, itemID, p.ConnectionUUID, eventID, appID, accountID, nullUUID(uuid.NullUUID{UUID: p.KeyUUID, Valid: p.KeyUUID != uuid.Nil}), in.ExternalCallID, sourceRef, idempotency, requestHash[:], sourceKind, locator, r.cipher.Version(), expires, strings.TrimSpace(in.Title), nullableString(in.OriginalFilename), in.OccurredAt, metadata, settingsVersion, placementSnapshot, instructionSnapshot, in.AIMode, billingEnvironment, placement.Scope, nullUUID(placement.UserID), nullUUID(placement.CompanyID), nullUUID(placement.DepartmentID), nullUUID(placement.FolderID), placement.Source, nullUUID(uploader))
 	if err != nil {
 		return models.IngestItem{}, false, err
 	}

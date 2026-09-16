@@ -836,6 +836,10 @@ func integrationError(w http.ResponseWriter, err error) {
 		writeError(w, 409, "idempotency_conflict", false)
 	case errors.Is(err, models.ErrIntegrationDisabled):
 		writeError(w, 409, "integration_disabled", false)
+	case errors.Is(err, models.ErrExternalUserNotMapped):
+		// The portal user has to be mapped to a company member first, so the
+		// call has an owner instead of landing on the connection's creator.
+		writeError(w, 422, "external_user_not_mapped", false)
 	case errors.Is(err, models.ErrApplicationBudgetExceeded):
 		writeError(w, 429, "application_budget_exceeded", true)
 	default:
