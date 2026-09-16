@@ -80,47 +80,6 @@ func (a *Analyzer) Analyze(ctx context.Context, request models.AnalysisRequest) 
 	}, nil
 }
 
-func (a *Analyzer) AnalyzeAggregate(_ context.Context, request models.AggregateAnalysisRequest) (models.AnalysisResult, error) {
-	if len(request.Sources) == 0 {
-		return models.AnalysisResult{}, models.ErrNoAnalyzedCallsForDeepAnalysis
-	}
-	payload := map[string]any{
-		"summary":                  "Тестовый агрегированный анализ.",
-		"executive_summary":        "Mock-анализ показывает структуру deep analysis без обращения к внешней модели.",
-		"overall_assessment":       "Для продуктовых выводов запустите реальный AI-провайдер, backend-статистика уже рассчитана по всем источникам.",
-		"key_findings":             []any{},
-		"recurring_issues":         []any{},
-		"systemic_issues":          []any{},
-		"single_call_observations": []any{},
-		"weak_criteria":            []any{},
-		"client_objections":        []any{},
-		"loss_and_risk_patterns":   []any{},
-		"strengths":                []string{"Backend собрал агрегированный dataset по доступным анализам звонков."},
-		"risks":                    []string{},
-		"priority_actions": []map[string]any{{
-			"title": "Проверить deep analysis на реальном провайдере", "priority": "medium",
-			"expected_effect": "Получить содержательные интерпретации поверх backend-статистики.",
-		}},
-		"manager_recommendations": []string{"Использовать mock только для локальной проверки контракта."},
-		"confidence":              "medium",
-		"detailed_report": map[string]any{
-			"methodology":            "Mock provider вернул шаблонный deep analysis; статистические блоки добавляет backend.",
-			"quality_overview":       "Качество периода не оценивается mock-провайдером.",
-			"issue_analysis":         "Повторяющиеся проблемы должны оцениваться по aggregate_statistics.",
-			"customer_loss_analysis": "Потери клиентов не оцениваются mock-провайдером.",
-			"training_plan":          "Для обучения менеджеров используйте результат реального AI-провайдера.",
-			"data_limitations":       "Mock provider не интерпретирует содержимое звонков.",
-		},
-	}
-	result, err := json.Marshal(payload)
-	if err != nil {
-		return models.AnalysisResult{}, err
-	}
-	text := "Тестовый агрегированный анализ."
-	model := "mock"
-	return models.AnalysisResult{ResultJSON: result, ResultText: &text, Model: &model}, nil
-}
-
 func stringPtr(value string) *string {
 	return &value
 }

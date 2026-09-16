@@ -45,7 +45,6 @@ func (r *Repository) GetCreditDashboard(ctx context.Context, subscription models
 		       COALESCE(sum(settled_credits),0),
 		       COALESCE(sum(settled_credits) FILTER (WHERE operation_type='transcription'),0),
 		       COALESCE(sum(settled_credits) FILTER (WHERE operation_type='analysis'),0),
-		       COALESCE(sum(settled_credits) FILTER (WHERE operation_type='deep_analysis'),0),
 		       count(DISTINCT call_uuid) FILTER (WHERE call_uuid IS NOT NULL)
 		FROM usage_operations
 		WHERE billing_account_uuid=$1 AND environment='production' AND status='settled'
@@ -58,7 +57,7 @@ func (r *Repository) GetCreditDashboard(ctx context.Context, subscription models
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var day models.CreditActivityDay
-		if err = rows.Scan(&day.Date, &day.Credits, &day.Transcription, &day.Analysis, &day.DeepAnalysis, &day.Calls); err != nil {
+		if err = rows.Scan(&day.Date, &day.Credits, &day.Transcription, &day.Analysis, &day.Calls); err != nil {
 			return models.CreditDashboard{}, err
 		}
 		result.Activity = append(result.Activity, day)

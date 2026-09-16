@@ -115,7 +115,8 @@ func (stubActionAPI) Complete(http.ResponseWriter, *http.Request)           {}
 func (stubActionAPI) Cancel(http.ResponseWriter, *http.Request)             {}
 func (stubActionAPI) Reschedule(http.ResponseWriter, *http.Request)         {}
 func (stubActionAPI) Reassign(http.ResponseWriter, *http.Request)           {}
-func (stubActionAPI) Reopen(http.ResponseWriter, *http.Request)             {}
+func (stubActionAPI) Edit(http.ResponseWriter, *http.Request)               {}
+func (stubActionAPI) RevertStatus(http.ResponseWriter, *http.Request)       {}
 func (stubActionAPI) CreateTransfer(http.ResponseWriter, *http.Request)     {}
 func (stubActionAPI) ApproveTransfer(http.ResponseWriter, *http.Request)    {}
 func (stubActionAPI) RejectTransfer(http.ResponseWriter, *http.Request)     {}
@@ -123,7 +124,6 @@ func (stubActionAPI) CompleteAdmin(http.ResponseWriter, *http.Request)      {}
 func (stubActionAPI) CancelAdmin(http.ResponseWriter, *http.Request)        {}
 func (stubActionAPI) RescheduleAdmin(http.ResponseWriter, *http.Request)    {}
 func (stubActionAPI) ReassignAdmin(http.ResponseWriter, *http.Request)      {}
-func (stubActionAPI) ReopenAdmin(http.ResponseWriter, *http.Request)        {}
 
 type stubCallFolderAPI struct{}
 
@@ -135,9 +135,6 @@ func (stubCallFolderAPI) Delete(w http.ResponseWriter, r *http.Request)         
 func (stubCallFolderAPI) ListCalls(w http.ResponseWriter, r *http.Request)           {}
 func (stubCallFolderAPI) AssignCall(w http.ResponseWriter, r *http.Request)          {}
 func (stubCallFolderAPI) RemoveCall(w http.ResponseWriter, r *http.Request)          {}
-func (stubCallFolderAPI) GrantAccess(w http.ResponseWriter, r *http.Request)         {}
-func (stubCallFolderAPI) RevokeAccess(w http.ResponseWriter, r *http.Request)        {}
-func (stubCallFolderAPI) ListAccesses(w http.ResponseWriter, r *http.Request)        {}
 func (stubCallFolderAPI) ReplaceInstructions(w http.ResponseWriter, r *http.Request) {}
 
 type stubContactAPI struct{}

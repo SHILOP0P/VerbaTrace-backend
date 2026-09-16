@@ -55,6 +55,40 @@ func (_c *AnalysisAPI_AnalyzeCall_Call) RunAndReturn(run func(http.ResponseWrite
 	return _c
 }
 
+// DecideRerun provides a mock function with given fields: w, r
+func (_m *AnalysisAPI) DecideRerun(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// AnalysisAPI_DecideRerun_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DecideRerun'
+type AnalysisAPI_DecideRerun_Call struct {
+	*mock.Call
+}
+
+// DecideRerun is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *AnalysisAPI_Expecter) DecideRerun(w interface{}, r interface{}) *AnalysisAPI_DecideRerun_Call {
+	return &AnalysisAPI_DecideRerun_Call{Call: _e.mock.On("DecideRerun", w, r)}
+}
+
+func (_c *AnalysisAPI_DecideRerun_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *AnalysisAPI_DecideRerun_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *AnalysisAPI_DecideRerun_Call) Return() *AnalysisAPI_DecideRerun_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *AnalysisAPI_DecideRerun_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AnalysisAPI_DecideRerun_Call {
+	_c.Run(run)
+	return _c
+}
+
 // GetAppliedInstruction provides a mock function with given fields: w, r
 func (_m *AnalysisAPI) GetAppliedInstruction(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -153,6 +187,74 @@ func (_c *AnalysisAPI_ListAppliedInstructions_Call) Return() *AnalysisAPI_ListAp
 }
 
 func (_c *AnalysisAPI_ListAppliedInstructions_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AnalysisAPI_ListAppliedInstructions_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ListRerunRequests provides a mock function with given fields: w, r
+func (_m *AnalysisAPI) ListRerunRequests(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// AnalysisAPI_ListRerunRequests_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListRerunRequests'
+type AnalysisAPI_ListRerunRequests_Call struct {
+	*mock.Call
+}
+
+// ListRerunRequests is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *AnalysisAPI_Expecter) ListRerunRequests(w interface{}, r interface{}) *AnalysisAPI_ListRerunRequests_Call {
+	return &AnalysisAPI_ListRerunRequests_Call{Call: _e.mock.On("ListRerunRequests", w, r)}
+}
+
+func (_c *AnalysisAPI_ListRerunRequests_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *AnalysisAPI_ListRerunRequests_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *AnalysisAPI_ListRerunRequests_Call) Return() *AnalysisAPI_ListRerunRequests_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *AnalysisAPI_ListRerunRequests_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AnalysisAPI_ListRerunRequests_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RequestRerun provides a mock function with given fields: w, r
+func (_m *AnalysisAPI) RequestRerun(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// AnalysisAPI_RequestRerun_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RequestRerun'
+type AnalysisAPI_RequestRerun_Call struct {
+	*mock.Call
+}
+
+// RequestRerun is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *AnalysisAPI_Expecter) RequestRerun(w interface{}, r interface{}) *AnalysisAPI_RequestRerun_Call {
+	return &AnalysisAPI_RequestRerun_Call{Call: _e.mock.On("RequestRerun", w, r)}
+}
+
+func (_c *AnalysisAPI_RequestRerun_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *AnalysisAPI_RequestRerun_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *AnalysisAPI_RequestRerun_Call) Return() *AnalysisAPI_RequestRerun_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *AnalysisAPI_RequestRerun_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AnalysisAPI_RequestRerun_Call {
 	_c.Run(run)
 	return _c
 }

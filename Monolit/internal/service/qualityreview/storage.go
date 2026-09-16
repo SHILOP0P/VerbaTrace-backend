@@ -278,6 +278,18 @@ func (s *Service) CreateAppeal(ctx context.Context, in AppealInput) (models.Qual
 	if !allowed {
 		return models.QualityReviewAppeal{}, ErrForbidden
 	}
+	// The deputy is the ceiling of the appeal chain: an assessment written by
+	// the deputy or the owner has nobody above it to overturn it.
+	var byManagement bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(
+		SELECT 1 FROM call_quality_review_revisions r
+		JOIN company_members cm ON cm.user_uuid=r.author_user_uuid
+		WHERE r.revision_uuid=$1 AND cm.company_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy'))`, q.ActiveRevisionUUID.UUID, q.CompanyUUID.UUID).Scan(&byManagement); err != nil {
+		return models.QualityReviewAppeal{}, err
+	}
+	if byManagement {
+		return models.QualityReviewAppeal{}, ErrAppealCeilingReached
+	}
 	id, now := uuid.New(), time.Now().UTC()
 	_, err = tx.ExecContext(ctx, `INSERT INTO call_quality_review_appeals(appeal_uuid,review_uuid,revision_uuid,author_user_uuid,status,reason,created_at,updated_at,lock_version) VALUES($1,$2,$3,$4,'open',$5,$6,$6,1)`, id, q.ID, q.ActiveRevisionUUID.UUID, in.ActorUserUUID, reason, now)
 	if err != nil {
@@ -324,6 +336,17 @@ func (s *Service) ResolveAppeal(ctx context.Context, in ResolveAppealInput) (mod
 	access, err := authorizeTx(ctx, tx, q.CallUUID, q.CompanyUUID, q.DepartmentUUID, in.ActorUserUUID)
 	if err != nil || !access.CanReview {
 		return a, ErrForbidden
+	}
+	// An appeal against a leader's assessment goes up, not sideways: only the
+	// deputy or the owner settles it.
+	if q.CompanyUUID.Valid {
+		var management bool
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active' AND role IN ('company_manager','company_deputy'))`, q.CompanyUUID.UUID, in.ActorUserUUID).Scan(&management); err != nil {
+			return a, err
+		}
+		if !management {
+			return a, ErrForbidden
+		}
 	}
 	var revisionAuthor uuid.UUID
 	if err = tx.QueryRowContext(ctx, `SELECT author_user_uuid FROM call_quality_review_revisions WHERE revision_uuid=$1`, a.RevisionUUID).Scan(&revisionAuthor); err != nil {

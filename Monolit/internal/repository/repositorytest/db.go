@@ -111,8 +111,7 @@ func TruncateTables(t *testing.T, db *sql.DB) {
 		('33333333-3333-7333-8333-333333333341','33333333-3333-7333-8333-333333333331','transcription','assemblyai','universal-2','standard','audio_hour',150000000),
 		('33333333-3333-7333-8333-333333333342','33333333-3333-7333-8333-333333333331','transcription','assemblyai','universal-2','diarized','audio_hour',170000000),
 		('33333333-3333-7333-8333-333333333343','33333333-3333-7333-8333-333333333331','transcription','assemblyai','universal-2','identified','audio_hour',190000000),
-		('33333333-3333-7333-8333-333333333344','33333333-3333-7333-8333-333333333331','analysis','openrouter','openai/gpt-5-mini','','provider_actual_cost',0),
-		('33333333-3333-7333-8333-333333333345','33333333-3333-7333-8333-333333333331','deep_analysis','openrouter','openai/gpt-5-mini','','provider_actual_cost',0)
+		('33333333-3333-7333-8333-333333333344','33333333-3333-7333-8333-333333333331','analysis','openrouter','openai/gpt-5-mini','','provider_actual_cost',0)
 		ON CONFLICT (pricing_rate_uuid) DO NOTHING
 	`)
 	require.NoError(t, err)

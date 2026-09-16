@@ -118,7 +118,6 @@ type CreditActivityDay struct {
 	Credits       int64
 	Transcription int64
 	Analysis      int64
-	DeepAnalysis  int64
 	Calls         int
 }
 

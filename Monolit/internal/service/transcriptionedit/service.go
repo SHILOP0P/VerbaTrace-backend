@@ -282,7 +282,9 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 	words := append([]models.TranscriptionWord(nil), transcription.Words...)
 	seen := make(map[int]struct{}, len(input.Edits))
 	changed := make([]int, 0, len(input.Edits))
-	textChanged := false
+	// Both a corrected word and a word moved to another speaker change what the
+	// analysis was built on. Only renaming a speaker leaves the content alone.
+	contentChanged := false
 	for _, edit := range input.Edits {
 		if edit.WordIndex < 0 || edit.WordIndex >= len(words) {
 			return models.Transcription{}, Revision{}, models.ErrInvalidTranscriptionEdit
@@ -304,7 +306,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 			if value != word.Text {
 				word.Text = value
 				changedHere = true
-				textChanged = true
+				contentChanged = true
 			}
 		}
 		if edit.Speaker != nil {
@@ -315,6 +317,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 			if value != word.Speaker {
 				word.Speaker = value
 				changedHere = true
+				contentChanged = true
 			}
 		}
 		if changedHere {
@@ -373,7 +376,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 	if err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
-	if textChanged {
+	if contentChanged {
 		if err = markAnalysisStale(ctx, tx, input.CallUUID); err != nil {
 			return models.Transcription{}, Revision{}, err
 		}

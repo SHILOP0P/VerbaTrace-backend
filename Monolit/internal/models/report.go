@@ -137,13 +137,12 @@ type MarkReportFailedInput struct {
 }
 
 type SaveReportInput struct {
-	ReportUUID            uuid.UUID
-	CallUUID              uuid.UUID
-	AggregateAnalysisUUID uuid.UUID
-	Format                ReportFormat
-	FileName              string
-	MimeType              string
-	Content               io.Reader
+	ReportUUID uuid.UUID
+	CallUUID   uuid.UUID
+	Format     ReportFormat
+	FileName   string
+	MimeType   string
+	Content    io.Reader
 }
 
 type SavedReportFile struct {
@@ -154,45 +153,5 @@ type SavedReportFile struct {
 
 type ReportFile struct {
 	Report  ReportExport
-	Content io.ReadCloser
-}
-
-type AggregateReportExport struct {
-	ID                    uuid.UUID
-	AggregateAnalysisUUID uuid.UUID
-	RequestedByUserUUID   uuid.UUID
-	Format                ReportFormat
-	Status                ReportStatus
-	StoragePath           *string
-	FileName              string
-	ContentType           string
-	SizeBytes             int64
-	ErrorMessage          *string
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	ExpiresAt             time.Time
-}
-
-type CreateAggregateReportInput struct {
-	AggregateAnalysisUUID uuid.UUID
-	UserUUID              uuid.UUID
-	Format                ReportFormat
-}
-
-type MarkAggregateReportReadyInput struct {
-	ID          uuid.UUID
-	StoragePath string
-	FileName    string
-	ContentType string
-	SizeBytes   int64
-}
-
-type MarkAggregateReportFailedInput struct {
-	ID           uuid.UUID
-	ErrorMessage string
-}
-
-type AggregateReportFile struct {
-	Report  AggregateReportExport
 	Content io.ReadCloser
 }

@@ -453,6 +453,8 @@ func writeError(w http.ResponseWriter, err error) {
 		status, code, message = http.StatusConflict, "quality_review_reviewer_must_differ", "the next review requires another reviewer"
 	case errors.Is(err, qualityreview.ErrActiveAppealExists):
 		status, code, message = http.StatusConflict, "quality_review_active_appeal_exists", "an appeal for the active revision already exists"
+	case errors.Is(err, qualityreview.ErrAppealCeilingReached):
+		status, code, message = http.StatusConflict, "quality_review_appeal_ceiling_reached", "Оценку заместителя и владельца обжаловать нельзя"
 	}
 	response.WriteError(w, status, code, message)
 }

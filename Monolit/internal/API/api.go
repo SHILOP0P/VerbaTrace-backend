@@ -30,14 +30,6 @@ type CallAPI interface {
 
 type AnalyticsAPI interface {
 	GetOverview(w http.ResponseWriter, r *http.Request)
-	CreateDeepAnalysis(w http.ResponseWriter, r *http.Request)
-	ListDeepAnalyses(w http.ResponseWriter, r *http.Request)
-	GetDeepAnalysis(w http.ResponseWriter, r *http.Request)
-	DeepAnalysisEvents(w http.ResponseWriter, r *http.Request)
-	CreateAggregateReport(w http.ResponseWriter, r *http.Request)
-	ListAggregateReports(w http.ResponseWriter, r *http.Request)
-	DownloadAggregateReport(w http.ResponseWriter, r *http.Request)
-	DeleteAggregateReport(w http.ResponseWriter, r *http.Request)
 }
 
 type CallFolderAPI interface {
@@ -92,7 +84,8 @@ type ActionAPI interface {
 	Cancel(http.ResponseWriter, *http.Request)
 	Reschedule(http.ResponseWriter, *http.Request)
 	Reassign(http.ResponseWriter, *http.Request)
-	Reopen(http.ResponseWriter, *http.Request)
+	Edit(http.ResponseWriter, *http.Request)
+	RevertStatus(http.ResponseWriter, *http.Request)
 	CreateTransfer(http.ResponseWriter, *http.Request)
 	ApproveTransfer(http.ResponseWriter, *http.Request)
 	RejectTransfer(http.ResponseWriter, *http.Request)
@@ -100,7 +93,6 @@ type ActionAPI interface {
 	CancelAdmin(http.ResponseWriter, *http.Request)
 	RescheduleAdmin(http.ResponseWriter, *http.Request)
 	ReassignAdmin(http.ResponseWriter, *http.Request)
-	ReopenAdmin(http.ResponseWriter, *http.Request)
 }
 
 type AuthAPI interface {
@@ -203,6 +195,9 @@ type AnalysisAPI interface {
 	GetByCallUUID(w http.ResponseWriter, r *http.Request)
 	ListAppliedInstructions(w http.ResponseWriter, r *http.Request)
 	GetAppliedInstruction(w http.ResponseWriter, r *http.Request)
+	RequestRerun(w http.ResponseWriter, r *http.Request)
+	DecideRerun(w http.ResponseWriter, r *http.Request)
+	ListRerunRequests(w http.ResponseWriter, r *http.Request)
 }
 
 type QualityReviewAPI interface {

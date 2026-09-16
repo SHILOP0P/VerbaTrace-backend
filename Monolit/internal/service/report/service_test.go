@@ -348,6 +348,9 @@ func (f *fakeCallRepository) UpdateCallTitle(context.Context, uuid.UUID, uuid.UU
 func (f *fakeCallRepository) UpdateCallStatus(context.Context, uuid.UUID, models.CallStatus) (models.Call, error) {
 	return models.Call{}, nil
 }
+func (f *fakeCallRepository) CanManageCall(context.Context, uuid.UUID, uuid.UUID) (bool, error) {
+	return true, nil
+}
 func (f *fakeCallRepository) SoftDeleteCall(context.Context, uuid.UUID, uuid.UUID, time.Time, time.Time) (models.Call, error) {
 	return models.Call{}, nil
 }

@@ -31,13 +31,6 @@ type CallService interface {
 
 type AnalyticsService interface {
 	GetOverview(ctx context.Context, input models.AnalyticsOverviewInput) (models.AnalyticsOverview, error)
-	CreateDeepAnalysis(ctx context.Context, input models.CreateDeepAnalysisInput) (models.AggregateAnalysis, error)
-	ListDeepAnalyses(ctx context.Context, input models.ListDeepAnalysesInput) (models.ListAggregateAnalysesResult, error)
-	GetDeepAnalysis(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.AggregateAnalysis, error)
-	CreateAggregateReport(ctx context.Context, input models.CreateAggregateReportInput) (models.AggregateReportExport, error)
-	ListAggregateReports(ctx context.Context, analysisID uuid.UUID, userID uuid.UUID) ([]models.AggregateReportExport, error)
-	GetAggregateReportFile(ctx context.Context, reportID uuid.UUID, userID uuid.UUID) (models.AggregateReportFile, error)
-	DeleteAggregateReport(ctx context.Context, reportID uuid.UUID, userID uuid.UUID) error
 }
 
 type CallFolderService interface {
@@ -173,6 +166,9 @@ type AnalysisService interface {
 	GetByCallUUID(ctx context.Context, callUUID uuid.UUID, userID uuid.UUID) (models.CallAnalysis, error)
 	ListAppliedInstructions(ctx context.Context, analysisID uuid.UUID, userID uuid.UUID) ([]models.AppliedInstruction, error)
 	GetAppliedInstruction(ctx context.Context, analysisID uuid.UUID, versionID uuid.UUID, userID uuid.UUID) (models.AppliedInstruction, error)
+	RequestRerun(ctx context.Context, input models.CreateAnalysisRerunRequestInput) (models.AnalysisRerunRequest, error)
+	DecideRerun(ctx context.Context, input models.DecideAnalysisRerunRequestInput) (models.AnalysisRerunRequest, error)
+	ListRerunRequests(ctx context.Context, input models.ListAnalysisRerunRequestsInput) ([]models.AnalysisRerunRequest, error)
 }
 
 type ReportService interface {

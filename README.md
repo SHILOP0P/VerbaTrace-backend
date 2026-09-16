@@ -20,7 +20,7 @@ Set-Location C:\projects\VerbaTrace\Monolit
 - OpenRouter — AI-анализ звонков, embeddings (`openai/text-embedding-3-small`) и ответы ассистента
 - `ffmpeg`/`ffprobe` — длительность медиа, ASR-кэш и очищенные медиаверсии
 - Локальное хранение медиа, аватаров, инструкций (MD, PDF, DOCX, XLSX) и отчётов на файловой системе
-- Server-Sent Events для статуса звонка, deep analysis и уведомлений
+- Server-Sent Events для статуса звонка и уведомлений
 - Docker Compose (`deploy/docker-compose.yaml`) для локального стека API + PostgreSQL
 
 ## Текущее состояние
@@ -60,7 +60,7 @@ Set-Location C:\projects\VerbaTrace\Monolit
 - Сохранение анализа звонка в `call_analyses` с историей попыток (`call_analysis_attempts`).
 - Папки звонков с доступом по пользователям и привязанными инструкциями анализа.
 - Контакты и избранные звонки.
-- Глубокий агрегированный AI-анализ периода (deep analysis) с экспортом отчётов и SSE-статусом.
+- Запрос сотрудника на повторный анализ звонка, который решает лидер отдела, заместитель или владелец.
 - Retention звонков по тарифу и фоновое удаление просроченных записей.
 - SSE-события статуса обработки звонка (`/calls/{uuid}/events`).
 - Смена пароля и управление собственными сессиями.
@@ -512,6 +512,9 @@ Calls:
 | GET/PUT | `/api/v1/calls/{uuid}/transcription/speakers` | Да | Получить или заменить назначения спикеров |
 | POST | `/api/v1/calls/{uuid}/analysis` | Да | Поставить `analyze_call` job по активной версии транскрипции |
 | GET | `/api/v1/calls/{uuid}/analysis` | Да | Получить сохраненный анализ звонка |
+| POST | `/api/v1/calls/{uuid}/analysis-rerun-requests` | Да | Запросить повторный анализ звонка компании |
+| GET | `/api/v1/companies/{uuid}/analysis-rerun-requests` | Да | Очередь запросов на повторный анализ |
+| POST | `/api/v1/analysis-rerun-requests/{request_uuid}/{approve\|reject}` | Да | Решение по запросу; одобрение сразу запускает анализ |
 | GET | `/api/v1/analyses/{analysis_uuid}/instructions` | Да | Получить снимки инструкций, применённых в анализе |
 | GET | `/api/v1/analyses/{analysis_uuid}/instructions/{version_uuid}` | Да | Получить одну применённую версию инструкции |
 | POST | `/api/v1/calls/{uuid}/reports` | Да | Создать отчет по одному видимому звонку |
@@ -573,6 +576,14 @@ transcription_locked_by_review` — проверяющий должен виде
 восстановление старой версии как новой активной. `POST /calls/{uuid}/analysis`
 не принимает body и анализирует текущую активную версию; история транскрипции
 при этом не перезаписывается.
+
+Первый анализ запускает любой, кто видит звонок. Повторный анализ звонка
+компании — решение о записи, поэтому его запускает лидер её отдела, заместитель
+или владелец; сотруднику возвращается `403 analysis_rerun_forbidden`, и он
+отправляет запрос через `/calls/{uuid}/analysis-rerun-requests`. Запрос видят
+лидеры отдела звонка, а если лидера нет — заместитель или владелец; одобрение
+сразу ставит задание анализа. Личный звонок его автор перезапускает сам,
+ограничения на число перезапусков нет.
 
 `GET /api/v1/calls/{uuid}/audio` и `/media` обслуживаются одним handler:
 
@@ -733,23 +744,15 @@ Reports:
 выводятся при наличии этих данных в выбранной версии. Разные форматы, варианты
 содержимого и версии дедуплицируются независимо.
 
-Deep-analysis reports:
+Отчёт по звонку удаляет тот, кто отвечает за звонок: лидер его отдела, заместитель, владелец компании, а по личному звонку — его автор.
 
-`POST /api/v1/analytics/deep-analyses/{uuid}/reports` создает отдельный экспорт по готовому `aggregate_analyses`/deep analysis и не использует call-specific таблицу `call_report_exports`. Поддерживаемые форматы: `pdf`, `docx`, `md`, `xlsx`. Исходный deep analysis должен быть видим текущему пользователю и иметь `status=done`; иначе API возвращает `404 aggregate_report_not_found` или `409 invalid_aggregate_analysis_status`. Готовый файл скачивается через `/api/v1/analytics/deep-analysis-reports/{report_uuid}/download`; `pending` возвращает `409 report_not_ready`, истекший или отсутствующий файл возвращает `410 aggregate_report_file_not_found`. Subscription/model-tier логика для этих routes не добавлялась.
 
 Analytics and monitoring:
 
 | Method | Path | Auth | Описание |
 | --- | --- | --- | --- |
 | GET | `/api/v1/analytics/overview` | Да | KPI summary по видимым текущему пользователю звонкам |
-| POST | `/api/v1/analytics/deep-analyses` | Да | Создать или переиспользовать глубокий AI-анализ периода |
-| GET | `/api/v1/analytics/deep-analyses` | Да | Получить список видимых deep analyses |
-| GET | `/api/v1/analytics/deep-analyses/{uuid}` | Да | Получить один видимый deep analysis |
-| GET | `/api/v1/analytics/deep-analyses/{uuid}/events` | Да | SSE-поток статуса deep analysis (`status`, `error`) |
-| POST | `/api/v1/analytics/deep-analyses/{uuid}/reports` | Да | Создать экспорт отчета по готовому deep analysis |
-| GET | `/api/v1/analytics/deep-analyses/{uuid}/reports` | Да | Получить экспорты одного видимого deep analysis |
-| GET | `/api/v1/analytics/deep-analysis-reports/{report_uuid}/download` | Да | Скачать готовый deep-analysis report |
-| DELETE | `/api/v1/analytics/deep-analysis-reports/{report_uuid}` | Да | Удалить deep-analysis report |
+
 | GET | `/api/v1/monitoring/processing` | Да | Summary очереди обработки; требует permission `admin.monitoring.read` (`admin`/`superadmin`) |
 
 Search:
@@ -947,90 +950,6 @@ Notifications:
 
 `risks_count` использует `risks`, `customer_objections`, `manager_quality.issues`. `recommendations_count` использует `manager_quality.recommendations`, `next_steps`, `recommendations`. `top_topics` использует `topics` и `top_topics`. CRM-сущности, сделки, воронка продаж и клиентская база в analytics не добавляются.
 
-Deep aggregate analysis:
-
-`POST /api/v1/analytics/deep-analyses` принимает JSON:
-
-```json
-{
-  "scope": "company",
-  "company_uuid": "company_uuid",
-  "department_uuid": null,
-  "folder_uuid": null,
-  "period_from": "2026-07-01",
-  "period_to": "2026-07-07",
-  "force": false
-}
-```
-
-Поддерживаемые scope: `personal`, `company`, `department`, `folder`. Для `folder` backend использует уже существующую модель call folders и проверяет права папки. Даты принимаются как `YYYY-MM-DD` или RFC3339; дата `period_to` в формате `YYYY-MM-DD` считается до конца дня UTC.
-
-Создание асинхронное: `POST` сохраняет запись со `status=pending`, запускает обработку в фоне и сразу возвращает `201`. Итог отслеживается через `GET /analytics/deep-analyses/{uuid}` или SSE `/events`; ошибка провайдера переводит запись в `failed` уже в фоне. Фоновая обработка сейчас не является durable job: при перезапуске сервера незавершённый анализ остаётся в `pending`.
-
-Если уже есть non-failed deep analysis с тем же scope/subject/period, тем же `source_calls_count` (а для `done` — и тем же `source_set_hash`) и `force=false`, backend возвращает его (тоже `201`) и не тратит лимит. Иначе, в том числе при `force=true`, создается новый анализ и лимит тратится. Временный лимит для тестирования: 100 новых deep analyses в UTC-неделю (понедельник 00:00 UTC), причём считается неделя, в которую попадает `period_from`, а не дата запроса. Для `personal` и personal folder лимит считается по пользователю; для `company`, `department`, company folder и department folder лимит общий по компании.
-
-Deep analysis использует сохраненные `call_analyses.result_json` по analyzed calls, а не полные транскрипции. Backend загружает все видимые готовые per-call analyses за выбранный scope/period и строит детерминированный агрегированный dataset по всему набору: `source_summary`, `score_summary`, `issue_coverage`, `weak_criteria`, `business_outcomes`, `lost_reasons`, `customer_objections`, `risks`, `topics`, `next_step_summary`, `attention_calls`, `strong_calls`. В AI prompt отправляется полный dataset и ограниченный набор `representative_calls` только как доказательные примеры; representative calls не являются полной базой анализа. `source_calls_count` хранит полный count analyzed calls за период. Для контроля состава dataset содержит `source_set_hash`.
-
-Правила результата deep analysis отличаются от анализа одного звонка: `recurring_issues` должен описывать только паттерны, подтвержденные минимум двумя звонками; единичные, но важные сигналы помещаются в `single_call_observations`. Backend дополнительно обогащает `result_json` проверяемыми блоками `source_summary`, `aggregate_statistics` и `coverage_note`, поэтому frontend может показывать доли и counts из backend-расчетов, а не из свободного текста модели.
-
-Ответ deep analysis содержит:
-
-```json
-{
-  "id": "aggregate_analysis_uuid",
-  "scope": "company",
-  "company_uuid": "company_uuid",
-  "department_uuid": null,
-  "folder_uuid": null,
-  "period_from": "2026-07-01T00:00:00Z",
-  "period_to": "2026-07-07T23:59:59Z",
-  "status": "done",
-  "provider": "openrouter",
-  "model": "openai/gpt-5-mini",
-  "user_uuid": "user_uuid",
-  "source_calls_count": 24,
-  "result_json": {
-    "summary": "...",
-    "executive_summary": "...",
-    "overall_assessment": "...",
-    "source_summary": {
-      "analyzed_calls": 24,
-      "included_in_statistics": 24,
-      "representative_calls": 24,
-      "all_analyzed_calls_used": true,
-      "source_set_hash": "..."
-    },
-    "aggregate_statistics": {
-      "issue_coverage": [
-        {
-          "code": "unclear_pricing",
-          "title": "Неясное объяснение цены",
-          "count": 8,
-          "share": 0.3333,
-          "sample_call_uuids": ["..."]
-        }
-      ],
-      "weak_criteria": [],
-      "next_step_summary": {}
-    },
-    "recurring_issues": [],
-    "single_call_observations": [],
-    "systemic_issues": [],
-    "weak_criteria": [],
-    "client_objections": [],
-    "loss_and_risk_patterns": [],
-    "detailed_report": {}
-  },
-  "result_text": "...",
-  "error_message": null,
-  "created_by_user_uuid": "user_uuid",
-  "created_at": "...",
-  "updated_at": "..."
-}
-```
-
-Ошибки: `invalid_deep_analysis_input` -> 400, `forbidden` -> 403 (company/department/folder scope без прав руководителя), `aggregate_analysis_not_found` -> 404, `no_analyzed_calls_for_deep_analysis` -> 409, `deep_analysis_limit_exceeded` -> 429; прочие непредвиденные ошибки -> 502. Subscription tiers, model tiers и analysis depth by plan в этом endpoint намеренно не реализованы.
-
 `GET /api/v1/monitoring/processing` принимает query-параметры:
 
 | Параметр | Значение |
@@ -1191,7 +1110,7 @@ Frontend в соседнем репозитории отображает MD ка
 | GET | `/api/v1/admin/calls/{call_uuid}/audio`, `/media` | admin+ | Медиа звонка (нужен support-доступ) |
 | GET | `/api/v1/admin/actions[/{action_uuid}]` | admin+ | Действия по звонкам |
 | GET | `/api/v1/admin/companies/{uuid}/action-assignees` | admin+ | Возможные ответственные в компании |
-| POST | `/api/v1/admin/actions/{action_uuid}/{complete\|cancel\|reschedule\|reassign\|reopen}` | admin+ | Административное изменение действия |
+| POST | `/api/v1/admin/actions/{action_uuid}/{complete\|cancel\|reschedule\|reassign}` | admin+ | Административное изменение действия |
 
 Для выдачи подписки передаются `plan_code`, `ends_at` в RFC3339 и обязательный `reason`; `starts_at` необязателен, но не может быть позже текущего момента более чем на минуту, а `ends_at` должен быть позже `starts_at`. Публичные mutation endpoints самостоятельной активации подписки отсутствуют.
 
@@ -1215,7 +1134,7 @@ Billing:
 
 Личные звонки и персональные инструкции проверяются по персональной подписке пользователя. Звонки, отделы, участники, приглашения и инструкции компании проверяются по активной бизнес-подписке компании. Бизнес-подписка компании дает персональный бонус только менеджеру этой компании: `business_start` и `business_plus` дают эффективный `personal_plus`, `business_pro` дает эффективный `personal_pro`.
 
-Каждый вызов провайдера (транскрибация, шаги анализа, deep analysis, ассистент) сначала резервирует максимальную стоимость в credit ledger с детерминированным idempotency-ключом, а после ответа провайдера списывает фактическую стоимость; неоднозначные результаты уходят в `reconciling` и разбираются reconciliation worker. Операционные инварианты описаны в [runbook](docs/runbooks/credit-integration-platform.md).
+Каждый вызов провайдера (транскрибация, шаги анализа, ассистент) сначала резервирует максимальную стоимость в credit ledger с детерминированным idempotency-ключом, а после ответа провайдера списывает фактическую стоимость; неоднозначные результаты уходят в `reconciling` и разбираются reconciliation worker. Операционные инварианты описаны в [runbook](docs/runbooks/credit-integration-platform.md).
 
 Developer platform и интеграции:
 
@@ -1266,6 +1185,10 @@ Human QA:
 
 Проверять звонки компании может руководитель; загрузивший звонок не может проверять собственный company-звонок. Личный звонок проверяет только его владелец.
 
+Заместитель — потолок апелляции: оценку, написанную владельцем или заместителем,
+обжаловать нельзя (`409 quality_review_appeal_ceiling_reached`). Апелляцию на
+оценку лидера решает заместитель или владелец, и никогда автор самой оценки.
+
 Действия по итогам звонка:
 
 | Method | Path | Auth | Описание |
@@ -1273,11 +1196,24 @@ Human QA:
 | POST | `/api/v1/calls/{uuid}/actions` | Да | Создать действие с ответственным, сроком и evidence |
 | PUT | `/api/v1/calls/{uuid}/analyses/{analysis_uuid}/action-disposition` | Да | Отметить «действий не требуется» |
 | GET | `/api/v1/actions[/{action_uuid}]` | Да | Список / карточка действия |
-| POST | `/api/v1/actions/{action_uuid}/{start\|complete\|cancel\|reschedule\|reassign\|reopen}` | Да | Смена статуса, срока или ответственного |
+| POST | `/api/v1/actions/{action_uuid}/{start\|complete\|cancel\|reschedule\|reassign\|revert-status}` | Да | Смена статуса, срока или ответственного; `revert-status` откатывает последнюю смену статуса в течение часа |
+| PATCH | `/api/v1/actions/{action_uuid}` | Да | Изменить название и описание действия; доступно тому, кто его поставил |
 | POST | `/api/v1/actions/{action_uuid}/transfer-requests[/{request_uuid}/approve\|/reject]` | Да | Запрос и решение о передаче действия |
 | GET | `/api/v1/companies/{uuid}/action-assignees` | Да | Возможные ответственные |
 
 Мутации используют idempotency-ключи и `lock_version`; фоновый worker рассылает напоминания и помечает просроченные действия.
+
+Кто что может с действием:
+
+- Создать действие и отметить «действий не требуется» — автор звонка, лидер его
+  отдела, заместитель и владелец. Отдел берётся из самого звонка, а не из запроса.
+- Название и описание правит тот, кто поставил действие.
+- Исполнителя он же меняет в течение суток или пока действие не взяли в работу,
+  дальше это делают лидер, заместитель и владелец.
+- Срок меняет только лидер, заместитель или владелец.
+- Смену статуса можно откатить в течение часа (`revert-status`): это делает
+  исполнитель, лидер, заместитель или владелец.
+- Восстановления завершённого действия нет: вместо него создаётся новое.
 
 Контакты, избранное и персонализация:
 
@@ -1681,7 +1617,7 @@ Mock-анализатор и старые записи используют `sch
 
 Основные поля v2: `score_breakdown`, `criteria_results`, `business_outcome`, `customer_signals`, `next_step_quality`, `issue_codes`, `evidence_quotes`.
 
-Контракт анализа одного звонка не запускает deep analysis и не экспортирует агрегированные отчёты: для этого используются отдельные `/api/v1/analytics/deep-analyses` routes, описанные выше. Папки звонков остаются группировкой и фильтром; привязанные к папке инструкции применяются при анализе её звонков.
+Агрегированного анализа периода в продукте нет: анализ делается по одному звонку. Папки звонков остаются группировкой и фильтром; привязанные к папке инструкции применяются при анализе её звонков.
 
 ## Формат ошибок API
 

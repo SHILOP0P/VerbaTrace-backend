@@ -3,11 +3,16 @@ package action
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+// statusRevertWindow is how long a status change can be taken back.
+const statusRevertWindow = time.Hour
 
 const actionSelect = `SELECT a.action_uuid,a.company_uuid,COALESCE(c.name,''),COALESCE(c.tag,''),CASE WHEN a.company_uuid IS NULL THEN 'personal' ELSE 'company' END,CASE WHEN a.company_uuid IS NULL THEN p.username ELSE COALESCE(NULLIF(c.tag,''),a.company_uuid::text) END,a.source_department_uuid,COALESCE(sd.name,''),a.target_department_uuid,COALESCE(td.name,''),a.call_uuid,a.analysis_uuid,a.transcription_revision,a.title,a.description,a.status,a.assignment_state,a.assignee_user_uuid,p.username,a.due_at,a.grace_expires_at,a.lock_version,a.created_by_user_uuid,a.created_at,a.updated_at,a.completed_at,a.cancelled_at,a.cancel_reason FROM call_actions a JOIN user_profiles p ON p.user_uuid=a.assignee_user_uuid LEFT JOIN companies c ON c.company_uuid=a.company_uuid LEFT JOIN departments sd ON sd.department_uuid=a.source_department_uuid LEFT JOIN departments td ON td.department_uuid=a.target_department_uuid`
 
@@ -59,7 +64,17 @@ func (s *Service) access(ctx context.Context, item Item, actor uuid.UUID, admin 
 		}
 		visible := actor == item.AssigneeUserUUID || actor == item.CreatedByUserUUID || adminAllowed
 		terminal := item.Status == "completed" || item.Status == "cancelled"
-		return Capabilities{CanStart: !terminal && actor == item.AssigneeUserUUID, CanComplete: !terminal && actor == item.AssigneeUserUUID, CanReschedule: !terminal && (actor == item.AssigneeUserUUID || adminAllowed), CanReopen: terminal && adminAllowed}, visible, nil
+		revertible, err := s.statusRevertible(ctx, item.ID)
+		if err != nil {
+			return Capabilities{}, false, err
+		}
+		return Capabilities{
+			CanStart:        !terminal && actor == item.AssigneeUserUUID,
+			CanComplete:     !terminal && actor == item.AssigneeUserUUID,
+			CanReschedule:   !terminal && (actor == item.AssigneeUserUUID || adminAllowed),
+			CanEditFields:   !terminal && actor == item.CreatedByUserUUID,
+			CanRevertStatus: revertible && (actor == item.AssigneeUserUUID || adminAllowed),
+		}, visible, nil
 	}
 	var manager, leaderSource, leaderTarget bool
 	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$2 AND user_uuid=$1 AND status='active' AND role IN ('company_manager','company_deputy')),EXISTS(SELECT 1 FROM department_members WHERE department_uuid=$3 AND user_uuid=$1 AND status='active' AND role='department_leader'),EXISTS(SELECT 1 FROM department_members WHERE department_uuid=$4 AND user_uuid=$1 AND status='active' AND role='department_leader')`, actor, *item.CompanyUUID, item.SourceDepartmentUUID, item.TargetDepartmentUUID).Scan(&manager, &leaderSource, &leaderTarget)
@@ -87,7 +102,42 @@ func (s *Service) access(ctx context.Context, item Item, actor uuid.UUID, admin 
 		}
 	}
 	canReassign := !terminal && (manager || adminAllowed || ((leaderSource || leaderTarget) && !assignedByManager))
-	return Capabilities{CanStart: !terminal && (actor == item.AssigneeUserUUID || manage), CanComplete: !terminal && (actor == item.AssigneeUserUUID || manage), CanCancel: !terminal && manage, CanReschedule: !terminal && manage, CanReassign: canReassign, CanRequestTransfer: !terminal && actor == item.AssigneeUserUUID, CanResolveTransfer: !terminal && manage, CanReopen: terminal && manage}, visible, nil
+	// Whoever set the action may still hand it to somebody else for a day, or
+	// until the assignee picks it up. After that it is a management decision.
+	if !terminal && actor == item.CreatedByUserUUID && item.Status == "open" && s.now().UTC().Before(item.CreatedAt.Add(24*time.Hour)) {
+		canReassign = true
+	}
+	revertible, err := s.statusRevertible(ctx, item.ID)
+	if err != nil {
+		return Capabilities{}, false, err
+	}
+	return Capabilities{
+		CanStart:           !terminal && (actor == item.AssigneeUserUUID || manage),
+		CanComplete:        !terminal && (actor == item.AssigneeUserUUID || manage),
+		CanCancel:          !terminal && manage,
+		CanReschedule:      !terminal && manage,
+		CanReassign:        canReassign,
+		CanRequestTransfer: !terminal && actor == item.AssigneeUserUUID,
+		CanResolveTransfer: !terminal && manage,
+		CanEditFields:      !terminal && actor == item.CreatedByUserUUID,
+		CanRevertStatus:    revertible && (actor == item.AssigneeUserUUID || manage),
+	}, visible, nil
+}
+
+// statusRevertible answers whether the last status change is still young enough
+// to be taken back. An hour is the window for undoing a wrong click; after that
+// the history stands.
+func (s *Service) statusRevertible(ctx context.Context, actionID uuid.UUID) (bool, error) {
+	var createdAt sql.NullTime
+	err := s.db.QueryRowContext(ctx, `SELECT created_at FROM call_action_events WHERE action_uuid=$1 AND event_type IN ('started','completed','cancelled') ORDER BY created_at DESC,event_uuid DESC LIMIT 1`, actionID).Scan(&createdAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return createdAt.Valid && s.now().UTC().Before(createdAt.Time.Add(statusRevertWindow)), nil
 }
 
 func (s *Service) evidence(ctx context.Context, id uuid.UUID) ([]Evidence, error) {

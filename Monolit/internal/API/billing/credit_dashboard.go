@@ -116,7 +116,7 @@ func (h *Handler) getCreditDashboard(w http.ResponseWriter, r *http.Request, use
 func dashboardResponse(value models.CreditDashboard) map[string]any {
 	activity := make([]map[string]any, 0, len(value.Activity))
 	for _, day := range value.Activity {
-		activity = append(activity, map[string]any{"date": day.Date.Format("2006-01-02"), "credits": day.Credits, "transcription": day.Transcription, "analysis": day.Analysis, "deep_analysis": day.DeepAnalysis, "calls": day.Calls})
+		activity = append(activity, map[string]any{"date": day.Date.Format("2006-01-02"), "credits": day.Credits, "transcription": day.Transcription, "analysis": day.Analysis, "calls": day.Calls})
 	}
 	entries := make([]map[string]any, 0, len(value.WalletEntries))
 	for _, item := range value.WalletEntries {

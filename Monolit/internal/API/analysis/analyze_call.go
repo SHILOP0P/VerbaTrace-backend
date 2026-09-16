@@ -66,6 +66,10 @@ func writeAnalyzeError(w http.ResponseWriter, err error) {
 		response.WriteError(w, http.StatusConflict, response.CodeTestCallReadOnly, "test calls cannot be analyzed")
 		return
 	}
+	if errors.Is(err, models.ErrAnalysisRerunForbidden) {
+		response.WriteError(w, http.StatusForbidden, response.CodeAnalysisRerunForbidden, "Перезапустить анализ может лидер отдела, заместитель или владелец")
+		return
+	}
 
 	response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToAnalyzeCall, "failed to analyze call")
 }

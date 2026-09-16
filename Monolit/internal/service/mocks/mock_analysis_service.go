@@ -81,6 +81,63 @@ func (_c *AnalysisService_AnalyzeCall_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// DecideRerun provides a mock function with given fields: ctx, input
+func (_m *AnalysisService) DecideRerun(ctx context.Context, input models.DecideAnalysisRerunRequestInput) (models.AnalysisRerunRequest, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DecideRerun")
+	}
+
+	var r0 models.AnalysisRerunRequest
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.DecideAnalysisRerunRequestInput) (models.AnalysisRerunRequest, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.DecideAnalysisRerunRequestInput) models.AnalysisRerunRequest); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Get(0).(models.AnalysisRerunRequest)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.DecideAnalysisRerunRequestInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// AnalysisService_DecideRerun_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DecideRerun'
+type AnalysisService_DecideRerun_Call struct {
+	*mock.Call
+}
+
+// DecideRerun is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.DecideAnalysisRerunRequestInput
+func (_e *AnalysisService_Expecter) DecideRerun(ctx interface{}, input interface{}) *AnalysisService_DecideRerun_Call {
+	return &AnalysisService_DecideRerun_Call{Call: _e.mock.On("DecideRerun", ctx, input)}
+}
+
+func (_c *AnalysisService_DecideRerun_Call) Run(run func(ctx context.Context, input models.DecideAnalysisRerunRequestInput)) *AnalysisService_DecideRerun_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.DecideAnalysisRerunRequestInput))
+	})
+	return _c
+}
+
+func (_c *AnalysisService_DecideRerun_Call) Return(_a0 models.AnalysisRerunRequest, _a1 error) *AnalysisService_DecideRerun_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *AnalysisService_DecideRerun_Call) RunAndReturn(run func(context.Context, models.DecideAnalysisRerunRequestInput) (models.AnalysisRerunRequest, error)) *AnalysisService_DecideRerun_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetAppliedInstruction provides a mock function with given fields: ctx, analysisID, versionID, userID
 func (_m *AnalysisService) GetAppliedInstruction(ctx context.Context, analysisID uuid.UUID, versionID uuid.UUID, userID uuid.UUID) (models.AppliedInstruction, error) {
 	ret := _m.Called(ctx, analysisID, versionID, userID)
@@ -254,6 +311,122 @@ func (_c *AnalysisService_ListAppliedInstructions_Call) Return(_a0 []models.Appl
 }
 
 func (_c *AnalysisService_ListAppliedInstructions_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) ([]models.AppliedInstruction, error)) *AnalysisService_ListAppliedInstructions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListRerunRequests provides a mock function with given fields: ctx, input
+func (_m *AnalysisService) ListRerunRequests(ctx context.Context, input models.ListAnalysisRerunRequestsInput) ([]models.AnalysisRerunRequest, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListRerunRequests")
+	}
+
+	var r0 []models.AnalysisRerunRequest
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListAnalysisRerunRequestsInput) ([]models.AnalysisRerunRequest, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListAnalysisRerunRequestsInput) []models.AnalysisRerunRequest); ok {
+		r0 = rf(ctx, input)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AnalysisRerunRequest)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.ListAnalysisRerunRequestsInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// AnalysisService_ListRerunRequests_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListRerunRequests'
+type AnalysisService_ListRerunRequests_Call struct {
+	*mock.Call
+}
+
+// ListRerunRequests is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.ListAnalysisRerunRequestsInput
+func (_e *AnalysisService_Expecter) ListRerunRequests(ctx interface{}, input interface{}) *AnalysisService_ListRerunRequests_Call {
+	return &AnalysisService_ListRerunRequests_Call{Call: _e.mock.On("ListRerunRequests", ctx, input)}
+}
+
+func (_c *AnalysisService_ListRerunRequests_Call) Run(run func(ctx context.Context, input models.ListAnalysisRerunRequestsInput)) *AnalysisService_ListRerunRequests_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.ListAnalysisRerunRequestsInput))
+	})
+	return _c
+}
+
+func (_c *AnalysisService_ListRerunRequests_Call) Return(_a0 []models.AnalysisRerunRequest, _a1 error) *AnalysisService_ListRerunRequests_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *AnalysisService_ListRerunRequests_Call) RunAndReturn(run func(context.Context, models.ListAnalysisRerunRequestsInput) ([]models.AnalysisRerunRequest, error)) *AnalysisService_ListRerunRequests_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RequestRerun provides a mock function with given fields: ctx, input
+func (_m *AnalysisService) RequestRerun(ctx context.Context, input models.CreateAnalysisRerunRequestInput) (models.AnalysisRerunRequest, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RequestRerun")
+	}
+
+	var r0 models.AnalysisRerunRequest
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateAnalysisRerunRequestInput) (models.AnalysisRerunRequest, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateAnalysisRerunRequestInput) models.AnalysisRerunRequest); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Get(0).(models.AnalysisRerunRequest)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.CreateAnalysisRerunRequestInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// AnalysisService_RequestRerun_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RequestRerun'
+type AnalysisService_RequestRerun_Call struct {
+	*mock.Call
+}
+
+// RequestRerun is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.CreateAnalysisRerunRequestInput
+func (_e *AnalysisService_Expecter) RequestRerun(ctx interface{}, input interface{}) *AnalysisService_RequestRerun_Call {
+	return &AnalysisService_RequestRerun_Call{Call: _e.mock.On("RequestRerun", ctx, input)}
+}
+
+func (_c *AnalysisService_RequestRerun_Call) Run(run func(ctx context.Context, input models.CreateAnalysisRerunRequestInput)) *AnalysisService_RequestRerun_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.CreateAnalysisRerunRequestInput))
+	})
+	return _c
+}
+
+func (_c *AnalysisService_RequestRerun_Call) Return(_a0 models.AnalysisRerunRequest, _a1 error) *AnalysisService_RequestRerun_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *AnalysisService_RequestRerun_Call) RunAndReturn(run func(context.Context, models.CreateAnalysisRerunRequestInput) (models.AnalysisRerunRequest, error)) *AnalysisService_RequestRerun_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -65,20 +65,40 @@ func TestProcessAnalyzeCallValidation(t *testing.T) {
 		t.Fatalf("missing analyzer error = %v", err)
 	}
 
+	// A finished analysis means the job is a duplicate and nothing has to run.
 	callID := uuid.New()
 	callRepo := repositoryMocks.NewCallRepository(t)
 	analyzer := analyzerMocks.NewAnalyzer(t)
+	analysisRepo := repositoryMocks.NewAnalysisRepository(t)
 	callRepo.EXPECT().GetByUUIDForProcessing(mock.Anything, callID).
 		Return(models.Call{ID: callID, Status: models.CallStatusAnalyzed}, nil).Once()
-	service = NewService(callRepo, nil, nil, nil, nil, analyzer, nil)
+	analysisRepo.EXPECT().GetByCallUUID(mock.Anything, callID).
+		Return(models.CallAnalysis{CallUUID: callID, Status: models.CallAnalysisStatusDone}, nil).Once()
+	service = NewService(callRepo, nil, nil, analysisRepo, nil, analyzer, nil)
 	if err := service.ProcessAnalyzeCall(context.Background(), callID); err != nil {
 		t.Fatalf("already analyzed: %v", err)
 	}
 
+	// A re-run of an analyzed call leaves a pending analysis, and that one must
+	// be picked up instead of silently skipped.
 	callRepo = repositoryMocks.NewCallRepository(t)
+	analysisRepo = repositoryMocks.NewAnalysisRepository(t)
+	callRepo.EXPECT().GetByUUIDForProcessing(mock.Anything, callID).
+		Return(models.Call{ID: callID, Status: models.CallStatusAnalyzed}, nil).Once()
+	analysisRepo.EXPECT().GetByCallUUID(mock.Anything, callID).
+		Return(models.CallAnalysis{CallUUID: callID, Status: models.CallAnalysisStatusPending}, nil).Once()
+	service = NewService(callRepo, nil, nil, analysisRepo, nil, analyzerMocks.NewAnalyzer(t), nil)
+	if err := service.ProcessAnalyzeCall(context.Background(), callID); !errors.Is(err, models.ErrInvalidAnalysisInput) {
+		t.Fatalf("rerun of analyzed call = %v", err)
+	}
+
+	callRepo = repositoryMocks.NewCallRepository(t)
+	analysisRepo = repositoryMocks.NewAnalysisRepository(t)
 	callRepo.EXPECT().GetByUUIDForProcessing(mock.Anything, callID).
 		Return(models.Call{ID: callID, Status: models.CallStatusTranscribed}, nil).Once()
-	service = NewService(callRepo, nil, nil, nil, nil, analyzerMocks.NewAnalyzer(t), nil)
+	analysisRepo.EXPECT().GetByCallUUID(mock.Anything, callID).
+		Return(models.CallAnalysis{}, models.ErrAnalysisNotFound).Once()
+	service = NewService(callRepo, nil, nil, analysisRepo, nil, analyzerMocks.NewAnalyzer(t), nil)
 	if err := service.ProcessAnalyzeCall(context.Background(), callID); !errors.Is(err, models.ErrInvalidAnalysisInput) {
 		t.Fatalf("missing uploader error = %v", err)
 	}

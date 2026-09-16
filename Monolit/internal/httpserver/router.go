@@ -91,7 +91,6 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 	}
 	r.Route("/api/v1", func(r chi.Router) {
 		r.With(authGuard).Get("/calls/{uuid}/events", callAPI.Events)
-		r.With(authGuard).Get("/analytics/deep-analyses/{uuid}/events", analyticsAPI.DeepAnalysisEvents)
 		// Large audio/video uploads must not inherit the normal 10-second API timeout.
 		r.With(authGuard).With(middleware.Timeout(45*time.Minute)).Post("/calls", callAPI.Create)
 
@@ -150,7 +149,6 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/cancel", actionAPI.CancelAdmin)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/reschedule", actionAPI.RescheduleAdmin)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/reassign", actionAPI.ReassignAdmin)
-				r.With(authMiddleware.RequirePermission(models.AdminPermissionActionsManage)).Post("/actions/{action_uuid}/reopen", actionAPI.ReopenAdmin)
 			})
 
 			//CALL
@@ -221,6 +219,9 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Get("/calls/{uuid}/analysis", analysisAPI.GetByCallUUID)
 			r.With(authGuard).Get("/analyses/{analysis_uuid}/instructions", analysisAPI.ListAppliedInstructions)
 			r.With(authGuard).Get("/analyses/{analysis_uuid}/instructions/{version_uuid}", analysisAPI.GetAppliedInstruction)
+			r.With(authGuard).Post("/calls/{uuid}/analysis-rerun-requests", analysisAPI.RequestRerun)
+			r.With(authGuard).Get("/companies/{uuid}/analysis-rerun-requests", analysisAPI.ListRerunRequests)
+			r.With(authGuard).Post("/analysis-rerun-requests/{request_uuid}/{decision}", analysisAPI.DecideRerun)
 			r.With(authGuard).Post("/calls/{uuid}/quality-reviews", qualityReviewAPI.Create)
 			r.With(authGuard).Get("/calls/{uuid}/quality-review-context", qualityReviewAPI.GetAnalysisContext)
 			r.With(authGuard).Post("/calls/{uuid}/analysis-comments", qualityReviewAPI.CreateAnalysisComment)
@@ -246,7 +247,8 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Post("/actions/{action_uuid}/cancel", actionAPI.Cancel)
 			r.With(authGuard).Post("/actions/{action_uuid}/reschedule", actionAPI.Reschedule)
 			r.With(authGuard).Post("/actions/{action_uuid}/reassign", actionAPI.Reassign)
-			r.With(authGuard).Post("/actions/{action_uuid}/reopen", actionAPI.Reopen)
+			r.With(authGuard).Patch("/actions/{action_uuid}", actionAPI.Edit)
+			r.With(authGuard).Post("/actions/{action_uuid}/revert-status", actionAPI.RevertStatus)
 			r.With(authGuard).Post("/actions/{action_uuid}/transfer-requests", actionAPI.CreateTransfer)
 			r.With(authGuard).Post("/actions/{action_uuid}/transfer-requests/{request_uuid}/approve", actionAPI.ApproveTransfer)
 			r.With(authGuard).Post("/actions/{action_uuid}/transfer-requests/{request_uuid}/reject", actionAPI.RejectTransfer)
@@ -277,13 +279,6 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 
 			//ANALYTICS
 			r.With(authGuard).Get("/analytics/overview", analyticsAPI.GetOverview)
-			r.With(authGuard).Post("/analytics/deep-analyses", analyticsAPI.CreateDeepAnalysis)
-			r.With(authGuard).Get("/analytics/deep-analyses", analyticsAPI.ListDeepAnalyses)
-			r.With(authGuard).Get("/analytics/deep-analyses/{uuid}", analyticsAPI.GetDeepAnalysis)
-			r.With(authGuard).Post("/analytics/deep-analyses/{uuid}/reports", analyticsAPI.CreateAggregateReport)
-			r.With(authGuard).Get("/analytics/deep-analyses/{uuid}/reports", analyticsAPI.ListAggregateReports)
-			r.With(authGuard).Get("/analytics/deep-analysis-reports/{report_uuid}/download", analyticsAPI.DownloadAggregateReport)
-			r.With(authGuard).Delete("/analytics/deep-analysis-reports/{report_uuid}", analyticsAPI.DeleteAggregateReport)
 			r.With(authGuard).With(authMiddleware.RequirePermission(models.AdminPermissionMonitoringRead)).Get("/monitoring/processing", monitoringAPI.GetProcessing)
 			r.With(authGuard).Get("/contacts/search", contactAPI.SearchContacts)
 			r.With(authGuard).Get("/contacts", contactAPI.ListContacts)

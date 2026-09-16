@@ -79,63 +79,6 @@ func (_c *Analyzer_Analyze_Call) RunAndReturn(run func(context.Context, models.A
 	return _c
 }
 
-// AnalyzeAggregate provides a mock function with given fields: ctx, request
-func (_m *Analyzer) AnalyzeAggregate(ctx context.Context, request models.AggregateAnalysisRequest) (models.AnalysisResult, error) {
-	ret := _m.Called(ctx, request)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AnalyzeAggregate")
-	}
-
-	var r0 models.AnalysisResult
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.AggregateAnalysisRequest) (models.AnalysisResult, error)); ok {
-		return rf(ctx, request)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, models.AggregateAnalysisRequest) models.AnalysisResult); ok {
-		r0 = rf(ctx, request)
-	} else {
-		r0 = ret.Get(0).(models.AnalysisResult)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, models.AggregateAnalysisRequest) error); ok {
-		r1 = rf(ctx, request)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// Analyzer_AnalyzeAggregate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AnalyzeAggregate'
-type Analyzer_AnalyzeAggregate_Call struct {
-	*mock.Call
-}
-
-// AnalyzeAggregate is a helper method to define mock.On call
-//   - ctx context.Context
-//   - request models.AggregateAnalysisRequest
-func (_e *Analyzer_Expecter) AnalyzeAggregate(ctx interface{}, request interface{}) *Analyzer_AnalyzeAggregate_Call {
-	return &Analyzer_AnalyzeAggregate_Call{Call: _e.mock.On("AnalyzeAggregate", ctx, request)}
-}
-
-func (_c *Analyzer_AnalyzeAggregate_Call) Run(run func(ctx context.Context, request models.AggregateAnalysisRequest)) *Analyzer_AnalyzeAggregate_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(models.AggregateAnalysisRequest))
-	})
-	return _c
-}
-
-func (_c *Analyzer_AnalyzeAggregate_Call) Return(_a0 models.AnalysisResult, _a1 error) *Analyzer_AnalyzeAggregate_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *Analyzer_AnalyzeAggregate_Call) RunAndReturn(run func(context.Context, models.AggregateAnalysisRequest) (models.AnalysisResult, error)) *Analyzer_AnalyzeAggregate_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Provider provides a mock function with no fields
 func (_m *Analyzer) Provider() string {
 	ret := _m.Called()

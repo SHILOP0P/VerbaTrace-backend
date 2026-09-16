@@ -78,10 +78,6 @@ func (r *Repository) ResetAdminUsage(ctx context.Context, input models.ResetAdmi
 	if err = openAllowance(ctx, tx, accountID, epochID, allowance, actor.ID, input.Metadata.Reason, monthEnd); err != nil {
 		return err
 	}
-	// Legacy deep-analysis counter remains a shadow during migration; credits are authoritative.
-	if _, err = tx.ExecContext(ctx, `DELETE FROM deep_analysis_usage_counters WHERE subject_type=$1 AND subject_uuid=$2`, subjectType, owner); err != nil {
-		return err
-	}
 	after, _ := json.Marshal(map[string]any{"owner_uuid": owner, "allowance_credits": allowance, "new_epoch_uuid": epochID, "wallet_changed": false})
 	if err = insertAudit(ctx, tx, models.AdminAuditLog{ID: mustUUIDv7(), ActorUserUUID: actor.ID, ActorRole: actor.Role, Action: "credit_allowance.reset", TargetType: subjectType, TargetUUID: uuid.NullUUID{UUID: owner, Valid: true}, AfterData: after, Reason: &input.Metadata.Reason, RequestID: input.Metadata.RequestID, IPAddress: input.Metadata.IPAddress, UserAgent: input.Metadata.UserAgent, CreatedAt: now}); err != nil {
 		return err

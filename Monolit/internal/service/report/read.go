@@ -66,8 +66,14 @@ func (s *Service) Delete(ctx context.Context, reportID uuid.UUID, userID uuid.UU
 		return err
 	}
 
-	if _, err := s.callRepository.GetByUUID(ctx, report.CallUUID, userID); err != nil {
+	// A report is deleted by whoever answers for the call: the leader of its
+	// department, the deputy, the owner, or the author of a personal call.
+	allowed, err := s.callRepository.CanManageCall(ctx, report.CallUUID, userID)
+	if err != nil {
 		return err
+	}
+	if !allowed {
+		return models.ErrReportNotFound
 	}
 
 	if report.StoragePath != nil {

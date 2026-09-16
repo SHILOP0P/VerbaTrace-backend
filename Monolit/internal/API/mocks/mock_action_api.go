@@ -259,6 +259,40 @@ func (_c *ActionAPI_CreateTransfer_Call) RunAndReturn(run func(http.ResponseWrit
 	return _c
 }
 
+// Edit provides a mock function with given fields: _a0, _a1
+func (_m *ActionAPI) Edit(_a0 http.ResponseWriter, _a1 *http.Request) {
+	_m.Called(_a0, _a1)
+}
+
+// ActionAPI_Edit_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Edit'
+type ActionAPI_Edit_Call struct {
+	*mock.Call
+}
+
+// Edit is a helper method to define mock.On call
+//   - _a0 http.ResponseWriter
+//   - _a1 *http.Request
+func (_e *ActionAPI_Expecter) Edit(_a0 interface{}, _a1 interface{}) *ActionAPI_Edit_Call {
+	return &ActionAPI_Edit_Call{Call: _e.mock.On("Edit", _a0, _a1)}
+}
+
+func (_c *ActionAPI_Edit_Call) Run(run func(_a0 http.ResponseWriter, _a1 *http.Request)) *ActionAPI_Edit_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *ActionAPI_Edit_Call) Return() *ActionAPI_Edit_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *ActionAPI_Edit_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *ActionAPI_Edit_Call {
+	_c.Run(run)
+	return _c
+}
+
 // Get provides a mock function with given fields: _a0, _a1
 func (_m *ActionAPI) Get(_a0 http.ResponseWriter, _a1 *http.Request) {
 	_m.Called(_a0, _a1)
@@ -565,74 +599,6 @@ func (_c *ActionAPI_RejectTransfer_Call) RunAndReturn(run func(http.ResponseWrit
 	return _c
 }
 
-// Reopen provides a mock function with given fields: _a0, _a1
-func (_m *ActionAPI) Reopen(_a0 http.ResponseWriter, _a1 *http.Request) {
-	_m.Called(_a0, _a1)
-}
-
-// ActionAPI_Reopen_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Reopen'
-type ActionAPI_Reopen_Call struct {
-	*mock.Call
-}
-
-// Reopen is a helper method to define mock.On call
-//   - _a0 http.ResponseWriter
-//   - _a1 *http.Request
-func (_e *ActionAPI_Expecter) Reopen(_a0 interface{}, _a1 interface{}) *ActionAPI_Reopen_Call {
-	return &ActionAPI_Reopen_Call{Call: _e.mock.On("Reopen", _a0, _a1)}
-}
-
-func (_c *ActionAPI_Reopen_Call) Run(run func(_a0 http.ResponseWriter, _a1 *http.Request)) *ActionAPI_Reopen_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
-	})
-	return _c
-}
-
-func (_c *ActionAPI_Reopen_Call) Return() *ActionAPI_Reopen_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *ActionAPI_Reopen_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *ActionAPI_Reopen_Call {
-	_c.Run(run)
-	return _c
-}
-
-// ReopenAdmin provides a mock function with given fields: _a0, _a1
-func (_m *ActionAPI) ReopenAdmin(_a0 http.ResponseWriter, _a1 *http.Request) {
-	_m.Called(_a0, _a1)
-}
-
-// ActionAPI_ReopenAdmin_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReopenAdmin'
-type ActionAPI_ReopenAdmin_Call struct {
-	*mock.Call
-}
-
-// ReopenAdmin is a helper method to define mock.On call
-//   - _a0 http.ResponseWriter
-//   - _a1 *http.Request
-func (_e *ActionAPI_Expecter) ReopenAdmin(_a0 interface{}, _a1 interface{}) *ActionAPI_ReopenAdmin_Call {
-	return &ActionAPI_ReopenAdmin_Call{Call: _e.mock.On("ReopenAdmin", _a0, _a1)}
-}
-
-func (_c *ActionAPI_ReopenAdmin_Call) Run(run func(_a0 http.ResponseWriter, _a1 *http.Request)) *ActionAPI_ReopenAdmin_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
-	})
-	return _c
-}
-
-func (_c *ActionAPI_ReopenAdmin_Call) Return() *ActionAPI_ReopenAdmin_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *ActionAPI_ReopenAdmin_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *ActionAPI_ReopenAdmin_Call {
-	_c.Run(run)
-	return _c
-}
-
 // Reschedule provides a mock function with given fields: _a0, _a1
 func (_m *ActionAPI) Reschedule(_a0 http.ResponseWriter, _a1 *http.Request) {
 	_m.Called(_a0, _a1)
@@ -697,6 +663,40 @@ func (_c *ActionAPI_RescheduleAdmin_Call) Return() *ActionAPI_RescheduleAdmin_Ca
 }
 
 func (_c *ActionAPI_RescheduleAdmin_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *ActionAPI_RescheduleAdmin_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RevertStatus provides a mock function with given fields: _a0, _a1
+func (_m *ActionAPI) RevertStatus(_a0 http.ResponseWriter, _a1 *http.Request) {
+	_m.Called(_a0, _a1)
+}
+
+// ActionAPI_RevertStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RevertStatus'
+type ActionAPI_RevertStatus_Call struct {
+	*mock.Call
+}
+
+// RevertStatus is a helper method to define mock.On call
+//   - _a0 http.ResponseWriter
+//   - _a1 *http.Request
+func (_e *ActionAPI_Expecter) RevertStatus(_a0 interface{}, _a1 interface{}) *ActionAPI_RevertStatus_Call {
+	return &ActionAPI_RevertStatus_Call{Call: _e.mock.On("RevertStatus", _a0, _a1)}
+}
+
+func (_c *ActionAPI_RevertStatus_Call) Run(run func(_a0 http.ResponseWriter, _a1 *http.Request)) *ActionAPI_RevertStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *ActionAPI_RevertStatus_Call) Return() *ActionAPI_RevertStatus_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *ActionAPI_RevertStatus_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *ActionAPI_RevertStatus_Call {
 	_c.Run(run)
 	return _c
 }

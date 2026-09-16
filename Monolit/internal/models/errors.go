@@ -19,10 +19,6 @@ var ErrInvalidCallStatusTransition = errors.New("invalid call status transition"
 var ErrCallFolderNotFound = errors.New("call folder not found")
 var ErrInvalidCallFolderInput = errors.New("invalid call folder input")
 var ErrCallFolderScopeMismatch = errors.New("call folder scope mismatch")
-var ErrInvalidDeepAnalysisInput = errors.New("invalid deep analysis input")
-var ErrAggregateAnalysisNotFound = errors.New("aggregate analysis not found")
-var ErrNoAnalyzedCallsForDeepAnalysis = errors.New("no analyzed calls for deep analysis")
-var ErrDeepAnalysisLimitExceeded = errors.New("deep analysis limit exceeded")
 
 // AUDIO
 var ErrAudioFileNotFound = errors.New("audio file not found")
@@ -133,6 +129,9 @@ var ErrInvalidAnalysisInput = errors.New("invalid analysis input")
 var ErrAnalyzerNotConfigured = errors.New("analyzer not configured")
 var ErrInvalidAnalysisStatus = errors.New("invalid analysis status")
 var ErrAnalysisSuperseded = errors.New("analysis superseded by newer transcription")
+var ErrAnalysisRerunForbidden = errors.New("analysis rerun is available to the leader, the deputy and the owner")
+var ErrAnalysisRerunRequestNotFound = errors.New("analysis rerun request not found")
+var ErrAnalysisRerunRequestPending = errors.New("analysis rerun request is already pending")
 var ErrTestCallReadOnly = errors.New("test call is read only")
 
 // PROCESSING JOB
@@ -185,9 +184,6 @@ var ErrReportFileNotFound = errors.New("report file not found")
 var ErrInvalidReportPath = errors.New("invalid report path")
 var ErrReportNotReady = errors.New("report not ready")
 var ErrReportExpired = errors.New("report expired")
-var ErrAggregateReportNotFound = errors.New("aggregate report not found")
-var ErrInvalidAggregateReportInput = errors.New("invalid aggregate report input")
-var ErrAggregateReportFileNotFound = errors.New("aggregate report file not found")
 
 // INVITATION
 var ErrInvitationNotFound = errors.New("invitation not found")

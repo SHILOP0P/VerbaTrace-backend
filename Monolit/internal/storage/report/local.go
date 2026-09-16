@@ -14,7 +14,7 @@ import (
 )
 
 func (l *LocalStorage) Save(ctx context.Context, input models.SaveReportInput) (models.SavedReportFile, error) {
-	if input.Content == nil || input.ReportUUID == uuid.Nil || (input.CallUUID == uuid.Nil && input.AggregateAnalysisUUID == uuid.Nil) {
+	if input.Content == nil || input.ReportUUID == uuid.Nil || input.CallUUID == uuid.Nil {
 		return models.SavedReportFile{}, models.ErrInvalidReportInput
 	}
 
@@ -23,10 +23,7 @@ func (l *LocalStorage) Save(ctx context.Context, input models.SaveReportInput) (
 		return models.SavedReportFile{}, err
 	}
 
-	relativeDir := filepath.Join(input.CallUUID.String())
-	if input.CallUUID == uuid.Nil {
-		relativeDir = filepath.Join("aggregate", input.AggregateAnalysisUUID.String())
-	}
+	relativeDir := input.CallUUID.String()
 	if err := os.MkdirAll(filepath.Join(l.baseDir, relativeDir), 0755); err != nil {
 		return models.SavedReportFile{}, fmt.Errorf("creating report directory failed: %w", err)
 	}

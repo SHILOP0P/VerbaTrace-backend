@@ -32,6 +32,8 @@ var (
 	ErrReviewLimitReached = errors.New("quality review limit reached")
 	ErrReviewerMustDiffer = errors.New("quality review reviewer must differ")
 	ErrActiveAppealExists = errors.New("quality review active appeal exists")
+	// The deputy is the ceiling: their assessment, and the owner's, is final.
+	ErrAppealCeilingReached = errors.New("quality review appeal ceiling reached")
 )
 
 type Service struct{ db *sql.DB }

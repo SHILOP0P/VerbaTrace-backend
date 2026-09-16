@@ -1,10 +1,8 @@
 package analytics
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"verbatrace/monolit/internal/API/dto"
@@ -13,7 +11,6 @@ import (
 	"verbatrace/monolit/internal/models"
 	"verbatrace/monolit/internal/service"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -53,72 +50,6 @@ func (h *Handler) GetOverview(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) CreateDeepAnalysis(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.UserIDFromContext(r.Context())
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-	var request dto.CreateDeepAnalysisRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidDeepAnalysisInput, "invalid deep analysis input")
-		return
-	}
-	input, err := createDeepAnalysisInputFromAPI(request, userID)
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidDeepAnalysisInput, "invalid deep analysis input")
-		return
-	}
-	analysis, err := h.service.CreateDeepAnalysis(r.Context(), input)
-	if err != nil {
-		h.writeDeepAnalysisError(w, err, response.CodeFailedToCreateDeepAnalysis)
-		return
-	}
-	_ = response.WriteJSON(w, http.StatusCreated, aggregateAnalysisToAPI(analysis))
-}
-
-func (h *Handler) ListDeepAnalyses(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.UserIDFromContext(r.Context())
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-	input, err := parseListDeepAnalysesInput(r, userID)
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidDeepAnalysisInput, "invalid deep analysis input")
-		return
-	}
-	result, err := h.service.ListDeepAnalyses(r.Context(), input)
-	if err != nil {
-		h.writeDeepAnalysisError(w, err, response.CodeFailedToListDeepAnalyses)
-		return
-	}
-	items := make([]dto.AggregateAnalysisResponse, len(result.Items))
-	for i, item := range result.Items {
-		items[i] = aggregateAnalysisToAPI(item)
-	}
-	_ = response.WriteJSON(w, http.StatusOK, dto.ListAggregateAnalysesResponse{Items: items, Total: result.Total, Limit: result.Limit, Offset: result.Offset})
-}
-
-func (h *Handler) GetDeepAnalysis(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.UserIDFromContext(r.Context())
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-	id, err := uuid.Parse(chi.URLParam(r, "uuid"))
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidDeepAnalysisInput, "invalid deep analysis uuid")
-		return
-	}
-	analysis, err := h.service.GetDeepAnalysis(r.Context(), id, userID)
-	if err != nil {
-		h.writeDeepAnalysisError(w, err, response.CodeFailedToGetDeepAnalysis)
-		return
-	}
-	_ = response.WriteJSON(w, http.StatusOK, aggregateAnalysisToAPI(analysis))
-}
-
 func parseOverviewInput(r *http.Request, userID uuid.UUID) (models.AnalyticsOverviewInput, error) {
 	query := r.URL.Query()
 	input := models.AnalyticsOverviewInput{UserID: userID}
@@ -152,87 +83,6 @@ func parseOverviewInput(r *http.Request, userID uuid.UUID) (models.AnalyticsOver
 	}
 
 	return input, nil
-}
-
-func createDeepAnalysisInputFromAPI(request dto.CreateDeepAnalysisRequest, userID uuid.UUID) (models.CreateDeepAnalysisInput, error) {
-	periodFrom, err := parseRequiredISOTime(request.PeriodFrom, false)
-	if err != nil {
-		return models.CreateDeepAnalysisInput{}, err
-	}
-	periodTo, err := parseRequiredISOTime(request.PeriodTo, true)
-	if err != nil {
-		return models.CreateDeepAnalysisInput{}, err
-	}
-	input := models.CreateDeepAnalysisInput{
-		UserID: userID, Scope: models.AggregateAnalysisScope(request.Scope), PeriodFrom: periodFrom, PeriodTo: periodTo, Force: request.Force,
-	}
-	if input.CompanyUUID, err = parseOptionalUUIDPtr(request.CompanyUUID); err != nil {
-		return models.CreateDeepAnalysisInput{}, err
-	}
-	if input.DepartmentUUID, err = parseOptionalUUIDPtr(request.DepartmentUUID); err != nil {
-		return models.CreateDeepAnalysisInput{}, err
-	}
-	if input.FolderUUID, err = parseOptionalUUIDPtr(request.FolderUUID); err != nil {
-		return models.CreateDeepAnalysisInput{}, err
-	}
-	return input, nil
-}
-
-func parseListDeepAnalysesInput(r *http.Request, userID uuid.UUID) (models.ListDeepAnalysesInput, error) {
-	query := r.URL.Query()
-	input := models.ListDeepAnalysesInput{UserID: userID, Scope: models.AggregateAnalysisScope(query.Get("scope")), Status: models.AggregateAnalysisStatus(query.Get("status"))}
-	var err error
-	if input.CompanyUUID, err = parseOptionalUUID(query.Get("company_uuid")); err != nil {
-		return models.ListDeepAnalysesInput{}, err
-	}
-	if input.DepartmentUUID, err = parseOptionalUUID(query.Get("department_uuid")); err != nil {
-		return models.ListDeepAnalysesInput{}, err
-	}
-	if input.FolderUUID, err = parseOptionalUUID(query.Get("folder_uuid")); err != nil {
-		return models.ListDeepAnalysesInput{}, err
-	}
-	if input.From, err = parseOptionalISOTime(query.Get("from"), false); err != nil {
-		return models.ListDeepAnalysesInput{}, err
-	}
-	if input.To, err = parseOptionalISOTime(query.Get("to"), true); err != nil {
-		return models.ListDeepAnalysesInput{}, err
-	}
-	if input.Limit, err = parseOptionalInt(query.Get("limit")); err != nil {
-		return models.ListDeepAnalysesInput{}, err
-	}
-	if input.Offset, err = parseOptionalInt(query.Get("offset")); err != nil {
-		return models.ListDeepAnalysesInput{}, err
-	}
-	return input, nil
-}
-
-func aggregateAnalysisToAPI(analysis models.AggregateAnalysis) dto.AggregateAnalysisResponse {
-	return dto.AggregateAnalysisResponse{
-		ID: analysis.ID.String(), Scope: string(analysis.Scope), UserUUID: nullUUIDToStringPtr(analysis.UserUUID),
-		CompanyUUID: nullUUIDToStringPtr(analysis.CompanyUUID), DepartmentUUID: nullUUIDToStringPtr(analysis.DepartmentUUID),
-		FolderUUID: nullUUIDToStringPtr(analysis.FolderUUID), PeriodFrom: analysis.PeriodFrom.Format(time.RFC3339Nano),
-		PeriodTo: analysis.PeriodTo.Format(time.RFC3339Nano), Status: string(analysis.Status), Provider: analysis.Provider,
-		Model: analysis.Model, SourceCallsCount: analysis.SourceCallsCount, ResultJSON: analysis.ResultJSON,
-		ResultText: analysis.ResultText, ErrorMessage: analysis.ErrorMessage, CreatedByUserUUID: analysis.CreatedByUserUUID.String(),
-		CreatedAt: analysis.CreatedAt.Format(time.RFC3339Nano), UpdatedAt: analysis.UpdatedAt.Format(time.RFC3339Nano),
-	}
-}
-
-func (h *Handler) writeDeepAnalysisError(w http.ResponseWriter, err error, fallback string) {
-	switch {
-	case errors.Is(err, models.ErrInvalidDeepAnalysisInput):
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidDeepAnalysisInput, "invalid deep analysis input")
-	case errors.Is(err, models.ErrForbidden):
-		response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "forbidden")
-	case errors.Is(err, models.ErrAggregateAnalysisNotFound):
-		response.WriteError(w, http.StatusNotFound, response.CodeAggregateAnalysisNotFound, "aggregate analysis not found")
-	case errors.Is(err, models.ErrNoAnalyzedCallsForDeepAnalysis):
-		response.WriteError(w, http.StatusConflict, response.CodeNoAnalyzedCallsForDeepAnalysis, "no analyzed calls for deep analysis")
-	case errors.Is(err, models.ErrDeepAnalysisLimitExceeded):
-		response.WriteError(w, http.StatusTooManyRequests, response.CodeDeepAnalysisLimitExceeded, "deep analysis limit exceeded")
-	default:
-		response.WriteError(w, http.StatusBadGateway, fallback, "deep analysis operation failed")
-	}
 }
 
 func overviewToAPI(overview models.AnalyticsOverview) dto.AnalyticsOverviewResponse {
@@ -382,40 +232,6 @@ func parseOptionalUUID(value string) (uuid.NullUUID, error) {
 	}
 
 	return uuid.NullUUID{UUID: parsed, Valid: true}, nil
-}
-
-func parseOptionalUUIDPtr(value *string) (uuid.NullUUID, error) {
-	if value == nil {
-		return uuid.NullUUID{}, nil
-	}
-	return parseOptionalUUID(*value)
-}
-
-func parseRequiredISOTime(value string, endOfDate bool) (time.Time, error) {
-	parsed, err := parseOptionalISOTime(value, endOfDate)
-	if err != nil || parsed == nil {
-		return time.Time{}, models.ErrInvalidDeepAnalysisInput
-	}
-	return *parsed, nil
-}
-
-func parseOptionalInt(value string) (int, error) {
-	if value == "" {
-		return 0, nil
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return 0, models.ErrInvalidDeepAnalysisInput
-	}
-	return parsed, nil
-}
-
-func nullUUIDToStringPtr(value uuid.NullUUID) *string {
-	if !value.Valid {
-		return nil
-	}
-	str := value.UUID.String()
-	return &str
 }
 
 func parseOptionalISOTime(value string, endOfDate bool) (*time.Time, error) {

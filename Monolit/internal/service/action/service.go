@@ -47,7 +47,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 		in.AssigneeUserUUID = uploadedBy
 	}
 	if company.Valid {
-		if ok, err := canCreate(ctx, tx, in.ActorUserUUID, company.UUID, in.SourceDepartment, in.CallUUID); err != nil {
+		if ok, err := canCreate(ctx, tx, in.ActorUserUUID, company.UUID, in.CallUUID); err != nil {
 			return Item{}, err
 		} else if !ok {
 			return Item{}, ErrForbidden
@@ -126,8 +126,8 @@ func (s *Service) SetNoActionRequired(ctx context.Context, actor, callID, analys
 	if err != nil {
 		return err
 	}
-	var ok bool
-	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active')`, company, actor).Scan(&ok)
+	// Saying an analysis needs no action is the same decision as creating one.
+	ok, err := canCreate(ctx, tx, actor, company, callID)
 	if err != nil {
 		return err
 	}
@@ -190,9 +190,20 @@ func (s *Service) insertEvidence(ctx context.Context, tx *sql.Tx, actionID, call
 	return nil
 }
 
-func canCreate(ctx context.Context, tx *sql.Tx, actor, company, department, callID uuid.UUID) (bool, error) {
+// canCreate decides who may put an action on a call: the person who uploaded
+// it, the leader of its department, the deputy and the owner. The department is
+// read from the call itself, never from the request, so a client cannot name a
+// department it happens to lead and gain rights over a foreign call.
+func canCreate(ctx context.Context, tx *sql.Tx, actor, company, callID uuid.UUID) (bool, error) {
 	var ok bool
-	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM calls c WHERE c.call_uuid=$4 AND c.company_uuid=$2 AND (EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=$2 AND cm.user_uuid=$1 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')) OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=$3 AND dm.user_uuid=$1 AND dm.status='active')))`, actor, company, department, callID).Scan(&ok)
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(
+		SELECT 1 FROM calls c
+		WHERE c.call_uuid=$3 AND c.company_uuid=$2 AND c.deleted_at IS NULL
+		  AND (
+		      c.uploaded_by_user_uuid=$1
+		      OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=$2 AND cm.user_uuid=$1 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy'))
+		      OR (c.department_uuid IS NOT NULL AND EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=c.department_uuid AND dm.user_uuid=$1 AND dm.status='active' AND dm.role='department_leader'))
+		  ))`, actor, company, callID).Scan(&ok)
 	return ok, err
 }
 func validAssignment(ctx context.Context, tx *sql.Tx, company, department, user uuid.UUID) (bool, error) {

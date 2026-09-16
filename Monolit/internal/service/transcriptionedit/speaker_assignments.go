@@ -70,6 +70,12 @@ func (s *Service) ReplaceSpeakerAssignments(ctx context.Context, callID, userID 
 		}
 		seen[input[index].SpeakerKey] = true
 	}
+	// A role says who was talking to whom, and the analysis reads it. Renaming a
+	// speaker changes a label only, so it leaves the analysis alone.
+	rolesChanged, err := s.speakerRolesChanged(ctx, callID, input)
+	if err != nil {
+		return nil, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin speaker assignments: %w", err)
@@ -83,8 +89,47 @@ func (s *Service) ReplaceSpeakerAssignments(ctx context.Context, callID, userID 
 			return nil, fmt.Errorf("insert speaker assignment: %w", err)
 		}
 	}
+	if rolesChanged {
+		if err := markAnalysisStale(ctx, tx, callID); err != nil {
+			return nil, fmt.Errorf("mark analysis stale: %w", err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit speaker assignments: %w", err)
 	}
 	return input, nil
+}
+
+func (s *Service) speakerRolesChanged(ctx context.Context, callID uuid.UUID, input []SpeakerAssignment) (bool, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT speaker_key,role,custom_role FROM call_transcription_speaker_assignments WHERE call_uuid=$1`, callID)
+	if err != nil {
+		return false, fmt.Errorf("read speaker roles: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	current := map[string]string{}
+	for rows.Next() {
+		var key, role, customRole string
+		if err := rows.Scan(&key, &role, &customRole); err != nil {
+			return false, fmt.Errorf("scan speaker role: %w", err)
+		}
+		current[key] = role + "\x00" + customRole
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("read speaker roles: %w", err)
+	}
+
+	next := map[string]string{}
+	for _, item := range input {
+		next[item.SpeakerKey] = item.Role + "\x00" + item.CustomRole
+	}
+	if len(next) != len(current) {
+		return true, nil
+	}
+	for key, role := range next {
+		if current[key] != role {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

@@ -39,6 +39,20 @@ func (s *Service) AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput
 	if transcription.Status != models.TranscriptionStatusTranscribed || transcription.Text == nil {
 		return models.CallAnalysis{}, models.ErrInvalidAnalysisStatus
 	}
+	// The first analysis is part of processing a call and anybody who sees the
+	// call may start it. Running it again is a decision about the record, so it
+	// belongs to the leader, the deputy and the owner; an employee asks instead.
+	if _, err := s.analysisRepository.GetByCallUUID(ctx, call.ID); err == nil {
+		allowed, rerunErr := s.canRerun(ctx, call, input.UserUUID)
+		if rerunErr != nil {
+			return models.CallAnalysis{}, rerunErr
+		}
+		if !allowed {
+			return models.CallAnalysis{}, models.ErrAnalysisRerunForbidden
+		}
+	} else if !errors.Is(err, models.ErrAnalysisNotFound) {
+		return models.CallAnalysis{}, fmt.Errorf("get analysis: %w", err)
+	}
 	if attempts, ok := s.analysisRepository.(attemptRepository); ok {
 		if _, err = attempts.CreateAttempt(ctx, call.ID, input.UserUUID); err != nil {
 			return models.CallAnalysis{}, fmt.Errorf("create analysis attempt: %w", err)
@@ -91,9 +105,17 @@ func (s *Service) ProcessAnalyzeCall(ctx context.Context, callID uuid.UUID) erro
 		return models.ErrTestCallReadOnly
 	}
 
-	if call.Status == models.CallStatusAnalyzed {
-		s.log.Info(ctx, "call already analyzed", zap.String("call_id", call.ID.String()))
+	// A duplicate job is one whose analysis is already finished. The call status
+	// alone cannot tell a duplicate from a re-run: a re-run of an analyzed call
+	// leaves the call analyzed and the analysis pending, and skipping it here
+	// left that analysis pending forever.
+	current, err := s.analysisRepository.GetByCallUUID(ctx, callID)
+	switch {
+	case err == nil && current.Status != models.CallAnalysisStatusPending && current.Status != models.CallAnalysisStatusProcessing:
+		s.log.Info(ctx, "analysis job skipped", zap.String("call_id", call.ID.String()), zap.String("analysis_status", string(current.Status)))
 		return nil
+	case err != nil && !errors.Is(err, models.ErrAnalysisNotFound):
+		return fmt.Errorf("get analysis for processing: %w", err)
 	}
 
 	if !call.UploadedByUserUUID.Valid {

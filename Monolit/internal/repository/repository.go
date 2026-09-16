@@ -19,6 +19,7 @@ type CallRepository interface {
 	GetFilterOptions(ctx context.Context, input models.CallFilterOptionsInput) (models.CallFilterOptions, error)
 	GetByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error)
 	GetByUUIDForProcessing(ctx context.Context, id uuid.UUID) (models.Call, error)
+	CanManageCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) (bool, error)
 	//UPDATE
 	UpdateCallTitle(ctx context.Context, id uuid.UUID, userID uuid.UUID, title string) (models.Call, error)
 	UpdateCallStatus(ctx context.Context, id uuid.UUID, status models.CallStatus) (models.Call, error)
@@ -32,15 +33,6 @@ type CallRepository interface {
 
 type AnalyticsRepository interface {
 	GetAnalyticsOverview(ctx context.Context, input models.AnalyticsOverviewInput) (models.AnalyticsOverview, error)
-	CreateAggregateAnalysis(ctx context.Context, analysis models.AggregateAnalysis) (models.AggregateAnalysis, error)
-	GetAggregateAnalysisByUUID(ctx context.Context, id uuid.UUID) (models.AggregateAnalysis, error)
-	FindReusableAggregateAnalysis(ctx context.Context, input models.CreateDeepAnalysisInput) (models.AggregateAnalysis, error)
-	ListAggregateAnalyses(ctx context.Context, input models.ListDeepAnalysesInput) (models.ListAggregateAnalysesResult, error)
-	MarkAggregateAnalysisProcessing(ctx context.Context, id uuid.UUID) (models.AggregateAnalysis, error)
-	MarkAggregateAnalysisDone(ctx context.Context, id uuid.UUID, result models.AnalysisResult, sourceCallsCount int) (models.AggregateAnalysis, error)
-	MarkAggregateAnalysisFailed(ctx context.Context, id uuid.UUID, errorMessage string) (models.AggregateAnalysis, error)
-	ListAggregateAnalysisSourceCalls(ctx context.Context, input models.AnalyticsOverviewInput) ([]models.AggregateAnalysisSourceCall, int, error)
-	SpendDeepAnalysisUsage(ctx context.Context, subjectType models.DeepAnalysisSubjectType, subjectID uuid.UUID, periodStart time.Time, periodEnd time.Time) error
 }
 
 type CallFolderRepository interface {
@@ -200,15 +192,6 @@ type ReportRepository interface {
 	ListByCallUUID(ctx context.Context, callID uuid.UUID, now time.Time) ([]models.ReportExport, error)
 	ListExpiredReady(ctx context.Context, now time.Time, limit int) ([]models.ReportExport, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-}
-
-type AggregateReportRepository interface {
-	CreateAggregate(ctx context.Context, report models.AggregateReportExport) (models.AggregateReportExport, error)
-	MarkAggregateReady(ctx context.Context, input models.MarkAggregateReportReadyInput) (models.AggregateReportExport, error)
-	MarkAggregateFailed(ctx context.Context, input models.MarkAggregateReportFailedInput) (models.AggregateReportExport, error)
-	GetAggregateByUUID(ctx context.Context, id uuid.UUID) (models.AggregateReportExport, error)
-	ListAggregateByAnalysisUUID(ctx context.Context, analysisID uuid.UUID, now time.Time) ([]models.AggregateReportExport, error)
-	DeleteAggregate(ctx context.Context, id uuid.UUID) error
 }
 
 type ProcessingJobRepository interface {

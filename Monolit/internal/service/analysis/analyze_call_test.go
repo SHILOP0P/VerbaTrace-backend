@@ -509,10 +509,6 @@ func (a *recordingAnalyzer) Analyze(ctx context.Context, request models.Analysis
 	return a.result, nil
 }
 
-func (a *recordingAnalyzer) AnalyzeAggregate(context.Context, models.AggregateAnalysisRequest) (models.AnalysisResult, error) {
-	panic("not implemented")
-}
-
 type analysisProcessingJobRepository struct {
 	enqueued bool
 	job      models.ProcessingJob
@@ -615,6 +611,9 @@ func (r *analysisCallRepository) UpdateCallStatus(ctx context.Context, id uuid.U
 	return r.call, nil
 }
 
+func (r *analysisCallRepository) CanManageCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) (bool, error) {
+	return true, nil
+}
 func (r *analysisCallRepository) SoftDeleteCall(ctx context.Context, id uuid.UUID, userID uuid.UUID, now time.Time, purgeAfter time.Time) (models.Call, error) {
 	panic("not implemented")
 }

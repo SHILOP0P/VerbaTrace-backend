@@ -215,6 +215,8 @@ type mutationRequest struct {
 	DueAt                string `json:"due_at"`
 	AssigneeUserUUID     string `json:"assignee_user_uuid"`
 	TargetDepartmentUUID string `json:"target_department_uuid"`
+	Title                string `json:"title"`
+	Description          string `json:"description"`
 }
 
 func (h *Handler) Start(w http.ResponseWriter, r *http.Request)      { h.mutate(w, r, "start") }
@@ -222,7 +224,10 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request)   { h.mutate(
 func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request)     { h.mutate(w, r, "cancel") }
 func (h *Handler) Reschedule(w http.ResponseWriter, r *http.Request) { h.mutate(w, r, "reschedule") }
 func (h *Handler) Reassign(w http.ResponseWriter, r *http.Request)   { h.mutate(w, r, "reassign") }
-func (h *Handler) Reopen(w http.ResponseWriter, r *http.Request)     { h.mutate(w, r, "reopen") }
+func (h *Handler) Edit(w http.ResponseWriter, r *http.Request)       { h.mutate(w, r, "edit") }
+func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
+	h.mutate(w, r, "revert-status")
+}
 func (h *Handler) CompleteAdmin(w http.ResponseWriter, r *http.Request) {
 	h.mutateWithAdmin(w, r, "complete", true)
 }
@@ -234,9 +239,6 @@ func (h *Handler) RescheduleAdmin(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) ReassignAdmin(w http.ResponseWriter, r *http.Request) {
 	h.mutateWithAdmin(w, r, "reassign", true)
-}
-func (h *Handler) ReopenAdmin(w http.ResponseWriter, r *http.Request) {
-	h.mutateWithAdmin(w, r, "reopen", true)
 }
 func (h *Handler) mutate(w http.ResponseWriter, r *http.Request, kind string) {
 	h.mutateWithAdmin(w, r, kind, false)
@@ -273,8 +275,10 @@ func (h *Handler) mutateWithAdmin(w http.ResponseWriter, r *http.Request, kind s
 		if err == nil {
 			item, err = h.service.Reassign(r.Context(), actionservice.ReassignInput{UpdateInput: base, AssigneeUserUUID: assignee, TargetDepartmentUUID: department})
 		}
-	case "reopen":
-		item, err = h.service.Reopen(r.Context(), base)
+	case "edit":
+		item, err = h.service.Edit(r.Context(), actionservice.EditInput{UpdateInput: base, Title: req.Title, Description: req.Description})
+	case "revert-status":
+		item, err = h.service.RevertStatus(r.Context(), base)
 	}
 	if err != nil {
 		writeErr(w, err)

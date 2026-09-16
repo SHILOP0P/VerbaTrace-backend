@@ -51,6 +51,8 @@ type Service struct {
 	instructionRepository    repo.AnalysisInstructionRepository
 	analysisRepository       repo.AnalysisRepository
 	processingJobRepository  repo.ProcessingJobRepository
+	companyRepository        repo.CompanyRepository
+	departmentRepository     repo.DepartmentRepository
 	instructionStorage       storage.InstructionStorage
 	analyzer                 analyzer.Analyzer
 	sandboxAnalyzer          analyzer.Analyzer
@@ -60,6 +62,14 @@ type Service struct {
 	folderInstructionReader  FolderInstructionReader
 	creditMeter              CreditMeter
 	privacyContextReader     PrivacyContextReader
+	notifications            NotificationSender
+}
+
+// SetMembershipRepositories enables the rerun rules: without them the service
+// only knows about personal calls.
+func (s *Service) SetMembershipRepositories(company repo.CompanyRepository, department repo.DepartmentRepository) {
+	s.companyRepository = company
+	s.departmentRepository = department
 }
 
 func (s *Service) SetCreditMeter(meter CreditMeter)              { s.creditMeter = meter }

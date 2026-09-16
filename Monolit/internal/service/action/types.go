@@ -88,7 +88,8 @@ type Capabilities struct {
 	CanReassign        bool `json:"can_reassign"`
 	CanRequestTransfer bool `json:"can_request_transfer"`
 	CanResolveTransfer bool `json:"can_resolve_transfer"`
-	CanReopen          bool `json:"can_reopen"`
+	CanEditFields      bool `json:"can_edit_fields"`
+	CanRevertStatus    bool `json:"can_revert_status"`
 }
 
 type ListInput struct {
@@ -126,6 +127,12 @@ type UpdateInput struct {
 type RescheduleInput struct {
 	UpdateInput
 	DueAt time.Time
+}
+
+type EditInput struct {
+	UpdateInput
+	Title       string
+	Description string
 }
 type ReassignInput struct {
 	UpdateInput

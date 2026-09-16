@@ -3,6 +3,8 @@ package action
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -54,6 +56,104 @@ func (s *Service) statusMutation(ctx context.Context, in UpdateInput, status, ev
 	}
 	if status == "completed" && in.ActorUserUUID != item.AssigneeUserUUID {
 		if err = createNotification(ctx, tx, in.ActionUUID, item.AssigneeUserUUID, "action_completed", "Действие завершено", item.Title, item.LockVersion+1); err != nil {
+			return Item{}, err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return Item{}, err
+	}
+	return s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
+}
+
+// Edit changes the wording of an action. Only the person who set it may do
+// that: the title and the description are their instruction to somebody else.
+func (s *Service) Edit(ctx context.Context, in EditInput) (Item, error) {
+	in.Title, in.Description = strings.TrimSpace(in.Title), strings.TrimSpace(in.Description)
+	if in.Title == "" || len([]rune(in.Title)) > 200 || len([]rune(in.Description)) > 10000 {
+		return Item{}, ErrInvalidInput
+	}
+	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
+	if err != nil {
+		return Item{}, err
+	}
+	if !item.Capabilities.CanEditFields {
+		return Item{}, ErrForbidden
+	}
+	if in.Title == item.Title && in.Description == item.Description {
+		return item, nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Item{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx, `UPDATE call_actions SET title=$1,description=$2,updated_at=$3,lock_version=lock_version+1 WHERE action_uuid=$4 AND lock_version=$5 AND status NOT IN ('completed','cancelled')`, in.Title, in.Description, s.now().UTC(), in.ActionUUID, in.ExpectedVersion)
+	if err != nil {
+		return Item{}, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return Item{}, ErrConflict
+	}
+	if err = insertEvent(ctx, tx, in.ActionUUID, "edited", in.ActorUserUUID, in.Reason, map[string]any{"title": item.Title, "description": item.Description}, map[string]any{"title": in.Title, "description": in.Description}); err != nil {
+		return Item{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return Item{}, err
+	}
+	return s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
+}
+
+// RevertStatus takes back the last status change within an hour of it. A wrong
+// click should not need a new action to fix, and an hour later it is history.
+func (s *Service) RevertStatus(ctx context.Context, in UpdateInput) (Item, error) {
+	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
+	if err != nil {
+		return Item{}, err
+	}
+	if !item.Capabilities.CanRevertStatus {
+		return Item{}, ErrForbidden
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Item{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var eventType string
+	var oldData []byte
+	var eventAt time.Time
+	err = tx.QueryRowContext(ctx, `SELECT event_type,old_data,created_at FROM call_action_events WHERE action_uuid=$1 AND event_type IN ('started','completed','cancelled') ORDER BY created_at DESC,event_uuid DESC LIMIT 1 FOR UPDATE`, in.ActionUUID).Scan(&eventType, &oldData, &eventAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Item{}, ErrConflict
+	}
+	if err != nil {
+		return Item{}, err
+	}
+	if !s.now().UTC().Before(eventAt.Add(statusRevertWindow)) {
+		return Item{}, ErrConflict
+	}
+	var previous struct {
+		Status string `json:"status"`
+	}
+	if json.Unmarshal(oldData, &previous) != nil || previous.Status == "" {
+		return Item{}, ErrConflict
+	}
+
+	now := s.now().UTC()
+	res, err := tx.ExecContext(ctx, `UPDATE call_actions SET status=$1,completed_at=NULL,completed_by_user_uuid=NULL,cancelled_at=NULL,cancelled_by_user_uuid=NULL,cancel_reason=NULL,started_at=CASE WHEN $1='open' THEN NULL ELSE started_at END,updated_at=$2,lock_version=lock_version+1 WHERE action_uuid=$3 AND lock_version=$4`, previous.Status, now, in.ActionUUID, in.ExpectedVersion)
+	if err != nil {
+		return Item{}, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return Item{}, ErrConflict
+	}
+	if err = insertEvent(ctx, tx, in.ActionUUID, "status_reverted", in.ActorUserUUID, in.Reason, map[string]any{"status": item.Status}, map[string]any{"status": previous.Status}); err != nil {
+		return Item{}, err
+	}
+	if in.ActorUserUUID != item.AssigneeUserUUID {
+		if err = createNotification(ctx, tx, in.ActionUUID, item.AssigneeUserUUID, "action_status_reverted", "Статус действия возвращён", item.Title, item.LockVersion+1); err != nil {
 			return Item{}, err
 		}
 	}
@@ -193,48 +293,6 @@ func (s *Service) Reassign(ctx context.Context, in ReassignInput) (Item, error) 
 		if err = createNotification(ctx, tx, in.ActionUUID, in.AssigneeUserUUID, "action_assigned", "Вам назначено действие", item.Title, item.LockVersion+1); err != nil {
 			return Item{}, err
 		}
-	}
-	if err = tx.Commit(); err != nil {
-		return Item{}, err
-	}
-	return s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
-}
-
-func (s *Service) Reopen(ctx context.Context, in UpdateInput) (Item, error) {
-	in.Reason = strings.TrimSpace(in.Reason)
-	if len([]rune(in.Reason)) < 10 || len([]rune(in.Reason)) > 2000 {
-		return Item{}, ErrInvalidInput
-	}
-	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
-	if err != nil {
-		return Item{}, err
-	}
-	if !item.Capabilities.CanReopen {
-		return Item{}, ErrConflict
-	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Item{}, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	now := s.now().UTC()
-	res, err := tx.ExecContext(ctx, `UPDATE call_actions SET status=CASE WHEN due_at <= $1 THEN 'overdue' ELSE 'open' END,completed_at=NULL,completed_by_user_uuid=NULL,cancelled_at=NULL,cancelled_by_user_uuid=NULL,cancel_reason=NULL,updated_at=$1,lock_version=lock_version+1,schedule_version=schedule_version+1 WHERE action_uuid=$2 AND lock_version=$3 AND status IN ('completed','cancelled')`, now, in.ActionUUID, in.ExpectedVersion)
-	if err != nil {
-		return Item{}, err
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return Item{}, ErrConflict
-	}
-	newStatus := "open"
-	if !item.DueAt.After(now) {
-		newStatus = "overdue"
-	}
-	if err = insertEvent(ctx, tx, in.ActionUUID, "reopened", in.ActorUserUUID, in.Reason, map[string]any{"status": item.Status}, map[string]any{"status": newStatus}); err != nil {
-		return Item{}, err
-	}
-	if err = createNotification(ctx, tx, in.ActionUUID, item.AssigneeUserUUID, "action_reopened", "Действие восстановлено", item.Title, item.LockVersion+1); err != nil {
-		return Item{}, err
 	}
 	if err = tx.Commit(); err != nil {
 		return Item{}, err
