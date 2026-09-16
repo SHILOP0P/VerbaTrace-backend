@@ -3,9 +3,7 @@ package call
 import (
 	"errors"
 	"net/http"
-	"time"
 
-	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
 	"verbatrace/monolit/internal/converter"
 	"verbatrace/monolit/internal/models"
@@ -48,31 +46,13 @@ func (h *CallHandler) ListDeletedCalls(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items := make([]dto.DeletedCallResponse, len(result.Items))
-	for i, deleted := range result.Items {
-		callResponse, convertErr := converter.CallModelToAPI(deleted.Call)
-		if convertErr != nil {
-			response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToConvertCall, "failed to convert call")
-			return
-		}
-		item := dto.DeletedCallResponse{
-			Call:       callResponse,
-			DeletedAt:  deleted.DeletedAt.UTC().Format(time.RFC3339),
-			PurgeAfter: deleted.PurgeAfter.UTC().Format(time.RFC3339),
-		}
-		if deleted.DeletedByUserUUID.Valid {
-			deletedBy := deleted.DeletedByUserUUID.UUID.String()
-			item.DeletedByUserUUID = &deletedBy
-		}
-		items[i] = item
+	payload, err := converter.DeletedCallsListModelToAPI(result)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToConvertCall, "failed to convert call")
+		return
 	}
 
-	_ = response.WriteJSON(w, http.StatusOK, dto.DeletedCallsListResponse{
-		Items:  items,
-		Total:  result.Total,
-		Limit:  result.Limit,
-		Offset: result.Offset,
-	})
+	_ = response.WriteJSON(w, http.StatusOK, payload)
 }
 
 // RestoreCall takes a call back out of the bin before its purge date.

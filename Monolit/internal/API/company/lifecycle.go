@@ -3,10 +3,9 @@ package company
 import (
 	"errors"
 	"net/http"
-	"time"
 
-	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/go-chi/chi/v5"
@@ -46,18 +45,8 @@ func (h *Handler) GetCompanyLifecycle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := dto.CompanyLifecycleResponse{
-		CompanyUUID: lifecycle.CompanyUUID.String(),
-		State:       string(lifecycle.State),
-		RestoreUsed: lifecycle.RestoreUsed,
-	}
-	payload.FrozenAt = optionalTimestamp(lifecycle.FrozenAt)
-	payload.SoftDeletedAt = optionalTimestamp(lifecycle.SoftDeletedAt)
-	payload.PurgeAfter = optionalTimestamp(lifecycle.PurgeAfter)
-
-	_ = response.WriteJSON(w, http.StatusOK, payload)
+	_ = response.WriteJSON(w, http.StatusOK, converter.CompanyLifecycleModelToAPI(lifecycle))
 }
-
 func (h *Handler) changeLifecycle(w http.ResponseWriter, r *http.Request, action func(companyID, userID uuid.UUID) error) {
 	userID, ok := userIDFromRequest(r)
 	if !ok {
@@ -76,14 +65,6 @@ func (h *Handler) changeLifecycle(w http.ResponseWriter, r *http.Request, action
 	}
 
 	response.WriteNoContent(w)
-}
-
-func optionalTimestamp(value *time.Time) *string {
-	if value == nil {
-		return nil
-	}
-	formatted := value.UTC().Format(time.RFC3339)
-	return &formatted
 }
 
 func writeLifecycleError(w http.ResponseWriter, err error) {

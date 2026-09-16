@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"time"
 
 	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/go-chi/chi/v5"
@@ -43,7 +43,7 @@ func (h *Handler) RequestRerun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = response.WriteJSON(w, http.StatusCreated, rerunRequestToAPI(created))
+	_ = response.WriteJSON(w, http.StatusCreated, converter.AnalysisRerunRequestModelToAPI(created))
 }
 
 // DecideRerun approves or rejects the ask; approval starts the analysis.
@@ -76,7 +76,7 @@ func (h *Handler) DecideRerun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = response.WriteJSON(w, http.StatusOK, rerunRequestToAPI(decided))
+	_ = response.WriteJSON(w, http.StatusOK, converter.AnalysisRerunRequestModelToAPI(decided))
 }
 
 // ListRerunRequests shows the queue to the people who decide on it.
@@ -103,40 +103,7 @@ func (h *Handler) ListRerunRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseItems := make([]dto.AnalysisRerunRequestResponse, len(items))
-	for i, item := range items {
-		responseItems[i] = rerunRequestToAPI(item)
-	}
-
-	_ = response.WriteJSON(w, http.StatusOK, dto.AnalysisRerunRequestsResponse{Items: responseItems})
-}
-
-func rerunRequestToAPI(request models.AnalysisRerunRequest) dto.AnalysisRerunRequestResponse {
-	item := dto.AnalysisRerunRequestResponse{
-		ID:                  request.ID.String(),
-		CallUUID:            request.CallUUID.String(),
-		CompanyUUID:         request.CompanyUUID.String(),
-		RequestedByUserUUID: request.RequestedByUserUUID.String(),
-		Reason:              request.Reason,
-		Status:              string(request.Status),
-		Comment:             request.Comment,
-		CreatedAt:           request.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:           request.UpdatedAt.UTC().Format(time.RFC3339),
-	}
-	if request.DepartmentUUID.Valid {
-		value := request.DepartmentUUID.UUID.String()
-		item.DepartmentUUID = &value
-	}
-	if request.DecidedByUserUUID.Valid {
-		value := request.DecidedByUserUUID.UUID.String()
-		item.DecidedByUserUUID = &value
-	}
-	if request.DecidedAt != nil {
-		value := request.DecidedAt.UTC().Format(time.RFC3339)
-		item.DecidedAt = &value
-	}
-
-	return item
+	_ = response.WriteJSON(w, http.StatusOK, converter.AnalysisRerunRequestsModelToAPI(items))
 }
 
 func writeRerunError(w http.ResponseWriter, err error) {

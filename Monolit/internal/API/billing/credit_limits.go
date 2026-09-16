@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"time"
 
 	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/go-chi/chi/v5"
@@ -105,32 +105,8 @@ func (h *Handler) GetCompanyCreditForecast(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	departments := make([]dto.CreditSpendingResponse, len(forecast.Departments))
-	for i, department := range forecast.Departments {
-		departments[i] = creditSpendingToAPI(department)
-	}
-
-	payload := dto.CompanyCreditForecastResponse{Departments: departments}
-	if forecast.Company.SubjectUUID != uuid.Nil {
-		company := creditSpendingToAPI(forecast.Company)
-		payload.Company = &company
-	}
-
-	_ = response.WriteJSON(w, http.StatusOK, payload)
+	_ = response.WriteJSON(w, http.StatusOK, converter.CompanyCreditForecastModelToAPI(forecast))
 }
-
-func creditSpendingToAPI(spending models.CreditSpending) dto.CreditSpendingResponse {
-	return dto.CreditSpendingResponse{
-		ID:              spending.SubjectUUID.String(),
-		Name:            spending.SubjectName,
-		LimitCredits:    spending.LimitCredits,
-		UsedCredits:     spending.UsedCredits,
-		ForecastCredits: spending.ForecastCredits,
-		PeriodStart:     spending.PeriodStart.UTC().Format(time.RFC3339),
-		PeriodEnd:       spending.PeriodEnd.UTC().Format(time.RFC3339),
-	}
-}
-
 func writeCreditLimitError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, models.ErrOwnerOnlyAction):
