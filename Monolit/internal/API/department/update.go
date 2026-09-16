@@ -2,7 +2,6 @@ package department
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"verbatrace/monolit/internal/API/dto"
@@ -91,25 +90,4 @@ func departmentIDsFromRequest(w http.ResponseWriter, r *http.Request) (uuid.UUID
 	}
 
 	return companyID, departmentID, true
-}
-
-func writeDepartmentError(w http.ResponseWriter, err error, code string, message string) {
-	if errors.Is(err, models.ErrInvalidDepartmentInput) {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidDepartmentInput, "invalid department input")
-		return
-	}
-	if errors.Is(err, models.ErrDepartmentNotFound) {
-		response.WriteError(w, http.StatusNotFound, response.CodeDepartmentNotFound, "department not found")
-		return
-	}
-	if errors.Is(err, models.ErrForbidden) {
-		response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "forbidden")
-		return
-	}
-	if errors.Is(err, models.ErrSubscriptionRequired) {
-		response.WriteError(w, http.StatusPaymentRequired, response.CodeSubscriptionRequired, "subscription required")
-		return
-	}
-
-	response.WriteError(w, http.StatusInternalServerError, code, message)
 }

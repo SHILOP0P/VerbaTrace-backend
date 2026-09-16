@@ -9,23 +9,56 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func (s *ServiceSuite) TestUpdateCompanyMemberRoleSuccess() {
+func (s *ServiceSuite) TestAssignCompanyDeputySuccess() {
 	companyID := uuid.New()
-	managerID := uuid.New()
+	ownerID := uuid.New()
 	userID := uuid.New()
 
 	s.repository.EXPECT().
-		GetCompanyMember(mock.Anything, companyID, managerID).
-		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: managerID, Role: models.CompanyMemberRoleManager}, nil).
+		GetCompanyMember(mock.Anything, companyID, ownerID).
+		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: ownerID, Role: models.CompanyMemberRoleManager}, nil).
 		Once()
 	s.repository.EXPECT().
-		UpdateCompanyMemberRole(mock.Anything, companyID, userID, models.CompanyMemberRoleEmployee).
+		GetCompanyMember(mock.Anything, companyID, userID).
+		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: userID, Role: models.CompanyMemberRoleEmployee}, nil).
+		Once()
+	s.repository.EXPECT().
+		AssignCompanyDeputy(mock.Anything, companyID, userID).
+		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: userID, Role: models.CompanyMemberRoleDeputy}, nil).
+		Once()
+
+	got, err := s.service.UpdateCompanyMemberRole(s.ctx, models.UpdateCompanyMemberRoleInput{
+		CompanyUUID: companyID,
+		RequestUser: ownerID,
+		UserUUID:    userID,
+		Role:        models.CompanyMemberRoleDeputy,
+	})
+
+	s.Require().NoError(err)
+	s.Require().Equal(models.CompanyMemberRoleDeputy, got.Role)
+}
+
+func (s *ServiceSuite) TestRevokeCompanyDeputySuccess() {
+	companyID := uuid.New()
+	ownerID := uuid.New()
+	userID := uuid.New()
+
+	s.repository.EXPECT().
+		GetCompanyMember(mock.Anything, companyID, ownerID).
+		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: ownerID, Role: models.CompanyMemberRoleManager}, nil).
+		Once()
+	s.repository.EXPECT().
+		GetCompanyMember(mock.Anything, companyID, userID).
+		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: userID, Role: models.CompanyMemberRoleDeputy}, nil).
+		Once()
+	s.repository.EXPECT().
+		RevokeCompanyDeputy(mock.Anything, companyID).
 		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: userID, Role: models.CompanyMemberRoleEmployee}, nil).
 		Once()
 
 	got, err := s.service.UpdateCompanyMemberRole(s.ctx, models.UpdateCompanyMemberRoleInput{
 		CompanyUUID: companyID,
-		RequestUser: managerID,
+		RequestUser: ownerID,
 		UserUUID:    userID,
 		Role:        models.CompanyMemberRoleEmployee,
 	})
@@ -58,45 +91,50 @@ func (s *ServiceSuite) TestUpdateCompanyMemberRoleRejectsManagerRole() {
 	s.Require().ErrorIs(err, models.ErrInvalidCompanyInput)
 }
 
-func (s *ServiceSuite) TestUpdateCompanyMemberRoleRejectsNonManager() {
+// A deputy must never be able to appoint or demote another deputy.
+func (s *ServiceSuite) TestUpdateCompanyMemberRoleRejectsDeputy() {
 	companyID := uuid.New()
-	requestUserID := uuid.New()
+	deputyID := uuid.New()
 
 	s.repository.EXPECT().
-		GetCompanyMember(mock.Anything, companyID, requestUserID).
-		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: requestUserID, Role: models.CompanyMemberRoleEmployee}, nil).
+		GetCompanyMember(mock.Anything, companyID, deputyID).
+		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: deputyID, Role: models.CompanyMemberRoleDeputy}, nil).
 		Once()
 
 	_, err := s.service.UpdateCompanyMemberRole(s.ctx, models.UpdateCompanyMemberRoleInput{
 		CompanyUUID: companyID,
-		RequestUser: requestUserID,
+		RequestUser: deputyID,
 		UserUUID:    uuid.New(),
-		Role:        models.CompanyMemberRoleEmployee,
+		Role:        models.CompanyMemberRoleDeputy,
 	})
 
-	s.Require().ErrorIs(err, models.ErrForbidden)
+	s.Require().ErrorIs(err, models.ErrOwnerOnlyAction)
 }
 
 func (s *ServiceSuite) TestUpdateCompanyMemberRoleReturnsRepositoryError() {
 	companyID := uuid.New()
-	managerID := uuid.New()
+	ownerID := uuid.New()
 	userID := uuid.New()
 	repoErr := errors.New("update failed")
 
 	s.repository.EXPECT().
-		GetCompanyMember(mock.Anything, companyID, managerID).
-		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: managerID, Role: models.CompanyMemberRoleManager}, nil).
+		GetCompanyMember(mock.Anything, companyID, ownerID).
+		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: ownerID, Role: models.CompanyMemberRoleManager}, nil).
 		Once()
 	s.repository.EXPECT().
-		UpdateCompanyMemberRole(mock.Anything, companyID, userID, models.CompanyMemberRoleEmployee).
+		GetCompanyMember(mock.Anything, companyID, userID).
+		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: userID, Role: models.CompanyMemberRoleEmployee}, nil).
+		Once()
+	s.repository.EXPECT().
+		AssignCompanyDeputy(mock.Anything, companyID, userID).
 		Return(models.CompanyMember{}, repoErr).
 		Once()
 
 	_, err := s.service.UpdateCompanyMemberRole(s.ctx, models.UpdateCompanyMemberRoleInput{
 		CompanyUUID: companyID,
-		RequestUser: managerID,
+		RequestUser: ownerID,
 		UserUUID:    userID,
-		Role:        models.CompanyMemberRoleEmployee,
+		Role:        models.CompanyMemberRoleDeputy,
 	})
 
 	s.Require().ErrorIs(err, repoErr)

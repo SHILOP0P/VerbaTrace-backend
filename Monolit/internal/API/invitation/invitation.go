@@ -77,6 +77,46 @@ func writeInvitationError(w http.ResponseWriter, err error, fallbackCode string,
 		response.WriteError(w, http.StatusBadRequest, response.CodeMemberLimitExceeded, "member limit exceeded")
 		return
 	}
+	// The interface turns these three into confirmation dialogs, so they carry
+	// enough context to name the company the user is about to leave.
+	var conflict *models.CompanyMembershipConflict
+	if errors.As(err, &conflict) {
+		response.WriteErrorWithDetails(w, http.StatusConflict, response.CodeCompanyMembershipConflict, "user already belongs to another company", map[string]any{
+			"current_company_uuid": conflict.CurrentCompanyUUID,
+			"current_company_name": conflict.CurrentCompanyName,
+			"confirmation_field":   "confirm_transfer",
+		})
+		return
+	}
+	if errors.Is(err, models.ErrCompanyMembershipConflict) {
+		response.WriteError(w, http.StatusConflict, response.CodeCompanyMembershipConflict, "user already belongs to another company")
+		return
+	}
+	var transferRequired *models.DepartmentTransferRequired
+	if errors.As(err, &transferRequired) {
+		response.WriteErrorWithDetails(w, http.StatusConflict, response.CodeDepartmentTransferRequired, "department transfer request is required", map[string]any{
+			"user_uuid": transferRequired.UserUUID,
+		})
+		return
+	}
+	if errors.Is(err, models.ErrTargetAlreadyEngaged) {
+		response.WriteErrorWithDetails(w, http.StatusConflict, response.CodeTargetAlreadyEngaged, "user already belongs to a company or department", map[string]any{
+			"confirmation_field": "acknowledge_current_membership",
+		})
+		return
+	}
+	if errors.Is(err, models.ErrInvitationsMuted) {
+		response.WriteError(w, http.StatusConflict, response.CodeInvitationsMuted, "user does not accept invitations")
+		return
+	}
+	if errors.Is(err, models.ErrInvitationApprovalRequired) {
+		response.WriteError(w, http.StatusConflict, response.CodeInvitationApprovalRequired, "invitation needs approval")
+		return
+	}
+	if errors.Is(err, models.ErrOwnerOnlyAction) {
+		response.WriteError(w, http.StatusForbidden, response.CodeOwnerOnlyAction, "action is available to the company owner only")
+		return
+	}
 
 	response.WriteError(w, http.StatusInternalServerError, fallbackCode, fallbackMessage)
 }

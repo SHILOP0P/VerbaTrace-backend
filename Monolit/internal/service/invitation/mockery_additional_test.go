@@ -121,7 +121,7 @@ func TestAcceptBillingAndHelpersWithMockery(t *testing.T) {
 	companyRepo.EXPECT().GetCompanyMember(mock.Anything, companyID, userID).
 		Return(models.CompanyMember{}, models.ErrCompanyNotFound).Once()
 	billing.EXPECT().CanAddCompanyMember(mock.Anything, companyID).Return(nil).Once()
-	invitationRepo.EXPECT().AcceptInvitation(mock.Anything, invitationID, now).Return(pending, nil).Once()
+	invitationRepo.EXPECT().AcceptInvitation(mock.Anything, models.AcceptInvitationCommand{InvitationUUID: invitationID, Now: now}).Return(pending, nil).Once()
 	if _, err := service.AcceptInvitation(ctx, models.AcceptInvitationInput{
 		InvitationUUID: invitationID, RequestUser: userID,
 	}); err != nil {
@@ -245,6 +245,8 @@ func TestCreateInvitationsFullPathsWithMockery(t *testing.T) {
 		billing.EXPECT().CanUseCompany(mock.Anything, companyID).Return(nil).Once()
 		companyRepo.EXPECT().GetCompanyMember(mock.Anything, companyID, targetID).
 			Return(models.CompanyMember{}, models.ErrCompanyNotFound).Once()
+		companyRepo.EXPECT().ActiveEmployerCompany(mock.Anything, targetID).
+			Return(models.Company{}, models.ErrCompanyNotFound).Once()
 		invitationRepo.EXPECT().CreateInvitation(mock.Anything, mock.MatchedBy(func(value models.MembershipInvitation) bool {
 			return value.CompanyUUID == companyID && value.InvitedUserUUID == targetID &&
 				value.Status == models.InvitationStatusPending
@@ -275,6 +277,8 @@ func TestCreateInvitationsFullPathsWithMockery(t *testing.T) {
 			Return(models.CompanyMember{Role: models.CompanyMemberRoleEmployee}, nil).Once()
 		departmentRepo.EXPECT().GetDepartmentMember(mock.Anything, companyID, departmentID, targetID).
 			Return(models.DepartmentMember{}, models.ErrDepartmentNotFound).Once()
+		departmentRepo.EXPECT().ListUserDepartments(mock.Anything, companyID, targetID).
+			Return(nil, nil).Once()
 		invitationRepo.EXPECT().CreateInvitation(mock.Anything, mock.Anything).
 			Return(models.MembershipInvitation{ID: uuid.New()}, nil).Once()
 

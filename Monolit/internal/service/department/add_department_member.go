@@ -10,6 +10,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// AddDepartmentMember puts an existing company member into a department. It is
+// the same operation as a move, so nobody ends up in two departments, and only
+// the owner and the deputy may do it directly. Leaders ask for a transfer.
 func (s *Service) AddDepartmentMember(ctx context.Context, input models.AddDepartmentMemberInput) (models.DepartmentMember, error) {
 	if input.CompanyUUID == uuid.Nil || input.DepartmentUUID == uuid.Nil || input.RequestUser == uuid.Nil || input.UserUUID == uuid.Nil {
 		return models.DepartmentMember{}, models.ErrInvalidDepartmentInput
@@ -19,7 +22,7 @@ func (s *Service) AddDepartmentMember(ctx context.Context, input models.AddDepar
 		return models.DepartmentMember{}, models.ErrInvalidDepartmentInput
 	}
 
-	if err := s.authorizeAddDepartmentMember(ctx, input); err != nil {
+	if err := s.requireCompanyManager(ctx, input.CompanyUUID, input.RequestUser); err != nil {
 		return models.DepartmentMember{}, err
 	}
 
@@ -31,51 +34,21 @@ func (s *Service) AddDepartmentMember(ctx context.Context, input models.AddDepar
 		return models.DepartmentMember{}, err
 	}
 
-	if s.billingLimiter != nil {
-		if err := s.billingLimiter.CanAddCompanyMember(ctx, input.CompanyUUID); err != nil {
-			return models.DepartmentMember{}, err
-		}
-	}
-
-	member := models.DepartmentMember{
-		DepartmentUUID: input.DepartmentUUID,
-		UserUUID:       input.UserUUID,
-		Role:           input.Role,
-		Status:         models.MembershipStatusActive,
-		CreatedAt:      time.Now().UTC(),
-	}
-
-	createdMember, err := s.departmentRepository.AddDepartmentMember(ctx, input.CompanyUUID, member)
+	member, err := s.departmentRepository.MoveMemberToDepartment(ctx, models.MoveDepartmentMemberInput{
+		CompanyUUID:      input.CompanyUUID,
+		ToDepartmentUUID: input.DepartmentUUID,
+		UserUUID:         input.UserUUID,
+		RequestUser:      input.RequestUser,
+		Role:             input.Role,
+		Now:              time.Now().UTC(),
+	})
 	if err != nil {
 		s.log.Error(ctx, "failed to add department member", zap.String("company_id", input.CompanyUUID.String()), zap.String("department_id", input.DepartmentUUID.String()), zap.String("request_user_id", input.RequestUser.String()), zap.String("user_id", input.UserUUID.String()), zap.Error(err))
 		return models.DepartmentMember{}, err
 	}
 
-	s.log.Info(ctx, "department member added", zap.String("company_id", input.CompanyUUID.String()), zap.String("department_id", input.DepartmentUUID.String()), zap.String("request_user_id", input.RequestUser.String()), zap.String("user_id", input.UserUUID.String()), zap.String("role", string(createdMember.Role)))
+	s.notify(ctx, input.UserUUID, models.NotificationTypeDepartmentMemberMoved, "Вас добавили в отдел", "Доступ к звонкам обновлён", input.DepartmentUUID)
+	s.log.Info(ctx, "department member added", zap.String("company_id", input.CompanyUUID.String()), zap.String("department_id", input.DepartmentUUID.String()), zap.String("request_user_id", input.RequestUser.String()), zap.String("user_id", input.UserUUID.String()), zap.String("role", string(member.Role)))
 
-	return createdMember, nil
-}
-
-func (s *Service) authorizeAddDepartmentMember(ctx context.Context, input models.AddDepartmentMemberInput) error {
-	requestMember, err := s.companyRepository.GetCompanyMember(ctx, input.CompanyUUID, input.RequestUser)
-	if err != nil {
-		return err
-	}
-	if requestMember.Role == models.CompanyMemberRoleManager {
-		return nil
-	}
-
-	if input.Role != models.DepartmentMemberRoleEmployee {
-		return models.ErrForbidden
-	}
-
-	departmentMember, err := s.departmentRepository.GetDepartmentMember(ctx, input.CompanyUUID, input.DepartmentUUID, input.RequestUser)
-	if err != nil {
-		return err
-	}
-	if departmentMember.Role != models.DepartmentMemberRoleLeader {
-		return models.ErrForbidden
-	}
-
-	return nil
+	return member, nil
 }

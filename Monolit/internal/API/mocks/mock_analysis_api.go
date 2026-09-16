@@ -55,6 +55,40 @@ func (_c *AnalysisAPI_AnalyzeCall_Call) RunAndReturn(run func(http.ResponseWrite
 	return _c
 }
 
+// GetAppliedInstruction provides a mock function with given fields: w, r
+func (_m *AnalysisAPI) GetAppliedInstruction(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// AnalysisAPI_GetAppliedInstruction_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAppliedInstruction'
+type AnalysisAPI_GetAppliedInstruction_Call struct {
+	*mock.Call
+}
+
+// GetAppliedInstruction is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *AnalysisAPI_Expecter) GetAppliedInstruction(w interface{}, r interface{}) *AnalysisAPI_GetAppliedInstruction_Call {
+	return &AnalysisAPI_GetAppliedInstruction_Call{Call: _e.mock.On("GetAppliedInstruction", w, r)}
+}
+
+func (_c *AnalysisAPI_GetAppliedInstruction_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *AnalysisAPI_GetAppliedInstruction_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *AnalysisAPI_GetAppliedInstruction_Call) Return() *AnalysisAPI_GetAppliedInstruction_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *AnalysisAPI_GetAppliedInstruction_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AnalysisAPI_GetAppliedInstruction_Call {
+	_c.Run(run)
+	return _c
+}
+
 // GetByCallUUID provides a mock function with given fields: w, r
 func (_m *AnalysisAPI) GetByCallUUID(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -89,10 +123,39 @@ func (_c *AnalysisAPI_GetByCallUUID_Call) RunAndReturn(run func(http.ResponseWri
 	return _c
 }
 
+// ListAppliedInstructions provides a mock function with given fields: w, r
 func (_m *AnalysisAPI) ListAppliedInstructions(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
 }
-func (_m *AnalysisAPI) GetAppliedInstruction(w http.ResponseWriter, r *http.Request) { _m.Called(w, r) }
+
+// AnalysisAPI_ListAppliedInstructions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAppliedInstructions'
+type AnalysisAPI_ListAppliedInstructions_Call struct {
+	*mock.Call
+}
+
+// ListAppliedInstructions is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *AnalysisAPI_Expecter) ListAppliedInstructions(w interface{}, r interface{}) *AnalysisAPI_ListAppliedInstructions_Call {
+	return &AnalysisAPI_ListAppliedInstructions_Call{Call: _e.mock.On("ListAppliedInstructions", w, r)}
+}
+
+func (_c *AnalysisAPI_ListAppliedInstructions_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *AnalysisAPI_ListAppliedInstructions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *AnalysisAPI_ListAppliedInstructions_Call) Return() *AnalysisAPI_ListAppliedInstructions_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *AnalysisAPI_ListAppliedInstructions_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AnalysisAPI_ListAppliedInstructions_Call {
+	_c.Run(run)
+	return _c
+}
 
 // NewAnalysisAPI creates a new instance of AnalysisAPI. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.

@@ -54,13 +54,7 @@ func (s *RepositorySuite) createCompanyWithManager() (models.Company, models.Cur
 
 func (s *RepositorySuite) addCompanyEmployee(companyID uuid.UUID, role models.CompanyMemberRole) models.CurrentUser {
 	user := s.createUser(uuid.NewString() + "@example.com")
-	_, err := s.companyRepository.AddCompanyMember(s.ctx, models.CompanyMember{
-		CompanyUUID: companyID,
-		UserUUID:    user.ID,
-		Role:        role,
-		Status:      models.MembershipStatusActive,
-		CreatedAt:   time.Now().UTC().Truncate(time.Microsecond),
-	})
+	_, err := s.db.ExecContext(s.ctx, `INSERT INTO company_members (company_uuid, user_uuid, role, status) VALUES ($1, $2, $3, $4) ON CONFLICT (company_uuid, user_uuid) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`, companyID, user.ID, string(role), string(models.MembershipStatusActive))
 	s.Require().NoError(err)
 
 	return user

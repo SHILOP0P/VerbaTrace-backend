@@ -319,7 +319,7 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]models.QualityRevie
 	}
 	args := []any{in.ActorUserUUID}
 	where := []string{`(
-		EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=q.company_uuid AND cm.user_uuid=$1 AND cm.status='active' AND cm.role='company_manager')
+		EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=q.company_uuid AND cm.user_uuid=$1 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy'))
 		OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=q.department_uuid AND dm.user_uuid=$1 AND dm.status='active' AND dm.role='department_leader')
 		OR (q.status IN ('unassigned','assigned','published','resolved','canceled')
 			AND EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=q.company_uuid AND cm.user_uuid=$1 AND cm.status='active')
@@ -395,7 +395,7 @@ func (s *Service) Get(ctx context.Context, id, actor uuid.UUID) (models.QualityR
 	}
 	q.Analysis = analysis
 	q.SourceOutdated = s.sourceOutdated(ctx, q)
-	q.Capabilities = models.QualityReviewCapabilities{CanClaim: access.CanReview && !q.AssigneeUserUUID.Valid, CanEdit: access.CanReview && (!q.AssigneeUserUUID.Valid || q.AssigneeUserUUID.UUID == actor || access.CompanyRole == string(models.CompanyMemberRoleManager)), CanPublish: access.CanReview, CanViewEvents: access.CanReview}
+	q.Capabilities = models.QualityReviewCapabilities{CanClaim: access.CanReview && !q.AssigneeUserUUID.Valid, CanEdit: access.CanReview && (!q.AssigneeUserUUID.Valid || q.AssigneeUserUUID.UUID == actor || models.CompanyMemberRole(access.CompanyRole).ManagesCompany()), CanPublish: access.CanReview, CanViewEvents: access.CanReview}
 	if q.ActiveRevisionUUID.Valid {
 		r, e := s.loadRevision(ctx, q.ActiveRevisionUUID.UUID)
 		if e == nil {
@@ -467,7 +467,7 @@ func (s *Service) SaveDraft(ctx context.Context, in DraftInput) (models.QualityR
 	if err != nil || !access.CanReview {
 		return q, ErrForbidden
 	}
-	if q.AssigneeUserUUID.Valid && q.AssigneeUserUUID.UUID != in.ActorUserUUID && access.CompanyRole != string(models.CompanyMemberRoleManager) {
+	if q.AssigneeUserUUID.Valid && q.AssigneeUserUUID.UUID != in.ActorUserUUID && !models.CompanyMemberRole(access.CompanyRole).ManagesCompany() {
 		return q, ErrForbidden
 	}
 	if q.LockVersion != in.ExpectedVersion {
@@ -577,7 +577,7 @@ func (s *Service) Publish(ctx context.Context, id, draftID, actor uuid.UUID, exp
 	if publishedCount >= limit {
 		return q, ErrReviewLimitReached
 	}
-	if publishedCount == 1 && q.Status != models.QualityReviewAppealed && access.CompanyRole != string(models.CompanyMemberRoleManager) {
+	if publishedCount == 1 && q.Status != models.QualityReviewAppealed && !models.CompanyMemberRole(access.CompanyRole).ManagesCompany() {
 		return q, ErrForbidden
 	}
 	if q.ActiveRevisionUUID.Valid {
@@ -683,7 +683,7 @@ func (s *Service) DiscardDraft(ctx context.Context, id, actor uuid.UUID, expecte
 	if err != nil || !access.CanReview {
 		return q, ErrForbidden
 	}
-	if q.AssigneeUserUUID.Valid && q.AssigneeUserUUID.UUID != actor && access.CompanyRole != string(models.CompanyMemberRoleManager) {
+	if q.AssigneeUserUUID.Valid && q.AssigneeUserUUID.UUID != actor && !models.CompanyMemberRole(access.CompanyRole).ManagesCompany() {
 		return q, ErrForbidden
 	}
 	if q.LockVersion != expected {

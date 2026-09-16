@@ -684,7 +684,7 @@ func (s *Service) portalHTTPClient(ctx context.Context, domain string) (*http.Cl
 	}, nil
 }
 
-const managerAccessSQL = `(EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=c.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=c.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager'))`
+const managerAccessSQL = `(EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=c.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=c.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')))`
 const managerOrLeaderAccessSQL = `(` + managerAccessSQL + ` OR EXISTS(SELECT 1 FROM department_members dm JOIN departments d ON d.department_uuid=dm.department_uuid WHERE dm.user_uuid=$2 AND dm.status='active' AND dm.role='department_leader' AND ((c.department_uuid IS NOT NULL AND dm.department_uuid=c.department_uuid) OR (c.department_uuid IS NULL AND d.company_uuid=c.company_uuid))))`
 
 func nullableUUID(id uuid.NullUUID) any {

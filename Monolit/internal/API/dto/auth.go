@@ -96,10 +96,13 @@ type UserPreferencesResponse struct {
 	ActiveCompanyUUID *string              `json:"active_company_uuid"`
 	Theme             string               `json:"theme"`
 	DateRange         PreferencesDateRange `json:"date_range"`
+	// InvitationsMuted is the "do not disturb" switch for invitations.
+	InvitationsMuted bool `json:"invitations_muted"`
 }
 
 type UpdatePreferencesRequest struct {
 	ActiveCompanyUUID *string               `json:"active_company_uuid"`
 	Theme             *string               `json:"theme"`
 	DateRange         *PreferencesDateRange `json:"date_range"`
+	InvitationsMuted  *bool                 `json:"invitations_muted"`
 }

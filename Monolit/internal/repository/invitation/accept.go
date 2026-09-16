@@ -8,6 +8,7 @@ import (
 	"time"
 
 	model "verbatrace/monolit/internal/models"
+	companyRepo "verbatrace/monolit/internal/repository/company"
 	"verbatrace/monolit/internal/repository/converter"
 	repoModel "verbatrace/monolit/internal/repository/models"
 	"verbatrace/monolit/internal/repository/scaner"
@@ -15,14 +16,22 @@ import (
 	"github.com/google/uuid"
 )
 
-func (r *Repository) AcceptInvitation(ctx context.Context, id uuid.UUID, now time.Time) (model.MembershipInvitation, error) {
+// AcceptInvitation turns a pending invitation into a membership. A user works in
+// one company at a time, so joining a new one means leaving the previous one in
+// the same transaction, and only after the user confirmed the move.
+func (r *Repository) AcceptInvitation(ctx context.Context, command model.AcceptInvitationCommand) (model.MembershipInvitation, error) {
+	now := command.Now
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.MembershipInvitation{}, fmt.Errorf("begin accept invitation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	invitation, err := getInvitationForUpdate(ctx, tx, id)
+	invitation, err := getInvitationForUpdate(ctx, tx, command.InvitationUUID)
 	if err != nil {
 		return model.MembershipInvitation{}, err
 	}
@@ -31,8 +40,15 @@ func (r *Repository) AcceptInvitation(ctx context.Context, id uuid.UUID, now tim
 		return model.MembershipInvitation{}, model.ErrInvitationNotPending
 	}
 
+	if invitation.ApprovalStatus == string(model.InvitationApprovalPending) {
+		return model.MembershipInvitation{}, model.ErrInvitationApprovalRequired
+	}
+	if invitation.ApprovalStatus == string(model.InvitationApprovalRejected) {
+		return model.MembershipInvitation{}, model.ErrInvitationNotPending
+	}
+
 	if !invitation.ExpiresAt.After(now) {
-		if err := markExpired(ctx, tx, id, now); err != nil {
+		if err := markExpired(ctx, tx, command.InvitationUUID, now); err != nil {
 			return model.MembershipInvitation{}, err
 		}
 		if err := tx.Commit(); err != nil {
@@ -41,21 +57,43 @@ func (r *Repository) AcceptInvitation(ctx context.Context, id uuid.UUID, now tim
 		return model.MembershipInvitation{}, model.ErrInvitationExpired
 	}
 
-	if invitation.DepartmentUUID.Valid {
-		if err := upsertCompanyMember(ctx, tx, invitation); err != nil {
-			return model.MembershipInvitation{}, err
-		}
+	// The company or department could have been archived while the invitation
+	// was waiting, and joining a dead scope leaves the user with nothing.
+	if err := ensureScopeAlive(ctx, tx, invitation); err != nil {
+		return model.MembershipInvitation{}, err
+	}
 
-		if err := upsertDepartmentMember(ctx, tx, invitation); err != nil {
-			return model.MembershipInvitation{}, err
+	previousCompany, err := activeEmployerCompanyForUpdate(ctx, tx, invitation.InvitedUserUUID)
+	if err != nil {
+		return model.MembershipInvitation{}, err
+	}
+	if previousCompany != uuid.Nil && previousCompany != invitation.CompanyUUID {
+		if !command.ConfirmTransfer {
+			return model.MembershipInvitation{}, model.ErrCompanyMembershipConflict
 		}
-	} else {
-		if err := upsertCompanyMember(ctx, tx, invitation); err != nil {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE company_members
+			SET status = 'left'
+			WHERE company_uuid = $1 AND user_uuid = $2 AND status = 'active'
+		`, previousCompany, invitation.InvitedUserUUID); err != nil {
+			return model.MembershipInvitation{}, fmt.Errorf("leave previous company: %w", err)
+		}
+		if err := companyRepo.CleanupCompanyAccessTx(ctx, tx, previousCompany, invitation.InvitedUserUUID, now); err != nil {
 			return model.MembershipInvitation{}, err
 		}
 	}
 
-	accepted, err := setAccepted(ctx, tx, id, now)
+	if err := upsertCompanyMember(ctx, tx, invitation); err != nil {
+		return model.MembershipInvitation{}, companyRepo.MembershipConflictError(err)
+	}
+
+	if invitation.DepartmentUUID.Valid {
+		if err := upsertDepartmentMember(ctx, tx, invitation); err != nil {
+			return model.MembershipInvitation{}, err
+		}
+	}
+
+	accepted, err := setAccepted(ctx, tx, command.InvitationUUID, now)
 	if err != nil {
 		return model.MembershipInvitation{}, err
 	}
@@ -87,6 +125,54 @@ func getInvitationForUpdate(ctx context.Context, tx *sql.Tx, id uuid.UUID) (repo
 	return invitation, nil
 }
 
+func ensureScopeAlive(ctx context.Context, tx *sql.Tx, invitation repoModel.MembershipInvitation) error {
+	var alive bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (SELECT 1 FROM companies WHERE company_uuid = $1 AND deleted_at IS NULL)
+	`, invitation.CompanyUUID).Scan(&alive); err != nil {
+		return fmt.Errorf("check company for invitation: %w", err)
+	}
+	if !alive {
+		return model.ErrCompanyNotFound
+	}
+
+	if !invitation.DepartmentUUID.Valid {
+		return nil
+	}
+
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM departments
+			WHERE department_uuid = $1 AND company_uuid = $2 AND deleted_at IS NULL
+		)
+	`, invitation.DepartmentUUID.UUID, invitation.CompanyUUID).Scan(&alive); err != nil {
+		return fmt.Errorf("check department for invitation: %w", err)
+	}
+	if !alive {
+		return model.ErrDepartmentNotFound
+	}
+
+	return nil
+}
+
+func activeEmployerCompanyForUpdate(ctx context.Context, tx *sql.Tx, userID uuid.UUID) (uuid.UUID, error) {
+	var companyID uuid.UUID
+	err := tx.QueryRowContext(ctx, `
+		SELECT company_uuid
+		FROM company_members
+		WHERE user_uuid = $1 AND status = 'active' AND role = 'employee'
+		FOR UPDATE
+	`, userID).Scan(&companyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("lock current company membership: %w", err)
+	}
+
+	return companyID, nil
+}
+
 func markExpired(ctx context.Context, tx *sql.Tx, id uuid.UUID, now time.Time) error {
 	query := `
 	UPDATE membership_invitations
@@ -113,7 +199,10 @@ func upsertCompanyMember(ctx context.Context, tx *sql.Tx, invitation repoModel.M
 	)
 	VALUES ($1, $2, $3, 'active', now())
 	ON CONFLICT (company_uuid, user_uuid)
-	DO UPDATE SET role = company_members.role,
+	DO UPDATE SET role = CASE
+	                       WHEN company_members.role = 'company_manager' THEN company_members.role
+	                       ELSE EXCLUDED.role
+	                     END,
 	              status = EXCLUDED.status
 	`
 

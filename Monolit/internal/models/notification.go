@@ -29,6 +29,16 @@ const (
 	NotificationTypeSupportAccessDecided        NotificationType = "support_access_decided"
 	NotificationTypeActionExternalSyncRequested NotificationType = "action_external_sync_requested"
 	NotificationTypeActionExternalSyncDecided   NotificationType = "action_external_sync_decided"
+	NotificationTypeInvitationApprovalRequested NotificationType = "invitation_approval_requested"
+	NotificationTypeInvitationApprovalDecided   NotificationType = "invitation_approval_decided"
+	NotificationTypeDepartmentTransferRequested NotificationType = "department_transfer_requested"
+	NotificationTypeDepartmentTransferDecided   NotificationType = "department_transfer_decided"
+	NotificationTypeDepartmentMemberMoved       NotificationType = "department_member_moved"
+	NotificationTypeCompanyOwnerTransferAsked   NotificationType = "company_owner_transfer_requested"
+	NotificationTypeCompanyOwnerTransferDecided NotificationType = "company_owner_transfer_decided"
+	NotificationTypeCompanyDeputyAssigned       NotificationType = "company_deputy_assigned"
+	NotificationTypeCompanyDeputyRevoked        NotificationType = "company_deputy_revoked"
+	NotificationTypeCompanyMemberRemoved        NotificationType = "company_member_removed"
 )
 
 type Notification struct {

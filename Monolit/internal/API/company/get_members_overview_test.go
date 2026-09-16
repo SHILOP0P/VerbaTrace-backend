@@ -36,7 +36,7 @@ func (s *APISuite) TestGetCompanyMembersOverviewParsesFilters() {
 	companyID := uuid.New()
 	departmentID := uuid.New()
 	userID := uuid.New()
-	status := models.MembershipStatusSuspended
+	status := models.MembershipStatusLeft
 	role := string(models.DepartmentMemberRoleLeader)
 
 	s.service.On("ListCompanyMembers", mock.Anything, models.ListCompanyMembersInput{
@@ -52,7 +52,7 @@ func (s *APISuite) TestGetCompanyMembersOverviewParsesFilters() {
 		Return(models.CompanyMembersResult{Limit: 10, Offset: 20}, nil).
 		Once()
 
-	rec, req := s.request(http.MethodGet, "/api/v1/companies/"+companyID.String()+"/members?status=suspended&role=department_leader&department_uuid="+departmentID.String()+"&q=petrov&limit=10&offset=20", "", userID, map[string]string{
+	rec, req := s.request(http.MethodGet, "/api/v1/companies/"+companyID.String()+"/members?status=left&role=department_leader&department_uuid="+departmentID.String()+"&q=petrov&limit=10&offset=20", "", userID, map[string]string{
 		"uuid": companyID.String(),
 	})
 

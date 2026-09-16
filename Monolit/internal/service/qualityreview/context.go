@@ -111,8 +111,8 @@ func (s *Service) GetAnalysisContext(ctx context.Context, callID, analysisID, ac
 		return models.AnalysisReviewContext{}, err
 	}
 	previousAuthorMatches := len(revisions) > 0 && revisions[len(revisions)-1].AuthorUserUUID == actor
-	canStartSecond := len(revisions) == 0 || review.Status == models.QualityReviewAppealed || access.CompanyRole == string(models.CompanyMemberRoleManager)
-	assignmentAllowsEdit := !review.AssigneeUserUUID.Valid || review.AssigneeUserUUID.UUID == actor || access.CompanyRole == string(models.CompanyMemberRoleManager)
+	canStartSecond := len(revisions) == 0 || review.Status == models.QualityReviewAppealed || models.CompanyMemberRole(access.CompanyRole).ManagesCompany()
+	assignmentAllowsEdit := !review.AssigneeUserUUID.Valid || review.AssigneeUserUUID.UUID == actor || models.CompanyMemberRole(access.CompanyRole).ManagesCompany()
 	canEdit := result.Capabilities.CanEditAnalysis && assignmentAllowsEdit && !result.SourceOutdated && len(revisions) < limit && !previousAuthorMatches && canStartSecond
 	result.Capabilities.CanEditAnalysis = canEdit
 	result.Capabilities.CanEdit = canEdit

@@ -18,7 +18,7 @@ func (s *Service) GetCompanyMembersOverview(ctx context.Context, companyID uuid.
 		return models.CompanyMembersOverview{}, err
 	}
 
-	if member.Role != models.CompanyMemberRoleManager {
+	if !member.Role.ManagesCompany() {
 		return models.CompanyMembersOverview{}, models.ErrForbidden
 	}
 
@@ -49,7 +49,7 @@ func (s *Service) ListCompanyMembers(ctx context.Context, input models.ListCompa
 		return models.CompanyMembersResult{}, models.ErrInvalidCompanyInput
 	}
 
-	if err := s.requireCompanyManager(ctx, input.CompanyUUID, input.RequestUser); err != nil {
+	if err := s.requireCompanyManagement(ctx, input.CompanyUUID, input.RequestUser); err != nil {
 		return models.CompanyMembersResult{}, err
 	}
 
@@ -63,5 +63,6 @@ func (s *Service) ListCompanyMembers(ctx context.Context, input models.ListCompa
 func validCompanyMemberListRole(role string) bool {
 	return role == string(models.CompanyMemberRoleEmployee) ||
 		role == string(models.CompanyMemberRoleManager) ||
+		role == string(models.CompanyMemberRoleDeputy) ||
 		role == string(models.DepartmentMemberRoleLeader)
 }

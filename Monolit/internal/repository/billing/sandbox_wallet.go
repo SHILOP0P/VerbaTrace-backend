@@ -21,7 +21,7 @@ func (r *Repository) GetSandboxWallet(ctx context.Context, appID, actorID uuid.U
 		LEFT JOIN credit_grants g ON g.application_uuid=a.application_uuid
 		LEFT JOIN credit_ledger_accounts la ON la.credit_grant_uuid=g.credit_grant_uuid AND la.account_type='customer_available'
 		LEFT JOIN credit_ledger_postings p ON p.credit_ledger_account_uuid=la.credit_ledger_account_uuid
-		WHERE a.application_uuid=$1 AND a.environment='sandbox' AND a.status<>'revoked' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager'))))
+		WHERE a.application_uuid=$1 AND a.environment='sandbox' AND a.status<>'revoked' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')))))
 		GROUP BY a.application_uuid,a.name`, appID, actorID).Scan(&result.ApplicationName, &result.BalanceCredits)
 	if errors.Is(err, sql.ErrNoRows) {
 		return result, models.ErrForbidden
@@ -71,7 +71,7 @@ func (r *Repository) AdjustSandboxWallet(ctx context.Context, appID, actorID uui
 	}
 	defer func() { _ = tx.Rollback() }()
 	var accountID uuid.UUID
-	err = tx.QueryRowContext(ctx, `SELECT a.billing_account_uuid FROM developer_applications a WHERE a.application_uuid=$1 AND a.environment='sandbox' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager'))))`, appID, actorID).Scan(&accountID)
+	err = tx.QueryRowContext(ctx, `SELECT a.billing_account_uuid FROM developer_applications a WHERE a.application_uuid=$1 AND a.environment='sandbox' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')))))`, appID, actorID).Scan(&accountID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, models.ErrForbidden
 	}

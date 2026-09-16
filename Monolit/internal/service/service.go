@@ -127,9 +127,12 @@ type CompanyService interface {
 	UpdateCompanyTag(ctx context.Context, input models.UpdateCompanyTagInput) (models.Company, error)
 	UpdateCompanyTagAsAdmin(ctx context.Context, companyID uuid.UUID, tag string) (models.Company, error)
 	DeleteCompany(ctx context.Context, input models.DeleteCompanyInput) error
-	AddCompanyMember(ctx context.Context, input models.AddCompanyMemberInput) (models.CompanyMember, error)
 	UpdateCompanyMemberRole(ctx context.Context, input models.UpdateCompanyMemberRoleInput) (models.CompanyMember, error)
-	UpdateCompanyMemberStatus(ctx context.Context, input models.UpdateCompanyMemberStatusInput) (models.CompanyMember, error)
+	RemoveCompanyMember(ctx context.Context, input models.RemoveCompanyMemberInput) (models.CompanyMember, error)
+	OfferOwnership(ctx context.Context, input models.CreateCompanyOwnershipTransferInput) (models.CompanyOwnershipTransfer, error)
+	DecideOwnership(ctx context.Context, input models.DecideCompanyOwnershipTransferInput) (models.CompanyOwnershipTransfer, error)
+	CancelOwnershipOffer(ctx context.Context, transferID uuid.UUID, requestUser uuid.UUID) (models.CompanyOwnershipTransfer, error)
+	ListIncomingOwnershipOffers(ctx context.Context, userID uuid.UUID) ([]models.CompanyOwnershipTransfer, error)
 	UpdateCompanyMemberJobTitle(ctx context.Context, input models.UpdateCompanyMemberJobTitleInput) (models.CompanyMember, error)
 	LeaveCompany(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.CompanyMember, error)
 	ListUserCompanies(ctx context.Context, userID uuid.UUID) ([]models.Company, error)
@@ -147,6 +150,10 @@ type DepartmentService interface {
 	UpdateDepartmentMemberRole(ctx context.Context, input models.UpdateDepartmentMemberRoleInput) (models.DepartmentMember, error)
 	UpdateDepartmentMemberStatus(ctx context.Context, input models.UpdateDepartmentMemberStatusInput) (models.DepartmentMember, error)
 	ListCompanyDepartments(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) ([]models.Department, error)
+	MoveMember(ctx context.Context, input models.MoveDepartmentMemberInput) (models.DepartmentMember, error)
+	RequestTransfer(ctx context.Context, input models.CreateDepartmentTransferInput) (models.DepartmentTransferRequest, error)
+	DecideTransfer(ctx context.Context, input models.DecideDepartmentTransferInput) (models.DepartmentTransferRequest, error)
+	ListTransfers(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID, status models.DepartmentTransferStatus) ([]models.DepartmentTransferRequest, error)
 }
 
 type AnalysisInstructionService interface {
@@ -196,4 +203,6 @@ type InvitationService interface {
 	AcceptInvitation(ctx context.Context, input models.AcceptInvitationInput) (models.MembershipInvitation, error)
 	DeclineInvitation(ctx context.Context, input models.DeclineInvitationInput) (models.MembershipInvitation, error)
 	CancelInvitation(ctx context.Context, input models.CancelInvitationInput) (models.MembershipInvitation, error)
+	DecideInvitationApproval(ctx context.Context, input models.DecideInvitationApprovalInput) (models.MembershipInvitation, error)
+	ListCompanyInvitations(ctx context.Context, input models.ListCompanyInvitationsInput) ([]models.MembershipInvitation, error)
 }

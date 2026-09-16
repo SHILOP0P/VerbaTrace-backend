@@ -265,7 +265,7 @@ func (s *Service) Revoke(ctx context.Context, id, actor uuid.UUID, reason string
 	}
 	allowed := grantedBy.Valid && grantedBy.UUID == actor || subjectUser.Valid && subjectUser.UUID == actor
 	if !allowed && subjectCompany.Valid {
-		_ = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM companies WHERE company_uuid=$1 AND manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active' AND role='company_manager')`, subjectCompany.UUID, actor).Scan(&allowed)
+		_ = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM companies WHERE company_uuid=$1 AND manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active' AND role IN ('company_manager','company_deputy'))`, subjectCompany.UUID, actor).Scan(&allowed)
 	}
 	if !allowed {
 		return ErrForbidden

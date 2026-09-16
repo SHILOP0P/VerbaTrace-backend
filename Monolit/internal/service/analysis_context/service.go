@@ -66,7 +66,7 @@ func (s *Service) authorize(ctx context.Context, userID uuid.UUID, scope models.
 		if err != nil {
 			return err
 		}
-		if write && member.Role != models.CompanyMemberRoleManager {
+		if write && !member.Role.ManagesCompany() {
 			return models.ErrForbidden
 		}
 		return nil
@@ -86,7 +86,7 @@ func (s *Service) authorize(ctx context.Context, userID uuid.UUID, scope models.
 			return err
 		}
 		member, err := s.companies.GetCompanyMember(ctx, companyID, userID)
-		if err == nil && member.Role == models.CompanyMemberRoleManager {
+		if err == nil && member.Role.ManagesCompany() {
 			return nil
 		}
 		departmentMember, departmentErr := s.departments.GetDepartmentMember(ctx, companyID, ownerID, userID)

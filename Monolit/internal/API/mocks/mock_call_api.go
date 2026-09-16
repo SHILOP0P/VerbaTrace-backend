@@ -13,18 +13,6 @@ type CallAPI struct {
 	mock.Mock
 }
 
-func (_m *CallAPI) UpdateTranscription(w http.ResponseWriter, r *http.Request) { _m.Called(w, r) }
-func (_m *CallAPI) ListTranscriptionRevisions(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-func (_m *CallAPI) RestoreTranscriptionRevision(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
-func (_m *CallAPI) GetTranscriptionRevision(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
 type CallAPI_Expecter struct {
 	mock *mock.Mock
 }
@@ -271,6 +259,40 @@ func (_c *CallAPI_GetTranscriptionByCallUUID_Call) RunAndReturn(run func(http.Re
 	return _c
 }
 
+// GetTranscriptionRevision provides a mock function with given fields: w, r
+func (_m *CallAPI) GetTranscriptionRevision(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CallAPI_GetTranscriptionRevision_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTranscriptionRevision'
+type CallAPI_GetTranscriptionRevision_Call struct {
+	*mock.Call
+}
+
+// GetTranscriptionRevision is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CallAPI_Expecter) GetTranscriptionRevision(w interface{}, r interface{}) *CallAPI_GetTranscriptionRevision_Call {
+	return &CallAPI_GetTranscriptionRevision_Call{Call: _e.mock.On("GetTranscriptionRevision", w, r)}
+}
+
+func (_c *CallAPI_GetTranscriptionRevision_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallAPI_GetTranscriptionRevision_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CallAPI_GetTranscriptionRevision_Call) Return() *CallAPI_GetTranscriptionRevision_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CallAPI_GetTranscriptionRevision_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_GetTranscriptionRevision_Call {
+	_c.Run(run)
+	return _c
+}
+
 // List provides a mock function with given fields: w, r
 func (_m *CallAPI) List(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -301,6 +323,142 @@ func (_c *CallAPI_List_Call) Return() *CallAPI_List_Call {
 }
 
 func (_c *CallAPI_List_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_List_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ListTranscriptionRevisions provides a mock function with given fields: w, r
+func (_m *CallAPI) ListTranscriptionRevisions(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CallAPI_ListTranscriptionRevisions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListTranscriptionRevisions'
+type CallAPI_ListTranscriptionRevisions_Call struct {
+	*mock.Call
+}
+
+// ListTranscriptionRevisions is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CallAPI_Expecter) ListTranscriptionRevisions(w interface{}, r interface{}) *CallAPI_ListTranscriptionRevisions_Call {
+	return &CallAPI_ListTranscriptionRevisions_Call{Call: _e.mock.On("ListTranscriptionRevisions", w, r)}
+}
+
+func (_c *CallAPI_ListTranscriptionRevisions_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallAPI_ListTranscriptionRevisions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CallAPI_ListTranscriptionRevisions_Call) Return() *CallAPI_ListTranscriptionRevisions_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CallAPI_ListTranscriptionRevisions_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_ListTranscriptionRevisions_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ListTranscriptionSpeakerAssignments provides a mock function with given fields: w, r
+func (_m *CallAPI) ListTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CallAPI_ListTranscriptionSpeakerAssignments_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListTranscriptionSpeakerAssignments'
+type CallAPI_ListTranscriptionSpeakerAssignments_Call struct {
+	*mock.Call
+}
+
+// ListTranscriptionSpeakerAssignments is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CallAPI_Expecter) ListTranscriptionSpeakerAssignments(w interface{}, r interface{}) *CallAPI_ListTranscriptionSpeakerAssignments_Call {
+	return &CallAPI_ListTranscriptionSpeakerAssignments_Call{Call: _e.mock.On("ListTranscriptionSpeakerAssignments", w, r)}
+}
+
+func (_c *CallAPI_ListTranscriptionSpeakerAssignments_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallAPI_ListTranscriptionSpeakerAssignments_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CallAPI_ListTranscriptionSpeakerAssignments_Call) Return() *CallAPI_ListTranscriptionSpeakerAssignments_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CallAPI_ListTranscriptionSpeakerAssignments_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_ListTranscriptionSpeakerAssignments_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ReplaceTranscriptionSpeakerAssignments provides a mock function with given fields: w, r
+func (_m *CallAPI) ReplaceTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CallAPI_ReplaceTranscriptionSpeakerAssignments_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReplaceTranscriptionSpeakerAssignments'
+type CallAPI_ReplaceTranscriptionSpeakerAssignments_Call struct {
+	*mock.Call
+}
+
+// ReplaceTranscriptionSpeakerAssignments is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CallAPI_Expecter) ReplaceTranscriptionSpeakerAssignments(w interface{}, r interface{}) *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call {
+	return &CallAPI_ReplaceTranscriptionSpeakerAssignments_Call{Call: _e.mock.On("ReplaceTranscriptionSpeakerAssignments", w, r)}
+}
+
+func (_c *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call) Return() *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_ReplaceTranscriptionSpeakerAssignments_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RestoreTranscriptionRevision provides a mock function with given fields: w, r
+func (_m *CallAPI) RestoreTranscriptionRevision(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CallAPI_RestoreTranscriptionRevision_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RestoreTranscriptionRevision'
+type CallAPI_RestoreTranscriptionRevision_Call struct {
+	*mock.Call
+}
+
+// RestoreTranscriptionRevision is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CallAPI_Expecter) RestoreTranscriptionRevision(w interface{}, r interface{}) *CallAPI_RestoreTranscriptionRevision_Call {
+	return &CallAPI_RestoreTranscriptionRevision_Call{Call: _e.mock.On("RestoreTranscriptionRevision", w, r)}
+}
+
+func (_c *CallAPI_RestoreTranscriptionRevision_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallAPI_RestoreTranscriptionRevision_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CallAPI_RestoreTranscriptionRevision_Call) Return() *CallAPI_RestoreTranscriptionRevision_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CallAPI_RestoreTranscriptionRevision_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_RestoreTranscriptionRevision_Call {
 	_c.Run(run)
 	return _c
 }
@@ -339,15 +497,41 @@ func (_c *CallAPI_UpdateCallTitle_Call) RunAndReturn(run func(http.ResponseWrite
 	return _c
 }
 
+// UpdateTranscription provides a mock function with given fields: w, r
+func (_m *CallAPI) UpdateTranscription(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CallAPI_UpdateTranscription_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateTranscription'
+type CallAPI_UpdateTranscription_Call struct {
+	*mock.Call
+}
+
+// UpdateTranscription is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CallAPI_Expecter) UpdateTranscription(w interface{}, r interface{}) *CallAPI_UpdateTranscription_Call {
+	return &CallAPI_UpdateTranscription_Call{Call: _e.mock.On("UpdateTranscription", w, r)}
+}
+
+func (_c *CallAPI_UpdateTranscription_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CallAPI_UpdateTranscription_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CallAPI_UpdateTranscription_Call) Return() *CallAPI_UpdateTranscription_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CallAPI_UpdateTranscription_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CallAPI_UpdateTranscription_Call {
+	_c.Run(run)
+	return _c
+}
+
 // NewCallAPI creates a new instance of CallAPI. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
-func (_m *CallAPI) ListTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
-func (_m *CallAPI) ReplaceTranscriptionSpeakerAssignments(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
 // The first argument is typically a *testing.T value.
 func NewCallAPI(t interface {
 	mock.TestingT

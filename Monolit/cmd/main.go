@@ -311,6 +311,8 @@ func main() {
 	instructionSvc.SetBillingLimiter(billingSvc)
 	reportSvc.SetBillingLimiter(billingSvc)
 	invitationSvc.SetNotificationService(notificationSvc)
+	invitationSvc.SetPreferencesReader(userPreferencesRepository)
+	companySvc.SetNotificationService(notificationSvc)
 
 	adminHandler := adminAPI.NewHandler(adminSvc)
 	callHandler := call.NewCallHandler(callSvc)
@@ -330,6 +332,11 @@ func main() {
 	actionHandler := actionAPI.NewHandler(actionSvc)
 	actionWorkerDone := actionService.NewWorker(actionSvc, time.Hour, 500).Run(ctx)
 	actionOverdueWorkerDone := actionService.NewOverdueWorker(actionSvc, time.Hour, 500).Run(ctx)
+	// Membership housekeeping: expired invitations, transfer requests and
+	// ownership offers must stop looking actionable on their own.
+	invitationExpiryWorkerDone := invitationService.NewExpiryWorker(invitationSvc, time.Hour).Run(ctx)
+	departmentTransferWorkerDone := departmentService.NewTransferExpiryWorker(departmentSvc, time.Hour).Run(ctx)
+	membershipMaintenanceWorkerDone := companyService.NewMembershipMaintenanceWorker(companySvc, time.Hour).Run(ctx)
 	retentionSvc := retentionService.NewService(sqlDB, audioStorage, reportsStorage, instructionStorage, appLogger)
 	callRetentionWorkerDone := retentionService.NewCallWorker(retentionSvc, config.AppConfig().Worker.CallRetentionInterval(), config.AppConfig().Worker.CallRetentionBatch()).Run(ctx)
 	instructionRetentionWorkerDone := retentionService.NewInstructionWorker(retentionSvc, config.AppConfig().Worker.InstructionRetentionInterval(), config.AppConfig().Worker.InstructionRetentionBatch()).Run(ctx)
@@ -453,6 +460,21 @@ func main() {
 			appLogger.Info(context.Background(), "privacy media worker shutdown completed")
 		case <-shutdownCtx.Done():
 			appLogger.Warn(context.Background(), "privacy media worker shutdown timed out", zap.Error(shutdownCtx.Err()))
+		}
+	}
+	for name, workerDone := range map[string]<-chan struct{}{
+		"invitation expiry worker":      invitationExpiryWorkerDone,
+		"department transfer worker":    departmentTransferWorkerDone,
+		"membership maintenance worker": membershipMaintenanceWorkerDone,
+	} {
+		if workerDone == nil {
+			continue
+		}
+		select {
+		case <-workerDone:
+			appLogger.Info(context.Background(), name+" shutdown completed")
+		case <-shutdownCtx.Done():
+			appLogger.Warn(context.Background(), name+" shutdown timed out", zap.Error(shutdownCtx.Err()))
 		}
 	}
 	if privacyCleanupWorkerDone != nil {

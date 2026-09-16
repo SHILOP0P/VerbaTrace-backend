@@ -18,7 +18,7 @@ func (s *Service) requireCompanyManager(ctx context.Context, companyID uuid.UUID
 		return err
 	}
 
-	if member.Role != models.CompanyMemberRoleManager {
+	if !member.Role.ManagesCompany() {
 		return models.ErrForbidden
 	}
 

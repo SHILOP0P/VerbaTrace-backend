@@ -80,3 +80,14 @@ type DepartmentMembersOverview struct {
 	Department Department
 	Members    []DepartmentMember
 }
+
+// MoveDepartmentMemberInput describes a direct move between departments. Only
+// the owner and the deputy may perform it; leaders ask for it instead.
+type MoveDepartmentMemberInput struct {
+	CompanyUUID      uuid.UUID
+	ToDepartmentUUID uuid.UUID
+	UserUUID         uuid.UUID
+	RequestUser      uuid.UUID
+	Role             DepartmentMemberRole
+	Now              time.Time
+}

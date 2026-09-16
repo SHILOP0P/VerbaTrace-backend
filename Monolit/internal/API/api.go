@@ -154,14 +154,25 @@ type CompanyAPI interface {
 	UpdateTag(w http.ResponseWriter, r *http.Request)
 	UpdateTagAsAdmin(w http.ResponseWriter, r *http.Request)
 	Delete(w http.ResponseWriter, r *http.Request)
-	AddCompanyMember(w http.ResponseWriter, r *http.Request)
 	UpdateCompanyMemberRole(w http.ResponseWriter, r *http.Request)
-	UpdateCompanyMemberStatus(w http.ResponseWriter, r *http.Request)
+	RemoveCompanyMember(w http.ResponseWriter, r *http.Request)
+	OfferOwnership(w http.ResponseWriter, r *http.Request)
+	AcceptOwnership(w http.ResponseWriter, r *http.Request)
+	DeclineOwnership(w http.ResponseWriter, r *http.Request)
+	CancelOwnershipOffer(w http.ResponseWriter, r *http.Request)
+	ListIncomingOwnership(w http.ResponseWriter, r *http.Request)
 	UpdateCompanyMemberJobTitle(w http.ResponseWriter, r *http.Request)
 	LeaveCompany(w http.ResponseWriter, r *http.Request)
 	List(w http.ResponseWriter, r *http.Request)
 	GetByUUID(w http.ResponseWriter, r *http.Request)
 	GetCompanyMembersOverview(w http.ResponseWriter, r *http.Request)
+}
+
+type DepartmentTransferAPI interface {
+	CreateDepartmentTransfer(w http.ResponseWriter, r *http.Request)
+	ListDepartmentTransfers(w http.ResponseWriter, r *http.Request)
+	ApproveDepartmentTransfer(w http.ResponseWriter, r *http.Request)
+	RejectDepartmentTransfer(w http.ResponseWriter, r *http.Request)
 }
 
 type DepartmentAPI interface {
@@ -287,4 +298,7 @@ type InvitationAPI interface {
 	DeclineInvitation(w http.ResponseWriter, r *http.Request)
 	CancelCompanyInvitation(w http.ResponseWriter, r *http.Request)
 	CancelDepartmentInvitation(w http.ResponseWriter, r *http.Request)
+	ListCompanyInvitations(w http.ResponseWriter, r *http.Request)
+	ApproveInvitation(w http.ResponseWriter, r *http.Request)
+	RejectInvitation(w http.ResponseWriter, r *http.Request)
 }

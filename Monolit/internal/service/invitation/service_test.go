@@ -141,6 +141,7 @@ type serviceFixture struct {
 	companyMembers    map[string]models.CompanyMember
 	departmentMembers map[string]models.DepartmentMember
 	invitations       map[uuid.UUID]models.MembershipInvitation
+	restrictions      map[string]models.CompanyMembershipRestriction
 }
 
 func newServiceFixture() *serviceFixture {
@@ -149,6 +150,7 @@ func newServiceFixture() *serviceFixture {
 		companyMembers:    map[string]models.CompanyMember{},
 		departmentMembers: map[string]models.DepartmentMember{},
 		invitations:       map[uuid.UUID]models.MembershipInvitation{},
+		restrictions:      map[string]models.CompanyMembershipRestriction{},
 	}
 	f.service = NewService(f, f, f, f, logger.NewNop())
 	now := time.Now().UTC()
@@ -271,20 +273,102 @@ func (f *serviceFixture) ListUserInvitations(ctx context.Context, input models.L
 	return nil, nil
 }
 
-func (f *serviceFixture) ListCompanyInvitations(ctx context.Context, companyID uuid.UUID, status models.InvitationStatus) ([]models.MembershipInvitation, error) {
+func (f *serviceFixture) ListCompanyInvitations(ctx context.Context, input models.ListCompanyInvitationsInput) ([]models.MembershipInvitation, error) {
 	return nil, nil
 }
 
-func (f *serviceFixture) AcceptInvitation(ctx context.Context, id uuid.UUID, now time.Time) (models.MembershipInvitation, error) {
-	invitation := f.invitations[id]
-	if !invitation.ExpiresAt.After(now) {
+func (f *serviceFixture) AcceptInvitation(ctx context.Context, command models.AcceptInvitationCommand) (models.MembershipInvitation, error) {
+	invitation := f.invitations[command.InvitationUUID]
+	if !invitation.ExpiresAt.After(command.Now) {
 		invitation.Status = models.InvitationStatusExpired
-		f.invitations[id] = invitation
+		f.invitations[command.InvitationUUID] = invitation
 		return models.MembershipInvitation{}, models.ErrInvitationExpired
 	}
 	invitation.Status = models.InvitationStatusAccepted
+	f.invitations[command.InvitationUUID] = invitation
+	return invitation, nil
+}
+
+func (f *serviceFixture) DecideInvitationApproval(ctx context.Context, id uuid.UUID, approvedBy uuid.UUID, approve bool, now time.Time) (models.MembershipInvitation, error) {
+	invitation := f.invitations[id]
+	if approve {
+		invitation.ApprovalStatus = models.InvitationApprovalApproved
+	} else {
+		invitation.ApprovalStatus = models.InvitationApprovalRejected
+		invitation.Status = models.InvitationStatusCanceled
+	}
 	f.invitations[id] = invitation
 	return invitation, nil
+}
+
+func (f *serviceFixture) ExpireInvitations(ctx context.Context, now time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (f *serviceFixture) CancelCompanyInvitations(ctx context.Context, companyID uuid.UUID, now time.Time) error {
+	return nil
+}
+
+func (f *serviceFixture) CancelDepartmentInvitations(ctx context.Context, departmentID uuid.UUID, now time.Time) error {
+	return nil
+}
+
+func (f *serviceFixture) CreateOwnershipTransfer(ctx context.Context, transfer models.CompanyOwnershipTransfer) (models.CompanyOwnershipTransfer, error) {
+	return transfer, nil
+}
+
+func (f *serviceFixture) GetOwnershipTransfer(ctx context.Context, id uuid.UUID) (models.CompanyOwnershipTransfer, error) {
+	return models.CompanyOwnershipTransfer{}, models.ErrCompanyOwnershipTransferNotFound
+}
+
+func (f *serviceFixture) CloseOwnershipTransfer(ctx context.Context, id uuid.UUID, status models.CompanyOwnershipTransferStatus, now time.Time) (models.CompanyOwnershipTransfer, error) {
+	return models.CompanyOwnershipTransfer{}, nil
+}
+
+func (f *serviceFixture) AcceptOwnershipTransfer(ctx context.Context, id uuid.UUID, now time.Time) (models.CompanyOwnershipTransfer, error) {
+	return models.CompanyOwnershipTransfer{}, nil
+}
+
+func (f *serviceFixture) ExpireOwnershipTransfers(ctx context.Context, now time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (f *serviceFixture) ListIncomingOwnershipTransfers(ctx context.Context, userID uuid.UUID, now time.Time) ([]models.CompanyOwnershipTransfer, error) {
+	return nil, nil
+}
+
+func (f *serviceFixture) MoveMemberToDepartment(ctx context.Context, input models.MoveDepartmentMemberInput) (models.DepartmentMember, error) {
+	return models.DepartmentMember{}, nil
+}
+
+func (f *serviceFixture) CreateDepartmentTransfer(ctx context.Context, request models.DepartmentTransferRequest) (models.DepartmentTransferRequest, error) {
+	return request, nil
+}
+
+func (f *serviceFixture) GetDepartmentTransfer(ctx context.Context, id uuid.UUID) (models.DepartmentTransferRequest, error) {
+	return models.DepartmentTransferRequest{}, models.ErrDepartmentTransferNotFound
+}
+
+func (f *serviceFixture) ListDepartmentTransfers(ctx context.Context, companyID uuid.UUID, status models.DepartmentTransferStatus) ([]models.DepartmentTransferRequest, error) {
+	return nil, nil
+}
+
+func (f *serviceFixture) DecideDepartmentTransfer(ctx context.Context, id uuid.UUID, decidedBy uuid.UUID, approve bool, comment string, now time.Time) (models.DepartmentTransferRequest, error) {
+	return models.DepartmentTransferRequest{}, nil
+}
+
+func (f *serviceFixture) ExpireDepartmentTransfers(ctx context.Context, now time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (f *serviceFixture) ListUserDepartments(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) ([]models.CompanyMemberDepartment, error) {
+	result := []models.CompanyMemberDepartment{}
+	for _, member := range f.departmentMembers {
+		if member.Status == models.MembershipStatusActive && member.UserUUID == userID {
+			result = append(result, models.CompanyMemberDepartment{DepartmentUUID: member.DepartmentUUID, Role: member.Role, Status: member.Status})
+		}
+	}
+	return result, nil
 }
 
 func (f *serviceFixture) DeclineInvitation(ctx context.Context, id uuid.UUID, now time.Time) (models.MembershipInvitation, error) {
@@ -317,27 +401,54 @@ func (f *serviceFixture) ArchiveCompany(ctx context.Context, companyID uuid.UUID
 	return nil
 }
 
-func (f *serviceFixture) AddCompanyMember(ctx context.Context, member models.CompanyMember) (models.CompanyMember, error) {
-	f.companyMembers[companyKey(member.CompanyUUID, member.UserUUID)] = member
+func (f *serviceFixture) AssignCompanyDeputy(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.CompanyMember, error) {
+	member := models.CompanyMember{CompanyUUID: companyID, UserUUID: userID, Role: models.CompanyMemberRoleDeputy, Status: models.MembershipStatusActive}
+	f.companyMembers[companyKey(companyID, userID)] = member
 	return member, nil
 }
 
-func (f *serviceFixture) UpdateCompanyMemberRole(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, role models.CompanyMemberRole) (models.CompanyMember, error) {
+func (f *serviceFixture) RevokeCompanyDeputy(ctx context.Context, companyID uuid.UUID) (models.CompanyMember, error) {
 	return models.CompanyMember{}, nil
 }
 
-func (f *serviceFixture) UpdateCompanyMemberStatus(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, status models.MembershipStatus) (models.CompanyMember, error) {
-	return models.CompanyMember{}, nil
+func (f *serviceFixture) RemoveCompanyMember(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, now time.Time) (models.CompanyMember, error) {
+	member := f.companyMembers[companyKey(companyID, userID)]
+	member.Status = models.MembershipStatusLeft
+	f.companyMembers[companyKey(companyID, userID)] = member
+	return member, nil
 }
 
-func (f *serviceFixture) CountActiveCompanyManagers(ctx context.Context, companyID uuid.UUID, exceptUserID uuid.UUID) (int, error) {
+func (f *serviceFixture) CountActiveCompanyMembersExcept(ctx context.Context, companyID uuid.UUID, exceptUserID uuid.UUID) (int, error) {
 	count := 0
 	for _, member := range f.companyMembers {
-		if member.CompanyUUID == companyID && member.UserUUID != exceptUserID && member.Role == models.CompanyMemberRoleManager && member.Status == models.MembershipStatusActive {
+		if member.CompanyUUID == companyID && member.UserUUID != exceptUserID && member.Status == models.MembershipStatusActive {
 			count++
 		}
 	}
 	return count, nil
+}
+
+func (f *serviceFixture) ActiveEmployerCompany(ctx context.Context, userID uuid.UUID) (models.Company, error) {
+	for _, member := range f.companyMembers {
+		if member.UserUUID == userID && member.Status == models.MembershipStatusActive && member.Role == models.CompanyMemberRoleEmployee {
+			return models.Company{ID: member.CompanyUUID}, nil
+		}
+	}
+	return models.Company{}, models.ErrCompanyNotFound
+}
+
+func (f *serviceFixture) UpsertMembershipRestriction(ctx context.Context, restriction models.CompanyMembershipRestriction) error {
+	f.restrictions[companyKey(restriction.CompanyUUID, restriction.UserUUID)] = restriction
+	return nil
+}
+
+func (f *serviceFixture) HasActiveMembershipRestriction(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, now time.Time) (bool, error) {
+	restriction, ok := f.restrictions[companyKey(companyID, userID)]
+	return ok && restriction.ExpiresAt.After(now), nil
+}
+
+func (f *serviceFixture) DeleteExpiredMembershipRestrictions(ctx context.Context, now time.Time) (int64, error) {
+	return 0, nil
 }
 
 func (f *serviceFixture) ListUserCompanies(ctx context.Context, userID uuid.UUID) ([]models.Company, error) {

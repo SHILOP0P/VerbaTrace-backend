@@ -66,13 +66,7 @@ func (s *RepositorySuite) createDepartment(companyID uuid.UUID) models.Departmen
 }
 
 func (s *RepositorySuite) addCompanyMember(companyID uuid.UUID, userID uuid.UUID, status models.MembershipStatus) {
-	_, err := s.companyRepository.AddCompanyMember(s.ctx, models.CompanyMember{
-		CompanyUUID: companyID,
-		UserUUID:    userID,
-		Role:        models.CompanyMemberRoleEmployee,
-		Status:      status,
-		CreatedAt:   time.Now().UTC().Truncate(time.Microsecond),
-	})
+	_, err := s.db.ExecContext(s.ctx, `INSERT INTO company_members (company_uuid, user_uuid, role, status) VALUES ($1, $2, $3, $4) ON CONFLICT (company_uuid, user_uuid) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`, companyID, userID, string(models.CompanyMemberRoleEmployee), string(status))
 	s.Require().NoError(err)
 }
 
@@ -154,7 +148,7 @@ func (s *RepositorySuite) TestAcceptCompanyInvitationCreatesAndReactivatesMember
 	created, err := s.repository.CreateInvitation(s.ctx, invitation)
 	s.Require().NoError(err)
 
-	accepted, err := s.repository.AcceptInvitation(s.ctx, created.ID, time.Now().UTC())
+	accepted, err := s.repository.AcceptInvitation(s.ctx, models.AcceptInvitationCommand{InvitationUUID: created.ID, ConfirmTransfer: true, Now: time.Now().UTC()})
 	s.Require().NoError(err)
 	s.Require().Equal(models.InvitationStatusAccepted, accepted.Status)
 
@@ -184,7 +178,7 @@ func (s *RepositorySuite) TestAcceptDepartmentInvitationCreatesDepartmentMemberF
 	created, err := s.repository.CreateInvitation(s.ctx, invitation)
 	s.Require().NoError(err)
 
-	accepted, err := s.repository.AcceptInvitation(s.ctx, created.ID, time.Now().UTC())
+	accepted, err := s.repository.AcceptInvitation(s.ctx, models.AcceptInvitationCommand{InvitationUUID: created.ID, ConfirmTransfer: true, Now: time.Now().UTC()})
 	s.Require().NoError(err)
 	s.Require().Equal(models.InvitationStatusAccepted, accepted.Status)
 
@@ -206,7 +200,7 @@ func (s *RepositorySuite) TestAcceptExpiredInvitationMarksExpired() {
 	created, err := s.repository.CreateInvitation(s.ctx, invitation)
 	s.Require().NoError(err)
 
-	_, err = s.repository.AcceptInvitation(s.ctx, created.ID, time.Now().UTC())
+	_, err = s.repository.AcceptInvitation(s.ctx, models.AcceptInvitationCommand{InvitationUUID: created.ID, ConfirmTransfer: true, Now: time.Now().UTC()})
 	s.Require().ErrorIs(err, models.ErrInvitationExpired)
 
 	got, err := s.repository.GetInvitationByUUID(s.ctx, created.ID)
@@ -223,7 +217,7 @@ func (s *RepositorySuite) TestListCompanyDeclineAndCancelInvitations() {
 	second, err := s.repository.CreateInvitation(s.ctx, testInvitation(company.ID, secondUser.ID, manager.ID))
 	s.Require().NoError(err)
 
-	list, err := s.repository.ListCompanyInvitations(s.ctx, company.ID, "")
+	list, err := s.repository.ListCompanyInvitations(s.ctx, models.ListCompanyInvitationsInput{CompanyUUID: company.ID})
 	s.Require().NoError(err)
 	s.Require().Len(list, 2)
 
@@ -238,7 +232,8 @@ func (s *RepositorySuite) TestListCompanyDeclineAndCancelInvitations() {
 	s.Require().Equal(models.InvitationStatusCanceled, canceled.Status)
 
 	declinedList, err := s.repository.ListCompanyInvitations(
-		s.ctx, company.ID, models.InvitationStatusDeclined,
+		s.ctx,
+		models.ListCompanyInvitationsInput{CompanyUUID: company.ID, Status: models.InvitationStatusDeclined},
 	)
 	s.Require().NoError(err)
 	s.Require().Len(declinedList, 1)
@@ -254,7 +249,7 @@ func (s *RepositorySuite) TestGetAndAcceptMissingInvitation() {
 	_, err := s.repository.GetInvitationByUUID(s.ctx, uuid.New())
 	s.Require().ErrorIs(err, models.ErrInvitationNotFound)
 
-	_, err = s.repository.AcceptInvitation(s.ctx, uuid.New(), time.Now().UTC())
+	_, err = s.repository.AcceptInvitation(s.ctx, models.AcceptInvitationCommand{InvitationUUID: uuid.New(), ConfirmTransfer: true, Now: time.Now().UTC()})
 	s.Require().ErrorIs(err, models.ErrInvitationNotFound)
 }
 
@@ -269,7 +264,7 @@ func (s *RepositorySuite) TestAcceptRejectsNonPendingAndAddsDepartmentUserToComp
 	s.Require().NoError(err)
 	_, err = s.repository.DeclineInvitation(s.ctx, declinedInvitation.ID, time.Now().UTC())
 	s.Require().NoError(err)
-	_, err = s.repository.AcceptInvitation(s.ctx, declinedInvitation.ID, time.Now().UTC())
+	_, err = s.repository.AcceptInvitation(s.ctx, models.AcceptInvitationCommand{InvitationUUID: declinedInvitation.ID, ConfirmTransfer: true, Now: time.Now().UTC()})
 	s.Require().ErrorIs(err, models.ErrInvitationNotPending)
 
 	role := models.DepartmentMemberRoleEmployee
@@ -278,7 +273,7 @@ func (s *RepositorySuite) TestAcceptRejectsNonPendingAndAddsDepartmentUserToComp
 	departmentInvitation.DepartmentRole = &role
 	created, err := s.repository.CreateInvitation(s.ctx, departmentInvitation)
 	s.Require().NoError(err)
-	accepted, err := s.repository.AcceptInvitation(s.ctx, created.ID, time.Now().UTC())
+	accepted, err := s.repository.AcceptInvitation(s.ctx, models.AcceptInvitationCommand{InvitationUUID: created.ID, ConfirmTransfer: true, Now: time.Now().UTC()})
 	s.Require().NoError(err)
 	s.Require().Equal(models.InvitationStatusAccepted, accepted.Status)
 	companyMember, err := s.companyRepository.GetCompanyMember(s.ctx, company.ID, invited.ID)
@@ -299,7 +294,7 @@ func (s *RepositorySuite) TestDepartmentInvitationPreservesCompanyManagerRole() 
 	invitation.CompanyRole = models.CompanyMemberRoleEmployee
 	created, err := s.repository.CreateInvitation(s.ctx, invitation)
 	s.Require().NoError(err)
-	_, err = s.repository.AcceptInvitation(s.ctx, created.ID, time.Now().UTC())
+	_, err = s.repository.AcceptInvitation(s.ctx, models.AcceptInvitationCommand{InvitationUUID: created.ID, ConfirmTransfer: true, Now: time.Now().UTC()})
 	s.Require().NoError(err)
 	var actual string
 	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT role FROM company_members WHERE company_uuid=$1 AND user_uuid=$2`, company.ID, manager.ID).Scan(&actual))

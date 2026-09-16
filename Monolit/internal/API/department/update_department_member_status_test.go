@@ -22,12 +22,12 @@ func (s *APISuite) TestUpdateDepartmentMemberStatusSuccess() {
 		DepartmentUUID: departmentID,
 		RequestUser:    requestUserID,
 		UserUUID:       userID,
-		Status:         models.MembershipStatusSuspended,
+		Status:         models.MembershipStatusLeft,
 	}).
-		Return(models.DepartmentMember{DepartmentUUID: departmentID, UserUUID: userID, Status: models.MembershipStatusSuspended, CreatedAt: time.Now().UTC()}, nil).
+		Return(models.DepartmentMember{DepartmentUUID: departmentID, UserUUID: userID, Status: models.MembershipStatusLeft, CreatedAt: time.Now().UTC()}, nil).
 		Once()
 
-	rec, req := s.request(http.MethodPatch, "/api/v1/companies/"+companyID.String()+"/departments/"+departmentID.String()+"/members/"+userID.String()+"/status", `{"status":"suspended"}`, requestUserID, map[string]string{
+	rec, req := s.request(http.MethodPatch, "/api/v1/companies/"+companyID.String()+"/departments/"+departmentID.String()+"/members/"+userID.String()+"/status", `{"status":"left"}`, requestUserID, map[string]string{
 		"uuid":            companyID.String(),
 		"department_uuid": departmentID.String(),
 		"user_uuid":       userID.String(),
@@ -60,7 +60,7 @@ func (s *APISuite) TestUpdateDepartmentMemberStatusRequiresAuth() {
 	departmentID := uuid.New()
 	userID := uuid.New()
 
-	rec, req := s.request(http.MethodPatch, "/api/v1/companies/"+companyID.String()+"/departments/"+departmentID.String()+"/members/"+userID.String()+"/status", `{"status":"suspended"}`, uuid.Nil, map[string]string{
+	rec, req := s.request(http.MethodPatch, "/api/v1/companies/"+companyID.String()+"/departments/"+departmentID.String()+"/members/"+userID.String()+"/status", `{"status":"left"}`, uuid.Nil, map[string]string{
 		"uuid":            companyID.String(),
 		"department_uuid": departmentID.String(),
 		"user_uuid":       userID.String(),
@@ -76,7 +76,7 @@ func (s *APISuite) TestUpdateDepartmentMemberStatusRejectsInvalidDepartmentUUID(
 	companyID := uuid.New()
 	userID := uuid.New()
 
-	rec, req := s.request(http.MethodPatch, "/api/v1/companies/"+companyID.String()+"/departments/bad/members/"+userID.String()+"/status", `{"status":"suspended"}`, uuid.New(), map[string]string{
+	rec, req := s.request(http.MethodPatch, "/api/v1/companies/"+companyID.String()+"/departments/bad/members/"+userID.String()+"/status", `{"status":"left"}`, uuid.New(), map[string]string{
 		"uuid":            companyID.String(),
 		"department_uuid": "bad",
 		"user_uuid":       userID.String(),

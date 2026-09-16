@@ -119,7 +119,7 @@ func (r *Repository) AuthenticateIntegrationKey(ctx context.Context, plaintext, 
 }
 
 func (r *Repository) RevokeIntegrationAPIKey(ctx context.Context, keyID, actorID uuid.UUID) error {
-	res, err := r.db.ExecContext(ctx, `UPDATE integration_api_keys k SET revoked_at=COALESCE(k.revoked_at,now()) FROM integration_service_accounts sa JOIN developer_applications a USING(application_uuid) WHERE k.service_account_uuid=sa.service_account_uuid AND k.key_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role='company_manager'))))`, keyID, actorID)
+	res, err := r.db.ExecContext(ctx, `UPDATE integration_api_keys k SET revoked_at=COALESCE(k.revoked_at,now()) FROM integration_service_accounts sa JOIN developer_applications a USING(application_uuid) WHERE k.service_account_uuid=sa.service_account_uuid AND k.key_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role IN ('company_manager','company_deputy')))))`, keyID, actorID)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (r *Repository) RotateIntegrationAPIKey(ctx context.Context, keyID, actorID
 	var scopesJSON string
 	var permanent, temporary sql.NullInt64
 	var temporaryStart, temporaryEnd sql.NullTime
-	err = tx.QueryRowContext(ctx, `SELECT sa.service_account_uuid,k.name,to_json(k.scopes)::text,a.environment,k.permanent_credit_limit,k.temporary_credit_limit,k.temporary_limit_starts_at,k.temporary_limit_ends_at FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) WHERE k.key_uuid=$1 AND k.revoked_at IS NULL AND sa.status='active' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role='company_manager')))) FOR UPDATE OF k,sa,a`, keyID, actorID).Scan(&serviceID, &name, &scopesJSON, &environment, &permanent, &temporary, &temporaryStart, &temporaryEnd)
+	err = tx.QueryRowContext(ctx, `SELECT sa.service_account_uuid,k.name,to_json(k.scopes)::text,a.environment,k.permanent_credit_limit,k.temporary_credit_limit,k.temporary_limit_starts_at,k.temporary_limit_ends_at FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) WHERE k.key_uuid=$1 AND k.revoked_at IS NULL AND sa.status='active' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role IN ('company_manager','company_deputy'))))) FOR UPDATE OF k,sa,a`, keyID, actorID).Scan(&serviceID, &name, &scopesJSON, &environment, &permanent, &temporary, &temporaryStart, &temporaryEnd)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.IntegrationAPIKey{}, "", models.ErrForbidden
 	}
@@ -321,7 +321,7 @@ func (r *Repository) ChangeDeveloperApplicationStatus(ctx context.Context, appID
 }
 
 const developerApplicationSelect = `SELECT a.application_uuid,a.owner_type,a.user_uuid,a.company_uuid,a.billing_account_uuid,a.name,a.environment,a.status,to_json(a.capabilities)::text,a.daily_credit_limit,a.monthly_credit_limit,a.max_credits_per_operation,a.lock_version,a.created_at,a.updated_at FROM developer_applications a`
-const developerApplicationActorACL = `((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager'))))`
+const developerApplicationActorACL = `((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')))))`
 
 func scanDeveloperApplication(row interface{ Scan(...any) error }) (models.DeveloperApplication, error) {
 	var item models.DeveloperApplication
@@ -350,7 +350,7 @@ func (r *Repository) CreateIntegrationServiceAccount(ctx context.Context, connec
 	defer func() { _ = tx.Rollback() }()
 	var appID uuid.UUID
 	var capabilitiesJSON string
-	err = tx.QueryRowContext(ctx, `SELECT a.application_uuid,to_json(a.capabilities)::text FROM integration_connections c JOIN developer_applications a USING(application_uuid) WHERE c.connection_uuid=$1 AND c.status<>'revoked' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager')))) FOR UPDATE OF c,a`, connectionID, actorID).Scan(&appID, &capabilitiesJSON)
+	err = tx.QueryRowContext(ctx, `SELECT a.application_uuid,to_json(a.capabilities)::text FROM integration_connections c JOIN developer_applications a USING(application_uuid) WHERE c.connection_uuid=$1 AND c.status<>'revoked' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy'))))) FOR UPDATE OF c,a`, connectionID, actorID).Scan(&appID, &capabilitiesJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.IntegrationServiceAccount{}, models.ErrForbidden
 	}
@@ -374,7 +374,7 @@ func (r *Repository) CreateIntegrationServiceAccount(ctx context.Context, connec
 }
 
 func (r *Repository) ListIntegrationServiceAccounts(ctx context.Context, connectionID, actorID uuid.UUID) ([]models.IntegrationServiceAccount, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT sa.service_account_uuid,sa.application_uuid,sa.connection_uuid,sa.created_by_user_uuid,sa.name,sa.status,to_json(sa.scopes)::text,sa.created_at,max(k.last_used_at) FROM integration_service_accounts sa JOIN developer_applications a USING(application_uuid) LEFT JOIN integration_api_keys k USING(service_account_uuid) WHERE sa.connection_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager')))) GROUP BY sa.service_account_uuid ORDER BY sa.created_at DESC`, connectionID, actorID)
+	rows, err := r.db.QueryContext(ctx, `SELECT sa.service_account_uuid,sa.application_uuid,sa.connection_uuid,sa.created_by_user_uuid,sa.name,sa.status,to_json(sa.scopes)::text,sa.created_at,max(k.last_used_at) FROM integration_service_accounts sa JOIN developer_applications a USING(application_uuid) LEFT JOIN integration_api_keys k USING(service_account_uuid) WHERE sa.connection_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy'))))) GROUP BY sa.service_account_uuid ORDER BY sa.created_at DESC`, connectionID, actorID)
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +399,7 @@ func (r *Repository) ListIntegrationServiceAccounts(ctx context.Context, connect
 }
 
 func (r *Repository) ListIntegrationAPIKeys(ctx context.Context, serviceID, actorID uuid.UUID) ([]models.IntegrationAPIKey, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT k.key_uuid,k.service_account_uuid,k.name,k.prefix,to_json(k.scopes)::text,k.expires_at,k.last_used_at,k.revoked_at,k.created_at,k.permanent_credit_limit,k.temporary_credit_limit,k.temporary_limit_starts_at,k.temporary_limit_ends_at FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) WHERE k.service_account_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager')))) ORDER BY k.created_at DESC`, serviceID, actorID)
+	rows, err := r.db.QueryContext(ctx, `SELECT k.key_uuid,k.service_account_uuid,k.name,k.prefix,to_json(k.scopes)::text,k.expires_at,k.last_used_at,k.revoked_at,k.created_at,k.permanent_credit_limit,k.temporary_credit_limit,k.temporary_limit_starts_at,k.temporary_limit_ends_at FROM integration_api_keys k JOIN integration_service_accounts sa USING(service_account_uuid) JOIN developer_applications a USING(application_uuid) WHERE k.service_account_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy'))))) ORDER BY k.created_at DESC`, serviceID, actorID)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +449,7 @@ func (r *Repository) RevokeIntegrationServiceAccount(ctx context.Context, servic
 	}
 	defer func() { _ = tx.Rollback() }()
 	var appID, connectionID uuid.UUID
-	err = tx.QueryRowContext(ctx, `SELECT sa.application_uuid,sa.connection_uuid FROM integration_service_accounts sa JOIN developer_applications a USING(application_uuid) WHERE sa.service_account_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role='company_manager')))) FOR UPDATE OF sa`, serviceID, actorID).Scan(&appID, &connectionID)
+	err = tx.QueryRowContext(ctx, `SELECT sa.application_uuid,sa.connection_uuid FROM integration_service_accounts sa JOIN developer_applications a USING(application_uuid) WHERE sa.service_account_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role IN ('company_manager','company_deputy'))))) FOR UPDATE OF sa`, serviceID, actorID).Scan(&appID, &connectionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.ErrForbidden
 	}
@@ -479,7 +479,7 @@ func (r *Repository) CreateIntegrationAPIKeyForServiceAccount(ctx context.Contex
 	}
 	defer func() { _ = tx.Rollback() }()
 	var environment, serviceScopesJSON string
-	err = tx.QueryRowContext(ctx, `SELECT a.environment,to_json(sa.scopes)::text FROM integration_service_accounts sa JOIN developer_applications a USING(application_uuid) WHERE sa.service_account_uuid=$1 AND sa.status='active' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager')))) FOR UPDATE OF sa,a`, serviceID, actorID).Scan(&environment, &serviceScopesJSON)
+	err = tx.QueryRowContext(ctx, `SELECT a.environment,to_json(sa.scopes)::text FROM integration_service_accounts sa JOIN developer_applications a USING(application_uuid) WHERE sa.service_account_uuid=$1 AND sa.status='active' AND a.status='active' AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy'))))) FOR UPDATE OF sa,a`, serviceID, actorID).Scan(&environment, &serviceScopesJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.IntegrationAPIKey{}, "", models.ErrForbidden
 	}
@@ -573,7 +573,7 @@ func (r *Repository) CreateIntegrationAPIKey(ctx context.Context, applicationID,
 	}
 	if ownerType == "company" {
 		var authorized bool
-		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM companies WHERE company_uuid=$1 AND manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active' AND role='company_manager')`, companyID.UUID, actorID).Scan(&authorized); err != nil || !authorized {
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM companies WHERE company_uuid=$1 AND manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active' AND role IN ('company_manager','company_deputy'))`, companyID.UUID, actorID).Scan(&authorized); err != nil || !authorized {
 			return models.IntegrationAPIKey{}, "", models.ErrForbidden
 		}
 	}

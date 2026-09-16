@@ -108,10 +108,20 @@ type CompanyRepository interface {
 	UpdateCompany(ctx context.Context, companyID uuid.UUID, name string) (models.Company, error)
 	UpdateCompanyTag(ctx context.Context, companyID uuid.UUID, tag string) (models.Company, error)
 	ArchiveCompany(ctx context.Context, companyID uuid.UUID) error
-	AddCompanyMember(ctx context.Context, member models.CompanyMember) (models.CompanyMember, error)
-	UpdateCompanyMemberRole(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, role models.CompanyMemberRole) (models.CompanyMember, error)
-	UpdateCompanyMemberStatus(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, status models.MembershipStatus) (models.CompanyMember, error)
-	CountActiveCompanyManagers(ctx context.Context, companyID uuid.UUID, exceptUserID uuid.UUID) (int, error)
+	AssignCompanyDeputy(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.CompanyMember, error)
+	RevokeCompanyDeputy(ctx context.Context, companyID uuid.UUID) (models.CompanyMember, error)
+	RemoveCompanyMember(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, now time.Time) (models.CompanyMember, error)
+	CountActiveCompanyMembersExcept(ctx context.Context, companyID uuid.UUID, exceptUserID uuid.UUID) (int, error)
+	ActiveEmployerCompany(ctx context.Context, userID uuid.UUID) (models.Company, error)
+	UpsertMembershipRestriction(ctx context.Context, restriction models.CompanyMembershipRestriction) error
+	HasActiveMembershipRestriction(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, now time.Time) (bool, error)
+	DeleteExpiredMembershipRestrictions(ctx context.Context, now time.Time) (int64, error)
+	CreateOwnershipTransfer(ctx context.Context, transfer models.CompanyOwnershipTransfer) (models.CompanyOwnershipTransfer, error)
+	GetOwnershipTransfer(ctx context.Context, id uuid.UUID) (models.CompanyOwnershipTransfer, error)
+	CloseOwnershipTransfer(ctx context.Context, id uuid.UUID, status models.CompanyOwnershipTransferStatus, now time.Time) (models.CompanyOwnershipTransfer, error)
+	AcceptOwnershipTransfer(ctx context.Context, id uuid.UUID, now time.Time) (models.CompanyOwnershipTransfer, error)
+	ListIncomingOwnershipTransfers(ctx context.Context, userID uuid.UUID, now time.Time) ([]models.CompanyOwnershipTransfer, error)
+	ExpireOwnershipTransfers(ctx context.Context, now time.Time) (int64, error)
 	ListUserCompanies(ctx context.Context, userID uuid.UUID) ([]models.Company, error)
 	GetCompanyByUUID(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.Company, error)
 	GetManagedCompanyByUserUUID(ctx context.Context, userID uuid.UUID) (models.Company, error)
@@ -129,6 +139,13 @@ type DepartmentRepository interface {
 	UpdateDepartmentMemberRole(ctx context.Context, companyID uuid.UUID, departmentID uuid.UUID, userID uuid.UUID, role models.DepartmentMemberRole) (models.DepartmentMember, error)
 	UpdateDepartmentMemberStatus(ctx context.Context, companyID uuid.UUID, departmentID uuid.UUID, userID uuid.UUID, status models.MembershipStatus) (models.DepartmentMember, error)
 	ListVisibleCompanyDepartments(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) ([]models.Department, error)
+	ListUserDepartments(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) ([]models.CompanyMemberDepartment, error)
+	MoveMemberToDepartment(ctx context.Context, input models.MoveDepartmentMemberInput) (models.DepartmentMember, error)
+	CreateDepartmentTransfer(ctx context.Context, request models.DepartmentTransferRequest) (models.DepartmentTransferRequest, error)
+	GetDepartmentTransfer(ctx context.Context, id uuid.UUID) (models.DepartmentTransferRequest, error)
+	ListDepartmentTransfers(ctx context.Context, companyID uuid.UUID, status models.DepartmentTransferStatus) ([]models.DepartmentTransferRequest, error)
+	DecideDepartmentTransfer(ctx context.Context, id uuid.UUID, decidedBy uuid.UUID, approve bool, comment string, now time.Time) (models.DepartmentTransferRequest, error)
+	ExpireDepartmentTransfers(ctx context.Context, now time.Time) (int64, error)
 	GetDepartmentMember(ctx context.Context, companyID uuid.UUID, departmentID uuid.UUID, userID uuid.UUID) (models.DepartmentMember, error)
 }
 
@@ -136,10 +153,14 @@ type InvitationRepository interface {
 	CreateInvitation(ctx context.Context, invitation models.MembershipInvitation) (models.MembershipInvitation, error)
 	GetInvitationByUUID(ctx context.Context, id uuid.UUID) (models.MembershipInvitation, error)
 	ListUserInvitations(ctx context.Context, input models.ListUserInvitationsInput) ([]models.MembershipInvitation, error)
-	ListCompanyInvitations(ctx context.Context, companyID uuid.UUID, status models.InvitationStatus) ([]models.MembershipInvitation, error)
-	AcceptInvitation(ctx context.Context, id uuid.UUID, now time.Time) (models.MembershipInvitation, error)
+	ListCompanyInvitations(ctx context.Context, input models.ListCompanyInvitationsInput) ([]models.MembershipInvitation, error)
+	AcceptInvitation(ctx context.Context, command models.AcceptInvitationCommand) (models.MembershipInvitation, error)
 	DeclineInvitation(ctx context.Context, id uuid.UUID, now time.Time) (models.MembershipInvitation, error)
 	CancelInvitation(ctx context.Context, id uuid.UUID, now time.Time) (models.MembershipInvitation, error)
+	DecideInvitationApproval(ctx context.Context, id uuid.UUID, approvedBy uuid.UUID, approve bool, now time.Time) (models.MembershipInvitation, error)
+	ExpireInvitations(ctx context.Context, now time.Time) (int64, error)
+	CancelCompanyInvitations(ctx context.Context, companyID uuid.UUID, now time.Time) error
+	CancelDepartmentInvitations(ctx context.Context, departmentID uuid.UUID, now time.Time) error
 }
 
 type RefreshSessionRepository interface {

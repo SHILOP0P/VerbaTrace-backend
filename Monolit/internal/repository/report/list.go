@@ -209,7 +209,7 @@ func visibleToUserCondition(callAlias string, userParam string) string {
 	            FROM company_members cm
 	            WHERE cm.company_uuid = %s.company_uuid
 	              AND cm.user_uuid = %s
-	              AND cm.role = 'company_manager'
+	              AND cm.role IN ('company_manager','company_deputy')
 	              AND cm.status = 'active'
 	        )
 	    )

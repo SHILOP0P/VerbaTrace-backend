@@ -102,19 +102,30 @@ func (s *RepositorySuite) TestGetManagedCompanyByUserUUIDNotFound() {
 	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
 }
 
-func (s *RepositorySuite) TestAddCompanyMemberAndGetCompanyByUUID() {
+func (s *RepositorySuite) addMember(companyID uuid.UUID, userID uuid.UUID, role models.CompanyMemberRole, status models.MembershipStatus) {
+	_, err := s.db.ExecContext(
+		s.ctx,
+		`INSERT INTO company_members (company_uuid, user_uuid, role, status)
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (company_uuid, user_uuid)
+		 DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`,
+		companyID,
+		userID,
+		string(role),
+		string(status),
+	)
+	s.Require().NoError(err)
+}
+
+func (s *RepositorySuite) TestCompanyMemberVisibility() {
 	company, manager := s.createCompanyWithManager()
 	employee := s.createUser(uuid.NewString() + "@example.com")
-	member := testCompanyMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee)
-
-	createdMember, err := s.repository.AddCompanyMember(s.ctx, member)
-	s.Require().NoError(err)
-	s.Require().Equal(employee.ID, createdMember.UserUUID)
-	s.Require().Equal(models.CompanyMemberRoleEmployee, createdMember.Role)
+	s.addMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
 
 	gotMember, err := s.repository.GetCompanyMember(s.ctx, company.ID, employee.ID)
 	s.Require().NoError(err)
-	s.Require().Equal(createdMember, gotMember)
+	s.Require().Equal(employee.ID, gotMember.UserUUID)
+	s.Require().Equal(models.CompanyMemberRoleEmployee, gotMember.Role)
 
 	managerCompany, err := s.repository.GetCompanyByUUID(s.ctx, company.ID, manager.ID)
 	s.Require().NoError(err)
@@ -128,11 +139,7 @@ func (s *RepositorySuite) TestAddCompanyMemberAndGetCompanyByUUID() {
 func (s *RepositorySuite) TestUpdateCompanyMemberJobTitle() {
 	company, _ := s.createCompanyWithManager()
 	employee := s.createUser(uuid.NewString() + "@example.com")
-	_, err := s.repository.AddCompanyMember(
-		s.ctx,
-		testCompanyMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee),
-	)
-	s.Require().NoError(err)
+	s.addMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
 
 	title := "Backend developer"
 	updated, err := s.repository.UpdateCompanyMemberJobTitle(s.ctx, company.ID, employee.ID, &title)
@@ -145,23 +152,6 @@ func (s *RepositorySuite) TestUpdateCompanyMemberJobTitle() {
 	s.Require().Nil(cleared.JobTitle)
 }
 
-func (s *RepositorySuite) TestAddCompanyMemberUpsertsExistingMember() {
-	company, _ := s.createCompanyWithManager()
-	employee := s.createUser(uuid.NewString() + "@example.com")
-	member := testCompanyMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee)
-
-	_, err := s.repository.AddCompanyMember(s.ctx, member)
-	s.Require().NoError(err)
-
-	member.Status = models.MembershipStatusSuspended
-	upserted, err := s.repository.AddCompanyMember(s.ctx, member)
-	s.Require().NoError(err)
-	s.Require().Equal(models.MembershipStatusSuspended, upserted.Status)
-
-	_, err = s.repository.GetCompanyMember(s.ctx, company.ID, employee.ID)
-	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
-}
-
 func (s *RepositorySuite) TestGetCompanyMemberNotFoundForMissingOrInactiveMember() {
 	company, _ := s.createCompanyWithManager()
 	employee := s.createUser(uuid.NewString() + "@example.com")
@@ -169,10 +159,7 @@ func (s *RepositorySuite) TestGetCompanyMemberNotFoundForMissingOrInactiveMember
 	_, err := s.repository.GetCompanyMember(s.ctx, company.ID, employee.ID)
 	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
 
-	member := testCompanyMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee)
-	member.Status = models.MembershipStatusSuspended
-	_, err = s.repository.AddCompanyMember(s.ctx, member)
-	s.Require().NoError(err)
+	s.addMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusLeft)
 
 	_, err = s.repository.GetCompanyMember(s.ctx, company.ID, employee.ID)
 	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
@@ -181,24 +168,19 @@ func (s *RepositorySuite) TestGetCompanyMemberNotFoundForMissingOrInactiveMember
 func (s *RepositorySuite) TestListUserCompaniesReturnsOnlyActiveMemberships() {
 	company, _ := s.createCompanyWithManager()
 	activeUser := s.createUser(uuid.NewString() + "@example.com")
-	suspendedUser := s.createUser(uuid.NewString() + "@example.com")
+	formerUser := s.createUser(uuid.NewString() + "@example.com")
 
-	_, err := s.repository.AddCompanyMember(s.ctx, testCompanyMember(company.ID, activeUser.ID, models.CompanyMemberRoleEmployee))
-	s.Require().NoError(err)
-
-	suspendedMember := testCompanyMember(company.ID, suspendedUser.ID, models.CompanyMemberRoleEmployee)
-	suspendedMember.Status = models.MembershipStatusSuspended
-	_, err = s.repository.AddCompanyMember(s.ctx, suspendedMember)
-	s.Require().NoError(err)
+	s.addMember(company.ID, activeUser.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
+	s.addMember(company.ID, formerUser.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusLeft)
 
 	activeCompanies, err := s.repository.ListUserCompanies(s.ctx, activeUser.ID)
 	s.Require().NoError(err)
 	s.Require().Len(activeCompanies, 1)
 	s.Require().Equal(company.ID, activeCompanies[0].ID)
 
-	suspendedCompanies, err := s.repository.ListUserCompanies(s.ctx, suspendedUser.ID)
+	formerCompanies, err := s.repository.ListUserCompanies(s.ctx, formerUser.ID)
 	s.Require().NoError(err)
-	s.Require().Empty(suspendedCompanies)
+	s.Require().Empty(formerCompanies)
 }
 
 func (s *RepositorySuite) TestGetCompanyByUUIDRejectsInactiveOrMissingMember() {
@@ -208,81 +190,138 @@ func (s *RepositorySuite) TestGetCompanyByUUIDRejectsInactiveOrMissingMember() {
 	_, err := s.repository.GetCompanyByUUID(s.ctx, company.ID, outsider.ID)
 	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
 
-	member := testCompanyMember(company.ID, outsider.ID, models.CompanyMemberRoleEmployee)
-	member.Status = models.MembershipStatusLeft
-	_, err = s.repository.AddCompanyMember(s.ctx, member)
-	s.Require().NoError(err)
+	s.addMember(company.ID, outsider.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusLeft)
 
 	_, err = s.repository.GetCompanyByUUID(s.ctx, company.ID, outsider.ID)
 	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
 }
 
-func (s *RepositorySuite) TestUpdateCompanyMemberRole() {
+// An employee belongs to one company, which the database has to guarantee even
+// if some future code path forgets to check it.
+func (s *RepositorySuite) TestSingleActiveEmployerIsEnforcedByDatabase() {
+	first, _ := s.createCompanyWithManager()
+	second, _ := s.createCompanyWithManager()
+	employee := s.createUser(uuid.NewString() + "@example.com")
+
+	s.addMember(first.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
+
+	_, err := s.db.ExecContext(
+		s.ctx,
+		`INSERT INTO company_members (company_uuid, user_uuid, role, status) VALUES ($1, $2, 'employee', 'active')`,
+		second.ID,
+		employee.ID,
+	)
+	s.Require().Error(err)
+
+	employer, err := s.repository.ActiveEmployerCompany(s.ctx, employee.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(first.ID, employer.ID)
+}
+
+func (s *RepositorySuite) TestAssignAndRevokeCompanyDeputy() {
 	company, _ := s.createCompanyWithManager()
 	employee := s.createUser(uuid.NewString() + "@example.com")
-	_, err := s.repository.AddCompanyMember(s.ctx, testCompanyMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee))
-	s.Require().NoError(err)
+	other := s.createUser(uuid.NewString() + "@example.com")
+	s.addMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
+	s.addMember(company.ID, other.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
 
-	updated, err := s.repository.UpdateCompanyMemberRole(s.ctx, company.ID, employee.ID, models.CompanyMemberRoleEmployee)
+	deputy, err := s.repository.AssignCompanyDeputy(s.ctx, company.ID, employee.ID)
 	s.Require().NoError(err)
-	s.Require().Equal(models.CompanyMemberRoleEmployee, updated.Role)
+	s.Require().Equal(models.CompanyMemberRoleDeputy, deputy.Role)
+
+	_, err = s.repository.AssignCompanyDeputy(s.ctx, company.ID, other.ID)
+	s.Require().ErrorIs(err, models.ErrCompanyDeputyAlreadyAssigned)
+
+	revoked, err := s.repository.RevokeCompanyDeputy(s.ctx, company.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(employee.ID, revoked.UserUUID)
+	s.Require().Equal(models.CompanyMemberRoleEmployee, revoked.Role)
+
+	_, err = s.repository.RevokeCompanyDeputy(s.ctx, company.ID)
+	s.Require().ErrorIs(err, models.ErrCompanyDeputyNotAssigned)
 }
 
-func (s *RepositorySuite) TestUpdateCompanyMemberRoleDoesNotUpdateManagerOrInactiveMember() {
-	company, manager := s.createCompanyWithManager()
-
-	_, err := s.repository.UpdateCompanyMemberRole(s.ctx, company.ID, manager.ID, models.CompanyMemberRoleEmployee)
-	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
-
-	employee := s.createUser(uuid.NewString() + "@example.com")
-	member := testCompanyMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee)
-	member.Status = models.MembershipStatusSuspended
-	_, err = s.repository.AddCompanyMember(s.ctx, member)
-	s.Require().NoError(err)
-
-	_, err = s.repository.UpdateCompanyMemberRole(s.ctx, company.ID, employee.ID, models.CompanyMemberRoleEmployee)
-	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
-}
-
-func (s *RepositorySuite) TestUpdateCompanyMemberStatus() {
+// Leaving takes away everything the company gave the person.
+func (s *RepositorySuite) TestRemoveCompanyMemberClearsAccess() {
 	company, _ := s.createCompanyWithManager()
 	employee := s.createUser(uuid.NewString() + "@example.com")
-	_, err := s.repository.AddCompanyMember(s.ctx, testCompanyMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee))
+	s.addMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
+
+	departmentID := uuid.New()
+	_, err := s.db.ExecContext(
+		s.ctx,
+		`INSERT INTO departments (department_uuid, company_uuid, name) VALUES ($1, $2, 'Sales')`,
+		departmentID,
+		company.ID,
+	)
+	s.Require().NoError(err)
+	_, err = s.db.ExecContext(
+		s.ctx,
+		`INSERT INTO department_members (department_uuid, user_uuid, role, status) VALUES ($1, $2, 'employee', 'active')`,
+		departmentID,
+		employee.ID,
+	)
 	s.Require().NoError(err)
 
-	updated, err := s.repository.UpdateCompanyMemberStatus(s.ctx, company.ID, employee.ID, models.MembershipStatusSuspended)
+	removed, err := s.repository.RemoveCompanyMember(s.ctx, company.ID, employee.ID, time.Now().UTC())
 	s.Require().NoError(err)
-	s.Require().Equal(models.MembershipStatusSuspended, updated.Status)
+	s.Require().Equal(models.MembershipStatusLeft, removed.Status)
 
-	_, err = s.repository.GetCompanyMember(s.ctx, company.ID, employee.ID)
-	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
+	var departmentStatus string
+	err = s.db.QueryRowContext(
+		s.ctx,
+		`SELECT status FROM department_members WHERE department_uuid = $1 AND user_uuid = $2`,
+		departmentID,
+		employee.ID,
+	).Scan(&departmentStatus)
+	s.Require().NoError(err)
+	s.Require().Equal("left", departmentStatus)
+
+	count, err := s.repository.CountActiveCompanyMembersExcept(s.ctx, company.ID, company.ManagerUserUUID)
+	s.Require().NoError(err)
+	s.Require().Zero(count)
 }
 
-func (s *RepositorySuite) TestUpdateCompanyMemberStatusDoesNotUpdateManager() {
+func (s *RepositorySuite) TestMembershipRestrictionLifecycle() {
 	company, manager := s.createCompanyWithManager()
+	employee := s.createUser(uuid.NewString() + "@example.com")
+	now := time.Now().UTC()
 
-	_, err := s.repository.UpdateCompanyMemberStatus(s.ctx, company.ID, manager.ID, models.MembershipStatusSuspended)
+	restricted, err := s.repository.HasActiveMembershipRestriction(s.ctx, company.ID, employee.ID, now)
+	s.Require().NoError(err)
+	s.Require().False(restricted)
 
-	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
+	s.Require().NoError(s.repository.UpsertMembershipRestriction(s.ctx, models.CompanyMembershipRestriction{
+		ID:                uuid.New(),
+		CompanyUUID:       company.ID,
+		UserUUID:          employee.ID,
+		Kind:              models.CompanyRestrictionExcludedByManager,
+		CreatedByUserUUID: manager.ID,
+		CreatedAt:         now,
+		ExpiresAt:         now.Add(time.Hour),
+	}))
+
+	restricted, err = s.repository.HasActiveMembershipRestriction(s.ctx, company.ID, employee.ID, now)
+	s.Require().NoError(err)
+	s.Require().True(restricted)
+
+	deleted, err := s.repository.DeleteExpiredMembershipRestrictions(s.ctx, now.Add(2*time.Hour))
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), deleted)
 }
 
 func (s *RepositorySuite) TestGetCompanyMembersOverview() {
 	company, manager := s.createCompanyWithManager()
 	employee := s.createUser(uuid.NewString() + "@example.com")
 	departmentEmployee := s.createUser(uuid.NewString() + "@example.com")
-	suspendedEmployee := s.createUser(uuid.NewString() + "@example.com")
+	formerEmployee := s.createUser(uuid.NewString() + "@example.com")
 
-	_, err := s.repository.AddCompanyMember(s.ctx, testCompanyMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee))
-	s.Require().NoError(err)
-	_, err = s.repository.AddCompanyMember(s.ctx, testCompanyMember(company.ID, departmentEmployee.ID, models.CompanyMemberRoleEmployee))
-	s.Require().NoError(err)
-	suspendedMember := testCompanyMember(company.ID, suspendedEmployee.ID, models.CompanyMemberRoleEmployee)
-	suspendedMember.Status = models.MembershipStatusSuspended
-	_, err = s.repository.AddCompanyMember(s.ctx, suspendedMember)
-	s.Require().NoError(err)
+	s.addMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
+	s.addMember(company.ID, departmentEmployee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
+	s.addMember(company.ID, formerEmployee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusLeft)
 
 	departmentID := uuid.New()
-	_, err = s.db.ExecContext(
+	_, err := s.db.ExecContext(
 		s.ctx,
 		`INSERT INTO departments (department_uuid, company_uuid, name, created_at) VALUES ($1, $2, $3, $4)`,
 		departmentID,
@@ -306,9 +345,9 @@ func (s *RepositorySuite) TestGetCompanyMembersOverview() {
 		s.ctx,
 		`INSERT INTO department_members (department_uuid, user_uuid, role, status, created_at) VALUES ($1, $2, $3, $4, $5)`,
 		departmentID,
-		suspendedEmployee.ID,
+		formerEmployee.ID,
 		string(models.DepartmentMemberRoleEmployee),
-		string(models.MembershipStatusSuspended),
+		string(models.MembershipStatusLeft),
 		time.Now().UTC().Truncate(time.Microsecond),
 	)
 	s.Require().NoError(err)

@@ -3,8 +3,8 @@
 package mocks
 
 import (
-	models "verbatrace/monolit/internal/models"
 	context "context"
+	models "verbatrace/monolit/internal/models"
 
 	mock "github.com/stretchr/testify/mock"
 )
@@ -250,6 +250,63 @@ func (_c *InvitationService_CreateDepartmentInvitation_Call) RunAndReturn(run fu
 	return _c
 }
 
+// DecideInvitationApproval provides a mock function with given fields: ctx, input
+func (_m *InvitationService) DecideInvitationApproval(ctx context.Context, input models.DecideInvitationApprovalInput) (models.MembershipInvitation, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DecideInvitationApproval")
+	}
+
+	var r0 models.MembershipInvitation
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.DecideInvitationApprovalInput) (models.MembershipInvitation, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.DecideInvitationApprovalInput) models.MembershipInvitation); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Get(0).(models.MembershipInvitation)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.DecideInvitationApprovalInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// InvitationService_DecideInvitationApproval_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DecideInvitationApproval'
+type InvitationService_DecideInvitationApproval_Call struct {
+	*mock.Call
+}
+
+// DecideInvitationApproval is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.DecideInvitationApprovalInput
+func (_e *InvitationService_Expecter) DecideInvitationApproval(ctx interface{}, input interface{}) *InvitationService_DecideInvitationApproval_Call {
+	return &InvitationService_DecideInvitationApproval_Call{Call: _e.mock.On("DecideInvitationApproval", ctx, input)}
+}
+
+func (_c *InvitationService_DecideInvitationApproval_Call) Run(run func(ctx context.Context, input models.DecideInvitationApprovalInput)) *InvitationService_DecideInvitationApproval_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.DecideInvitationApprovalInput))
+	})
+	return _c
+}
+
+func (_c *InvitationService_DecideInvitationApproval_Call) Return(_a0 models.MembershipInvitation, _a1 error) *InvitationService_DecideInvitationApproval_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *InvitationService_DecideInvitationApproval_Call) RunAndReturn(run func(context.Context, models.DecideInvitationApprovalInput) (models.MembershipInvitation, error)) *InvitationService_DecideInvitationApproval_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeclineInvitation provides a mock function with given fields: ctx, input
 func (_m *InvitationService) DeclineInvitation(ctx context.Context, input models.DeclineInvitationInput) (models.MembershipInvitation, error) {
 	ret := _m.Called(ctx, input)
@@ -303,6 +360,65 @@ func (_c *InvitationService_DeclineInvitation_Call) Return(_a0 models.Membership
 }
 
 func (_c *InvitationService_DeclineInvitation_Call) RunAndReturn(run func(context.Context, models.DeclineInvitationInput) (models.MembershipInvitation, error)) *InvitationService_DeclineInvitation_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListCompanyInvitations provides a mock function with given fields: ctx, input
+func (_m *InvitationService) ListCompanyInvitations(ctx context.Context, input models.ListCompanyInvitationsInput) ([]models.MembershipInvitation, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListCompanyInvitations")
+	}
+
+	var r0 []models.MembershipInvitation
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListCompanyInvitationsInput) ([]models.MembershipInvitation, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListCompanyInvitationsInput) []models.MembershipInvitation); ok {
+		r0 = rf(ctx, input)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.MembershipInvitation)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.ListCompanyInvitationsInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// InvitationService_ListCompanyInvitations_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListCompanyInvitations'
+type InvitationService_ListCompanyInvitations_Call struct {
+	*mock.Call
+}
+
+// ListCompanyInvitations is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.ListCompanyInvitationsInput
+func (_e *InvitationService_Expecter) ListCompanyInvitations(ctx interface{}, input interface{}) *InvitationService_ListCompanyInvitations_Call {
+	return &InvitationService_ListCompanyInvitations_Call{Call: _e.mock.On("ListCompanyInvitations", ctx, input)}
+}
+
+func (_c *InvitationService_ListCompanyInvitations_Call) Run(run func(ctx context.Context, input models.ListCompanyInvitationsInput)) *InvitationService_ListCompanyInvitations_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.ListCompanyInvitationsInput))
+	})
+	return _c
+}
+
+func (_c *InvitationService_ListCompanyInvitations_Call) Return(_a0 []models.MembershipInvitation, _a1 error) *InvitationService_ListCompanyInvitations_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *InvitationService_ListCompanyInvitations_Call) RunAndReturn(run func(context.Context, models.ListCompanyInvitationsInput) ([]models.MembershipInvitation, error)) *InvitationService_ListCompanyInvitations_Call {
 	_c.Call.Return(run)
 	return _c
 }

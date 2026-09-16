@@ -18,7 +18,7 @@ func (s *Service) authorizeCreate(ctx context.Context, input models.CreateAnalys
 		if err != nil {
 			return err
 		}
-		if member.Role != models.CompanyMemberRoleManager {
+		if !member.Role.ManagesCompany() {
 			return models.ErrForbidden
 		}
 		return nil
@@ -40,7 +40,7 @@ func (s *Service) authorizeList(ctx context.Context, input models.ListAnalysisIn
 		return s.authorizeCompanyInstructionRead(ctx, input.CompanyUUID.UUID, input.UserUUID)
 	case models.AnalysisInstructionScopeDepartment:
 		companyMember, err := s.companyRepository.GetCompanyMember(ctx, input.CompanyUUID.UUID, input.UserUUID)
-		if err == nil && companyMember.Role == models.CompanyMemberRoleManager {
+		if err == nil && companyMember.Role.ManagesCompany() {
 			return nil
 		}
 		if err != nil && !errors.Is(err, models.ErrCompanyNotFound) {
@@ -70,7 +70,7 @@ func (s *Service) authorizeEdit(ctx context.Context, instruction models.Analysis
 		if err != nil {
 			return err
 		}
-		if member.Role != models.CompanyMemberRoleManager {
+		if !member.Role.ManagesCompany() {
 			return models.ErrForbidden
 		}
 		return nil
@@ -90,7 +90,7 @@ func (s *Service) authorizeEditScope(ctx context.Context, input models.ReorderAn
 		if err != nil {
 			return err
 		}
-		if member.Role != models.CompanyMemberRoleManager {
+		if !member.Role.ManagesCompany() {
 			return models.ErrForbidden
 		}
 		return nil
@@ -112,7 +112,7 @@ func (s *Service) authorizeRead(ctx context.Context, instruction models.Analysis
 		return s.authorizeCompanyInstructionRead(ctx, instruction.CompanyUUID.UUID, userID)
 	case models.AnalysisInstructionScopeDepartment:
 		companyMember, err := s.companyRepository.GetCompanyMember(ctx, instruction.CompanyUUID.UUID, userID)
-		if err == nil && companyMember.Role == models.CompanyMemberRoleManager {
+		if err == nil && companyMember.Role.ManagesCompany() {
 			return nil
 		}
 		if err != nil && !errors.Is(err, models.ErrCompanyNotFound) {
@@ -131,7 +131,7 @@ func (s *Service) authorizeCompanyInstructionRead(ctx context.Context, companyID
 	if err != nil {
 		return err
 	}
-	if member.Role == models.CompanyMemberRoleManager {
+	if member.Role.ManagesCompany() {
 		return nil
 	}
 
@@ -148,7 +148,7 @@ func (s *Service) authorizeCompanyInstructionRead(ctx context.Context, companyID
 
 func (s *Service) authorizeDepartmentManage(ctx context.Context, companyID uuid.UUID, departmentID uuid.UUID, userID uuid.UUID) error {
 	companyMember, err := s.companyRepository.GetCompanyMember(ctx, companyID, userID)
-	if err == nil && companyMember.Role == models.CompanyMemberRoleManager {
+	if err == nil && companyMember.Role.ManagesCompany() {
 		return nil
 	}
 	if err != nil && !errors.Is(err, models.ErrCompanyNotFound) {

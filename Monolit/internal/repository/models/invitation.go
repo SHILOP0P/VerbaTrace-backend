@@ -16,6 +16,9 @@ type MembershipInvitation struct {
 	CompanyRole       string
 	DepartmentRole    sql.NullString
 	Status            string
+	ApprovalStatus    string
+	ApprovalDecidedBy uuid.NullUUID
+	ApprovalDecidedAt sql.NullTime
 	ExpiresAt         time.Time
 	RespondedAt       sql.NullTime
 	CreatedAt         time.Time

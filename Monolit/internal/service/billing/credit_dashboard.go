@@ -45,7 +45,7 @@ func (s *Service) GetCompanyCreditDashboard(ctx context.Context, companyID, user
 	if err != nil {
 		return models.CreditDashboard{}, err
 	}
-	canManage := member.Role == models.CompanyMemberRoleManager
+	canManage := member.Role.ManagesCompany()
 	if !canManage && !visibleToMembers {
 		return models.CreditDashboard{}, models.ErrForbidden
 	}

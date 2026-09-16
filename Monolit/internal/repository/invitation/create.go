@@ -28,12 +28,13 @@ func (r *Repository) CreateInvitation(ctx context.Context, invitation model.Memb
 		company_role,
 		department_role,
 		status,
+		approval_status,
 		expires_at,
 		responded_at,
 		created_at,
 		updated_at
 	)
-	SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+	SELECT $1, $2, $3, $4, $5, $6, $7, $8, $13, $9, $10, $11, $12
 	WHERE $3::uuid IS NULL
 	   OR EXISTS (
 		   SELECT 1
@@ -59,6 +60,7 @@ func (r *Repository) CreateInvitation(ctx context.Context, invitation model.Memb
 		repoInvitation.RespondedAt,
 		repoInvitation.CreatedAt,
 		repoInvitation.UpdatedAt,
+		repoInvitation.ApprovalStatus,
 	)
 
 	var created repoModel.MembershipInvitation

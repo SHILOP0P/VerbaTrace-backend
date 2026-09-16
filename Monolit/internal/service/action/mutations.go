@@ -309,7 +309,7 @@ func nullableArg(v uuid.NullUUID) any {
 	return nil
 }
 func leadersAndManagers(ctx context.Context, tx *sql.Tx, company, department uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT user_uuid FROM company_members WHERE company_uuid=$1 AND status='active' AND role='company_manager' UNION SELECT user_uuid FROM department_members WHERE department_uuid=$2 AND status='active' AND role='department_leader'`, company, department)
+	rows, err := tx.QueryContext(ctx, `SELECT user_uuid FROM company_members WHERE company_uuid=$1 AND status='active' AND role IN ('company_manager','company_deputy') UNION SELECT user_uuid FROM department_members WHERE department_uuid=$2 AND status='active' AND role='department_leader'`, company, department)
 	if err != nil {
 		return nil, err
 	}

@@ -128,7 +128,7 @@ func authorizeQuery(ctx context.Context, q queryer, call uuid.UUID, company uuid
 	if departmentRole.Valid {
 		a.DepartmentRole = departmentRole.String
 	}
-	a.CanReview = a.CompanyRole == string(models.CompanyMemberRoleManager) || (department.Valid && a.DepartmentRole == string(models.DepartmentMemberRoleLeader))
+	a.CanReview = models.CompanyMemberRole(a.CompanyRole).ManagesCompany() || (department.Valid && a.DepartmentRole == string(models.DepartmentMemberRoleLeader))
 	a.CanRead = a.CanReview
 	return a, nil
 }

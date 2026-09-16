@@ -208,7 +208,7 @@ func validateMappingAssignment(ctx context.Context, tx *sql.Tx, connectionID uui
 				  AND d.deleted_at IS NULL
 			))
 			OR
-			(NOT $4 AND (cm.role='company_manager' OR c.company_uuid IN (
+			(NOT $4 AND (cm.role IN ('company_manager','company_deputy') OR c.company_uuid IN (
 				SELECT company_uuid FROM companies WHERE manager_user_uuid=$3 AND deleted_at IS NULL
 			)))
 		  )

@@ -120,10 +120,53 @@ type DepartmentMembersOverviewResponse struct {
 	Members    []DepartmentMemberResponse `json:"members"`
 }
 
+type DepartmentTransferRequestResponse struct {
+	ID                 string  `json:"id"`
+	CompanyUUID        string  `json:"company_uuid"`
+	UserUUID           string  `json:"user_uuid"`
+	FromDepartmentUUID *string `json:"from_department_uuid"`
+	ToDepartmentUUID   string  `json:"to_department_uuid"`
+	RequestedBy        string  `json:"requested_by_user_uuid"`
+	Reason             *string `json:"reason,omitempty"`
+	Status             string  `json:"status"`
+	DecidedBy          *string `json:"decided_by_user_uuid,omitempty"`
+	DecisionComment    *string `json:"decision_comment,omitempty"`
+	CreatedAt          string  `json:"created_at"`
+	ExpiresAt          string  `json:"expires_at"`
+}
+
+type CreateDepartmentTransferRequest struct {
+	UserUUID string `json:"user_uuid"`
+	Reason   string `json:"reason"`
+}
+
+type DecideDepartmentTransferRequest struct {
+	Comment string `json:"comment"`
+}
+
+type CompanyOwnershipTransferResponse struct {
+	ID          string  `json:"id"`
+	CompanyUUID string  `json:"company_uuid"`
+	FromUser    string  `json:"from_user_uuid"`
+	ToUser      string  `json:"to_user_uuid"`
+	Status      string  `json:"status"`
+	Reason      *string `json:"reason,omitempty"`
+	CreatedAt   string  `json:"created_at"`
+	ExpiresAt   string  `json:"expires_at"`
+}
+
+type CreateOwnershipTransferRequest struct {
+	UserUUID string `json:"user_uuid"`
+	Reason   string `json:"reason"`
+}
+
 type CreateInvitationRequest struct {
 	UserUUID string `json:"user_uuid"`
 	Username string `json:"username"`
 	Role     string `json:"role"`
+	// AcknowledgeCurrentMembership is the answer to the alert that warns the
+	// inviter that this person already works somewhere else.
+	AcknowledgeCurrentMembership bool `json:"acknowledge_current_membership"`
 }
 
 type InvitationResponse struct {

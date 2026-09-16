@@ -26,6 +26,35 @@ func (_m *NotificationAPI) Events(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
 }
 
+// NotificationAPI_Events_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Events'
+type NotificationAPI_Events_Call struct {
+	*mock.Call
+}
+
+// Events is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *NotificationAPI_Expecter) Events(w interface{}, r interface{}) *NotificationAPI_Events_Call {
+	return &NotificationAPI_Events_Call{Call: _e.mock.On("Events", w, r)}
+}
+
+func (_c *NotificationAPI_Events_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *NotificationAPI_Events_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *NotificationAPI_Events_Call) Return() *NotificationAPI_Events_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *NotificationAPI_Events_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *NotificationAPI_Events_Call {
+	_c.Run(run)
+	return _c
+}
+
 // List provides a mock function with given fields: w, r
 func (_m *NotificationAPI) List(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -124,6 +153,40 @@ func (_c *NotificationAPI_MarkRead_Call) Return() *NotificationAPI_MarkRead_Call
 }
 
 func (_c *NotificationAPI_MarkRead_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *NotificationAPI_MarkRead_Call {
+	_c.Run(run)
+	return _c
+}
+
+// MarkUnread provides a mock function with given fields: w, r
+func (_m *NotificationAPI) MarkUnread(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// NotificationAPI_MarkUnread_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkUnread'
+type NotificationAPI_MarkUnread_Call struct {
+	*mock.Call
+}
+
+// MarkUnread is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *NotificationAPI_Expecter) MarkUnread(w interface{}, r interface{}) *NotificationAPI_MarkUnread_Call {
+	return &NotificationAPI_MarkUnread_Call{Call: _e.mock.On("MarkUnread", w, r)}
+}
+
+func (_c *NotificationAPI_MarkUnread_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *NotificationAPI_MarkUnread_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *NotificationAPI_MarkUnread_Call) Return() *NotificationAPI_MarkUnread_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *NotificationAPI_MarkUnread_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *NotificationAPI_MarkUnread_Call {
 	_c.Run(run)
 	return _c
 }

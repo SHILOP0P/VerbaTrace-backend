@@ -357,7 +357,7 @@ func visibleFolderCondition(userParam string) string {
                 SELECT 1 FROM company_members cm
                 WHERE cm.company_uuid = f.company_uuid
                   AND cm.user_uuid = %s
-                  AND cm.role = 'company_manager'
+                  AND cm.role IN ('company_manager','company_deputy')
                   AND cm.status = 'active'
             )
             OR EXISTS (
@@ -374,7 +374,7 @@ func visibleFolderCondition(userParam string) string {
                 SELECT 1 FROM company_members cm
                 WHERE cm.company_uuid = f.company_uuid
                   AND cm.user_uuid = %s
-                  AND cm.role = 'company_manager'
+                  AND cm.role IN ('company_manager','company_deputy')
                   AND cm.status = 'active'
             )
             OR EXISTS (

@@ -81,6 +81,65 @@ func (_c *AnalysisService_AnalyzeCall_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// GetAppliedInstruction provides a mock function with given fields: ctx, analysisID, versionID, userID
+func (_m *AnalysisService) GetAppliedInstruction(ctx context.Context, analysisID uuid.UUID, versionID uuid.UUID, userID uuid.UUID) (models.AppliedInstruction, error) {
+	ret := _m.Called(ctx, analysisID, versionID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAppliedInstruction")
+	}
+
+	var r0 models.AppliedInstruction
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (models.AppliedInstruction, error)); ok {
+		return rf(ctx, analysisID, versionID, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) models.AppliedInstruction); ok {
+		r0 = rf(ctx, analysisID, versionID, userID)
+	} else {
+		r0 = ret.Get(0).(models.AppliedInstruction)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, analysisID, versionID, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// AnalysisService_GetAppliedInstruction_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAppliedInstruction'
+type AnalysisService_GetAppliedInstruction_Call struct {
+	*mock.Call
+}
+
+// GetAppliedInstruction is a helper method to define mock.On call
+//   - ctx context.Context
+//   - analysisID uuid.UUID
+//   - versionID uuid.UUID
+//   - userID uuid.UUID
+func (_e *AnalysisService_Expecter) GetAppliedInstruction(ctx interface{}, analysisID interface{}, versionID interface{}, userID interface{}) *AnalysisService_GetAppliedInstruction_Call {
+	return &AnalysisService_GetAppliedInstruction_Call{Call: _e.mock.On("GetAppliedInstruction", ctx, analysisID, versionID, userID)}
+}
+
+func (_c *AnalysisService_GetAppliedInstruction_Call) Run(run func(ctx context.Context, analysisID uuid.UUID, versionID uuid.UUID, userID uuid.UUID)) *AnalysisService_GetAppliedInstruction_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID), args[3].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *AnalysisService_GetAppliedInstruction_Call) Return(_a0 models.AppliedInstruction, _a1 error) *AnalysisService_GetAppliedInstruction_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *AnalysisService_GetAppliedInstruction_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (models.AppliedInstruction, error)) *AnalysisService_GetAppliedInstruction_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByCallUUID provides a mock function with given fields: ctx, callUUID, userID
 func (_m *AnalysisService) GetByCallUUID(ctx context.Context, callUUID uuid.UUID, userID uuid.UUID) (models.CallAnalysis, error) {
 	ret := _m.Called(ctx, callUUID, userID)
@@ -139,24 +198,64 @@ func (_c *AnalysisService_GetByCallUUID_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// ListAppliedInstructions provides a mock function with given fields: ctx, analysisID, userID
 func (_m *AnalysisService) ListAppliedInstructions(ctx context.Context, analysisID uuid.UUID, userID uuid.UUID) ([]models.AppliedInstruction, error) {
 	ret := _m.Called(ctx, analysisID, userID)
+
 	if len(ret) == 0 {
 		panic("no return value specified for ListAppliedInstructions")
 	}
-	var items []models.AppliedInstruction
-	if value := ret.Get(0); value != nil {
-		items = value.([]models.AppliedInstruction)
+
+	var r0 []models.AppliedInstruction
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) ([]models.AppliedInstruction, error)); ok {
+		return rf(ctx, analysisID, userID)
 	}
-	return items, ret.Error(1)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) []models.AppliedInstruction); ok {
+		r0 = rf(ctx, analysisID, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AppliedInstruction)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, analysisID, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
-func (_m *AnalysisService) GetAppliedInstruction(ctx context.Context, analysisID uuid.UUID, versionID uuid.UUID, userID uuid.UUID) (models.AppliedInstruction, error) {
-	ret := _m.Called(ctx, analysisID, versionID, userID)
-	if len(ret) == 0 {
-		panic("no return value specified for GetAppliedInstruction")
-	}
-	return ret.Get(0).(models.AppliedInstruction), ret.Error(1)
+// AnalysisService_ListAppliedInstructions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAppliedInstructions'
+type AnalysisService_ListAppliedInstructions_Call struct {
+	*mock.Call
+}
+
+// ListAppliedInstructions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - analysisID uuid.UUID
+//   - userID uuid.UUID
+func (_e *AnalysisService_Expecter) ListAppliedInstructions(ctx interface{}, analysisID interface{}, userID interface{}) *AnalysisService_ListAppliedInstructions_Call {
+	return &AnalysisService_ListAppliedInstructions_Call{Call: _e.mock.On("ListAppliedInstructions", ctx, analysisID, userID)}
+}
+
+func (_c *AnalysisService_ListAppliedInstructions_Call) Run(run func(ctx context.Context, analysisID uuid.UUID, userID uuid.UUID)) *AnalysisService_ListAppliedInstructions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *AnalysisService_ListAppliedInstructions_Call) Return(_a0 []models.AppliedInstruction, _a1 error) *AnalysisService_ListAppliedInstructions_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *AnalysisService_ListAppliedInstructions_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) ([]models.AppliedInstruction, error)) *AnalysisService_ListAppliedInstructions_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewAnalysisService creates a new instance of AnalysisService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

@@ -29,7 +29,7 @@ func (r *Repository) ListVisibleCompanyDepartments(ctx context.Context, companyI
 	          JOIN companies c ON c.company_uuid = cm.company_uuid
 	          WHERE cm.company_uuid = d.company_uuid
 	            AND cm.user_uuid = $2
-	            AND cm.role = 'company_manager'
+	            AND cm.role IN ('company_manager','company_deputy')
 	            AND cm.status = 'active'
 	            AND c.deleted_at IS NULL
 	      )

@@ -20,8 +20,8 @@ func (s *ServiceSuite) TestUpdateDepartmentMemberStatusSuccess() {
 		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: managerID, Role: models.CompanyMemberRoleManager}, nil).
 		Once()
 	s.departmentRepository.EXPECT().
-		UpdateDepartmentMemberStatus(mock.Anything, companyID, departmentID, userID, models.MembershipStatusSuspended).
-		Return(models.DepartmentMember{DepartmentUUID: departmentID, UserUUID: userID, Status: models.MembershipStatusSuspended}, nil).
+		UpdateDepartmentMemberStatus(mock.Anything, companyID, departmentID, userID, models.MembershipStatusLeft).
+		Return(models.DepartmentMember{DepartmentUUID: departmentID, UserUUID: userID, Status: models.MembershipStatusLeft}, nil).
 		Once()
 
 	got, err := s.service.UpdateDepartmentMemberStatus(s.ctx, models.UpdateDepartmentMemberStatusInput{
@@ -29,11 +29,11 @@ func (s *ServiceSuite) TestUpdateDepartmentMemberStatusSuccess() {
 		DepartmentUUID: departmentID,
 		RequestUser:    managerID,
 		UserUUID:       userID,
-		Status:         models.MembershipStatusSuspended,
+		Status:         models.MembershipStatusLeft,
 	})
 
 	s.Require().NoError(err)
-	s.Require().Equal(models.MembershipStatusSuspended, got.Status)
+	s.Require().Equal(models.MembershipStatusLeft, got.Status)
 }
 
 func (s *ServiceSuite) TestUpdateDepartmentMemberStatusRejectsInvalidStatus() {
@@ -62,7 +62,7 @@ func (s *ServiceSuite) TestUpdateDepartmentMemberStatusRejectsNonManager() {
 		DepartmentUUID: uuid.New(),
 		RequestUser:    requestUserID,
 		UserUUID:       uuid.New(),
-		Status:         models.MembershipStatusSuspended,
+		Status:         models.MembershipStatusLeft,
 	})
 
 	s.Require().ErrorIs(err, models.ErrForbidden)
@@ -80,7 +80,7 @@ func (s *ServiceSuite) TestUpdateDepartmentMemberStatusReturnsRepositoryError() 
 		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: managerID, Role: models.CompanyMemberRoleManager}, nil).
 		Once()
 	s.departmentRepository.EXPECT().
-		UpdateDepartmentMemberStatus(mock.Anything, companyID, departmentID, userID, models.MembershipStatusSuspended).
+		UpdateDepartmentMemberStatus(mock.Anything, companyID, departmentID, userID, models.MembershipStatusLeft).
 		Return(models.DepartmentMember{}, repoErr).
 		Once()
 
@@ -89,7 +89,7 @@ func (s *ServiceSuite) TestUpdateDepartmentMemberStatusReturnsRepositoryError() 
 		DepartmentUUID: departmentID,
 		RequestUser:    managerID,
 		UserUUID:       userID,
-		Status:         models.MembershipStatusSuspended,
+		Status:         models.MembershipStatusLeft,
 	})
 
 	s.Require().ErrorIs(err, repoErr)

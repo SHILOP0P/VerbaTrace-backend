@@ -122,7 +122,7 @@ func (s *Service) CreateActionSync(ctx context.Context, actionID, connectionID, 
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT recipient FROM (
 		SELECT manager_user_uuid recipient FROM companies WHERE company_uuid=$1
-		UNION SELECT user_uuid FROM company_members WHERE company_uuid=$1 AND role='company_manager' AND status='active'
+		UNION SELECT user_uuid FROM company_members WHERE company_uuid=$1 AND role IN ('company_manager','company_deputy') AND status='active'
 		UNION SELECT user_uuid FROM department_members WHERE department_uuid=$2 AND role='department_leader' AND status='active'
 	) recipients WHERE recipient<>$3`, company, targetDepartment, actor)
 	if err != nil {
@@ -166,7 +166,7 @@ func (s *Service) ApproveActionSync(ctx context.Context, id, actor uuid.UUID, ex
 	var allowed bool
 	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM call_actions a WHERE a.action_uuid=$1 AND (
 		EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR
-		EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager') OR
+		EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')) OR
 		EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=a.target_department_uuid AND dm.user_uuid=$2 AND dm.status='active' AND dm.role='department_leader')))`, item.ActionID, actor).Scan(&allowed)
 	if err != nil || !allowed {
 		return item, ErrForbidden
@@ -208,7 +208,7 @@ func (s *Service) RejectActionSync(ctx context.Context, id, actor uuid.UUID, exp
 		return ErrConflict
 	}
 	var allowed bool
-	_ = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM call_actions a WHERE a.action_uuid=$1 AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager') OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=a.target_department_uuid AND dm.user_uuid=$2 AND dm.status='active' AND dm.role='department_leader')))`, item.ActionID, actor).Scan(&allowed)
+	_ = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM call_actions a WHERE a.action_uuid=$1 AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')) OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=a.target_department_uuid AND dm.user_uuid=$2 AND dm.status='active' AND dm.role='department_leader')))`, item.ActionID, actor).Scan(&allowed)
 	if !allowed {
 		return ErrForbidden
 	}
@@ -225,7 +225,7 @@ func (s *Service) RejectActionSync(ctx context.Context, id, actor uuid.UUID, exp
 }
 
 func (s *Service) GetActionSync(ctx context.Context, actionID, actor uuid.UUID) (models.ActionExternalSync, error) {
-	item, err := scanActionSync(s.db.QueryRowContext(ctx, actionSyncSelect+` s JOIN call_actions a ON a.action_uuid=s.action_uuid WHERE s.action_uuid=$1 AND (a.created_by_user_uuid=$2 OR a.assignee_user_uuid=$2 OR s.approver_user_uuid=$2 OR EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager') OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=a.target_department_uuid AND dm.user_uuid=$2 AND dm.status='active' AND dm.role='department_leader')) ORDER BY s.created_at DESC LIMIT 1`, actionID, actor))
+	item, err := scanActionSync(s.db.QueryRowContext(ctx, actionSyncSelect+` s JOIN call_actions a ON a.action_uuid=s.action_uuid WHERE s.action_uuid=$1 AND (a.created_by_user_uuid=$2 OR a.assignee_user_uuid=$2 OR s.approver_user_uuid=$2 OR EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')) OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=a.target_department_uuid AND dm.user_uuid=$2 AND dm.status='active' AND dm.role='department_leader')) ORDER BY s.created_at DESC LIMIT 1`, actionID, actor))
 	if err != nil {
 		return item, err
 	}
@@ -251,7 +251,7 @@ func (s *Service) canResolveActionSync(ctx context.Context, actionID, actor uuid
 	var allowed bool
 	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM call_actions a WHERE a.action_uuid=$1 AND (
 		EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR
-		EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager') OR
+		EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')) OR
 		EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=a.target_department_uuid AND dm.user_uuid=$2 AND dm.status='active' AND dm.role='department_leader')))`, actionID, actor).Scan(&allowed)
 	return allowed, err
 }
@@ -270,7 +270,7 @@ func (s *Service) GetActionSyncByID(ctx context.Context, syncID, actor uuid.UUID
 		return item, err
 	}
 	if item.ID != syncID {
-		item, err = scanActionSync(s.db.QueryRowContext(ctx, actionSyncSelect+` s JOIN call_actions a ON a.action_uuid=s.action_uuid WHERE s.sync_uuid=$1 AND (a.created_by_user_uuid=$2 OR a.assignee_user_uuid=$2 OR s.approver_user_uuid=$2 OR EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager') OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=a.target_department_uuid AND dm.user_uuid=$2 AND dm.status='active' AND dm.role='department_leader'))`, syncID, actor))
+		item, err = scanActionSync(s.db.QueryRowContext(ctx, actionSyncSelect+` s JOIN call_actions a ON a.action_uuid=s.action_uuid WHERE s.sync_uuid=$1 AND (a.created_by_user_uuid=$2 OR a.assignee_user_uuid=$2 OR s.approver_user_uuid=$2 OR EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')) OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=a.target_department_uuid AND dm.user_uuid=$2 AND dm.status='active' AND dm.role='department_leader'))`, syncID, actor))
 		if err == nil && (item.State == "needs_review" || item.ReviewState != nil) {
 			item.CanResolve, err = s.canResolveActionSync(ctx, item.ActionID, actor)
 		}

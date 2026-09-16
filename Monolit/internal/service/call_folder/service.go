@@ -345,12 +345,12 @@ func (s *Service) authorizeManage(ctx context.Context, scope models.CallFolderSc
 		if err != nil {
 			return models.ErrForbidden
 		}
-		if member.Role != models.CompanyMemberRoleManager {
+		if !member.Role.ManagesCompany() {
 			return models.ErrForbidden
 		}
 		return nil
 	case models.CallFolderScopeDepartment:
-		if member, err := s.companyRepository.GetCompanyMember(ctx, companyID.UUID, userID); err == nil && member.Role == models.CompanyMemberRoleManager {
+		if member, err := s.companyRepository.GetCompanyMember(ctx, companyID.UUID, userID); err == nil && member.Role.ManagesCompany() {
 			return nil
 		}
 		member, err := s.departmentRepository.GetDepartmentMember(ctx, companyID.UUID, departmentID.UUID, userID)

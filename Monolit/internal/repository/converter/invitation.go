@@ -19,6 +19,16 @@ func ModelInvitationToRepoInvitation(invitation model.MembershipInvitation) (rep
 		respondedAt = sql.NullTime{Time: *invitation.RespondedAt, Valid: true}
 	}
 
+	approvalDecidedAt := sql.NullTime{}
+	if invitation.ApprovalDecidedAt != nil {
+		approvalDecidedAt = sql.NullTime{Time: *invitation.ApprovalDecidedAt, Valid: true}
+	}
+
+	approvalStatus := invitation.ApprovalStatus
+	if approvalStatus == "" {
+		approvalStatus = model.InvitationApprovalNotRequired
+	}
+
 	return repoModel.MembershipInvitation{
 		ID:                invitation.ID,
 		CompanyUUID:       invitation.CompanyUUID,
@@ -28,6 +38,9 @@ func ModelInvitationToRepoInvitation(invitation model.MembershipInvitation) (rep
 		CompanyRole:       string(invitation.CompanyRole),
 		DepartmentRole:    departmentRole,
 		Status:            string(invitation.Status),
+		ApprovalStatus:    string(approvalStatus),
+		ApprovalDecidedBy: invitation.ApprovalDecidedByUUID,
+		ApprovalDecidedAt: approvalDecidedAt,
 		ExpiresAt:         invitation.ExpiresAt,
 		RespondedAt:       respondedAt,
 		CreatedAt:         invitation.CreatedAt,
@@ -47,19 +60,27 @@ func RepoInvitationToModel(invitation repoModel.MembershipInvitation) (model.Mem
 		respondedAt = &invitation.RespondedAt.Time
 	}
 
+	var approvalDecidedAt *time.Time
+	if invitation.ApprovalDecidedAt.Valid {
+		approvalDecidedAt = &invitation.ApprovalDecidedAt.Time
+	}
+
 	return model.MembershipInvitation{
-		ID:                invitation.ID,
-		CompanyUUID:       invitation.CompanyUUID,
-		DepartmentUUID:    invitation.DepartmentUUID,
-		InvitedUserUUID:   invitation.InvitedUserUUID,
-		InvitedByUserUUID: invitation.InvitedByUserUUID,
-		CompanyRole:       model.CompanyMemberRole(invitation.CompanyRole),
-		DepartmentRole:    departmentRole,
-		Status:            model.InvitationStatus(invitation.Status),
-		ExpiresAt:         invitation.ExpiresAt,
-		RespondedAt:       respondedAt,
-		CreatedAt:         invitation.CreatedAt,
-		UpdatedAt:         invitation.UpdatedAt,
+		ID:                    invitation.ID,
+		CompanyUUID:           invitation.CompanyUUID,
+		DepartmentUUID:        invitation.DepartmentUUID,
+		InvitedUserUUID:       invitation.InvitedUserUUID,
+		InvitedByUserUUID:     invitation.InvitedByUserUUID,
+		CompanyRole:           model.CompanyMemberRole(invitation.CompanyRole),
+		DepartmentRole:        departmentRole,
+		Status:                model.InvitationStatus(invitation.Status),
+		ApprovalStatus:        model.InvitationApprovalStatus(invitation.ApprovalStatus),
+		ApprovalDecidedByUUID: invitation.ApprovalDecidedBy,
+		ApprovalDecidedAt:     approvalDecidedAt,
+		ExpiresAt:             invitation.ExpiresAt,
+		RespondedAt:           respondedAt,
+		CreatedAt:             invitation.CreatedAt,
+		UpdatedAt:             invitation.UpdatedAt,
 	}, nil
 }
 

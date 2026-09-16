@@ -33,7 +33,7 @@ func (s *Service) UpdateCompanyMemberJobTitle(
 		}
 	}
 
-	if err := s.requireCompanyManager(ctx, input.CompanyUUID, input.RequestUser); err != nil {
+	if err := s.requireCompanyManagement(ctx, input.CompanyUUID, input.RequestUser); err != nil {
 		return models.CompanyMember{}, err
 	}
 	if err := s.requireActiveCompanySubscription(ctx, input.CompanyUUID); err != nil {

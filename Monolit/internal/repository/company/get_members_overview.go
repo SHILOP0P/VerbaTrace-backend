@@ -42,6 +42,9 @@ func (r *Repository) GetCompanyMembersOverview(ctx context.Context, companyID uu
 		case model.CompanyMemberRoleManager:
 			memberCopy := member
 			overview.Manager = &memberCopy
+		case model.CompanyMemberRoleDeputy:
+			memberCopy := member
+			overview.Deputy = &memberCopy
 		case model.CompanyMemberRoleEmployee:
 			overview.CompanyEmployees = append(overview.CompanyEmployees, member)
 		}

@@ -3,8 +3,8 @@
 package mocks
 
 import (
-	models "verbatrace/monolit/internal/models"
 	context "context"
+	models "verbatrace/monolit/internal/models"
 
 	mock "github.com/stretchr/testify/mock"
 
@@ -239,6 +239,64 @@ func (_c *NotificationService_MarkRead_Call) Return(_a0 models.Notification, _a1
 }
 
 func (_c *NotificationService_MarkRead_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.Notification, error)) *NotificationService_MarkRead_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MarkUnread provides a mock function with given fields: ctx, id, userID
+func (_m *NotificationService) MarkUnread(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Notification, error) {
+	ret := _m.Called(ctx, id, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkUnread")
+	}
+
+	var r0 models.Notification
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (models.Notification, error)); ok {
+		return rf(ctx, id, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) models.Notification); ok {
+		r0 = rf(ctx, id, userID)
+	} else {
+		r0 = ret.Get(0).(models.Notification)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, id, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// NotificationService_MarkUnread_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkUnread'
+type NotificationService_MarkUnread_Call struct {
+	*mock.Call
+}
+
+// MarkUnread is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - userID uuid.UUID
+func (_e *NotificationService_Expecter) MarkUnread(ctx interface{}, id interface{}, userID interface{}) *NotificationService_MarkUnread_Call {
+	return &NotificationService_MarkUnread_Call{Call: _e.mock.On("MarkUnread", ctx, id, userID)}
+}
+
+func (_c *NotificationService_MarkUnread_Call) Run(run func(ctx context.Context, id uuid.UUID, userID uuid.UUID)) *NotificationService_MarkUnread_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *NotificationService_MarkUnread_Call) Return(_a0 models.Notification, _a1 error) *NotificationService_MarkUnread_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *NotificationService_MarkUnread_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.Notification, error)) *NotificationService_MarkUnread_Call {
 	_c.Call.Return(run)
 	return _c
 }

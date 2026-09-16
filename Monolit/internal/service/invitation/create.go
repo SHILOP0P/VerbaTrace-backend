@@ -28,6 +28,10 @@ func (s *Service) CreateCompanyInvitation(ctx context.Context, input models.Crea
 		return models.MembershipInvitation{}, err
 	}
 
+	if err := s.ensureInvitationsAllowed(ctx, targetUserID); err != nil {
+		return models.MembershipInvitation{}, err
+	}
+
 	active, err := s.isActiveCompanyMember(ctx, input.CompanyUUID, targetUserID)
 	if err != nil {
 		return models.MembershipInvitation{}, err
@@ -36,23 +40,26 @@ func (s *Service) CreateCompanyInvitation(ctx context.Context, input models.Crea
 		return models.MembershipInvitation{}, models.ErrInvalidInvitationInput
 	}
 
-	now := s.now()
-	invitation, err := s.invitationRepository.CreateInvitation(ctx, models.MembershipInvitation{
-		ID:                uuid.New(),
+	// Pulling somebody out of another company is a move, so the person who
+	// invites confirms it first and the invited user confirms it again later.
+	if !input.AcknowledgeCurrentMembership {
+		engaged, err := s.employedElsewhere(ctx, targetUserID, input.CompanyUUID)
+		if err != nil {
+			return models.MembershipInvitation{}, err
+		}
+		if engaged {
+			return models.MembershipInvitation{}, models.ErrTargetAlreadyEngaged
+		}
+	}
+
+	// The member limit is checked when the invitation is accepted: a pending
+	// invitation must not hold a seat.
+	return s.createInvitation(ctx, models.MembershipInvitation{
 		CompanyUUID:       input.CompanyUUID,
 		InvitedUserUUID:   targetUserID,
 		InvitedByUserUUID: input.RequestUser,
 		CompanyRole:       models.CompanyMemberRoleEmployee,
-		Status:            models.InvitationStatusPending,
-		ExpiresAt:         now.Add(defaultInvitationTTL),
-		CreatedAt:         now,
-		UpdatedAt:         now,
 	})
-	if err != nil {
-		return models.MembershipInvitation{}, err
-	}
-	s.notifyInvitationCreated(ctx, invitation)
-	return invitation, nil
 }
 
 func (s *Service) CreateDepartmentInvitation(ctx context.Context, input models.CreateDepartmentInvitationInput) (models.MembershipInvitation, error) {
@@ -68,11 +75,16 @@ func (s *Service) CreateDepartmentInvitation(ctx context.Context, input models.C
 		return models.MembershipInvitation{}, err
 	}
 
-	if err := s.requireDepartmentInvitePermission(ctx, input); err != nil {
+	managesCompany, err := s.requireDepartmentInvitePermission(ctx, input, targetUserID)
+	if err != nil {
 		return models.MembershipInvitation{}, err
 	}
 
 	if err := s.requireActiveCompanySubscription(ctx, input.CompanyUUID); err != nil {
+		return models.MembershipInvitation{}, err
+	}
+
+	if err := s.ensureInvitationsAllowed(ctx, targetUserID); err != nil {
 		return models.MembershipInvitation{}, err
 	}
 
@@ -94,67 +106,158 @@ func (s *Service) CreateDepartmentInvitation(ctx context.Context, input models.C
 		return models.MembershipInvitation{}, models.ErrInvalidInvitationInput
 	}
 
-	now := s.now()
+	if !input.AcknowledgeCurrentMembership {
+		engaged, err := s.engagedElsewhere(ctx, targetUserID, input.CompanyUUID, activeCompanyMember)
+		if err != nil {
+			return models.MembershipInvitation{}, err
+		}
+		if engaged {
+			return models.MembershipInvitation{}, models.ErrTargetAlreadyEngaged
+		}
+	}
+
+	// A leader cannot quietly undo an exclusion decided by the owner or deputy.
+	approval := models.InvitationApprovalNotRequired
+	if !managesCompany {
+		restricted, err := s.companyRepository.HasActiveMembershipRestriction(ctx, input.CompanyUUID, targetUserID, s.now())
+		if err != nil {
+			return models.MembershipInvitation{}, err
+		}
+		if restricted {
+			approval = models.InvitationApprovalPending
+		}
+	}
+
 	role := input.Role
-	invitation, err := s.invitationRepository.CreateInvitation(ctx, models.MembershipInvitation{
-		ID:                uuid.New(),
+	return s.createInvitation(ctx, models.MembershipInvitation{
 		CompanyUUID:       input.CompanyUUID,
 		DepartmentUUID:    uuid.NullUUID{UUID: input.DepartmentUUID, Valid: true},
 		InvitedUserUUID:   targetUserID,
 		InvitedByUserUUID: input.RequestUser,
 		CompanyRole:       models.CompanyMemberRoleEmployee,
 		DepartmentRole:    &role,
-		Status:            models.InvitationStatusPending,
-		ExpiresAt:         now.Add(defaultInvitationTTL),
-		CreatedAt:         now,
-		UpdatedAt:         now,
+		ApprovalStatus:    approval,
 	})
+}
+
+func (s *Service) createInvitation(ctx context.Context, draft models.MembershipInvitation) (models.MembershipInvitation, error) {
+	now := s.now()
+	draft.ID = uuid.New()
+	draft.Status = models.InvitationStatusPending
+	draft.ExpiresAt = now.Add(defaultInvitationTTL)
+	draft.CreatedAt = now
+	draft.UpdatedAt = now
+	if draft.ApprovalStatus == "" {
+		draft.ApprovalStatus = models.InvitationApprovalNotRequired
+	}
+
+	invitation, err := s.invitationRepository.CreateInvitation(ctx, draft)
 	if err != nil {
 		return models.MembershipInvitation{}, err
 	}
+
+	if invitation.ApprovalStatus == models.InvitationApprovalPending {
+		s.notifyApprover(ctx, invitation)
+		return invitation, nil
+	}
+
 	s.notifyInvitationCreated(ctx, invitation)
 	return invitation, nil
 }
 
+// ensureInvitationsAllowed respects the user's "do not disturb" switch.
+func (s *Service) ensureInvitationsAllowed(ctx context.Context, userID uuid.UUID) error {
+	if s.preferencesReader == nil {
+		return nil
+	}
+
+	preferences, err := s.preferencesReader.Get(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if preferences.InvitationsMuted {
+		return models.ErrInvitationsMuted
+	}
+
+	return nil
+}
+
+func (s *Service) employedElsewhere(ctx context.Context, userID uuid.UUID, companyID uuid.UUID) (bool, error) {
+	company, err := s.companyRepository.ActiveEmployerCompany(ctx, userID)
+	if err != nil {
+		if errors.Is(err, models.ErrCompanyNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return company.ID != companyID, nil
+}
+
+func (s *Service) engagedElsewhere(ctx context.Context, userID uuid.UUID, companyID uuid.UUID, memberOfCompany bool) (bool, error) {
+	if !memberOfCompany {
+		return s.employedElsewhere(ctx, userID, companyID)
+	}
+
+	// Already a colleague, so the only move left is between departments.
+	departments, err := s.departmentRepository.ListUserDepartments(ctx, companyID, userID)
+	if err != nil {
+		return false, err
+	}
+
+	return len(departments) > 0, nil
+}
+
 func (s *Service) notifyInvitationCreated(ctx context.Context, invitation models.MembershipInvitation) {
-	if s.notificationService == nil {
+	s.notify(ctx, invitation.InvitedUserUUID, models.NotificationTypeInvitation, "Новое приглашение", "Вам отправили приглашение в VerbaTrace", invitation.ID)
+}
+
+func (s *Service) notifyApprover(ctx context.Context, invitation models.MembershipInvitation) {
+	approver, err := s.approverForCompany(ctx, invitation.CompanyUUID)
+	if err != nil {
+		s.log.Warn(ctx, "failed to resolve invitation approver", zap.Error(err), zap.String("invitation_uuid", invitation.ID.String()))
 		return
 	}
 
-	entityType := "invitation"
-	_, err := s.notificationService.Create(ctx, models.CreateNotificationInput{
-		UserUUID:   invitation.InvitedUserUUID,
-		Type:       models.NotificationTypeInvitation,
-		Title:      "Новое приглашение",
-		Body:       "Вам отправили приглашение в VerbaTrace",
-		EntityType: &entityType,
-		EntityUUID: uuid.NullUUID{UUID: invitation.ID, Valid: true},
-		CreatedAt:  invitation.CreatedAt,
-	})
-	if err != nil {
-		s.log.Warn(ctx, "failed to create invitation notification", zap.Error(err), zap.String("invitation_uuid", invitation.ID.String()))
-	}
+	s.notify(ctx, approver, models.NotificationTypeInvitationApprovalRequested, "Приглашение ждёт одобрения", "Лидер отдела приглашает исключённого сотрудника", invitation.ID)
 }
 
-func (s *Service) requireDepartmentInvitePermission(ctx context.Context, input models.CreateDepartmentInvitationInput) error {
+// requireDepartmentInvitePermission reports whether the actor runs the whole
+// company and rejects what a department leader must never do.
+func (s *Service) requireDepartmentInvitePermission(ctx context.Context, input models.CreateDepartmentInvitationInput, targetUserID uuid.UUID) (bool, error) {
 	manager, err := s.companyRepository.GetCompanyMember(ctx, input.CompanyUUID, input.RequestUser)
-	if err == nil && manager.Role == models.CompanyMemberRoleManager {
-		return nil
+	if err == nil && manager.Role.ManagesCompany() {
+		return true, nil
 	}
 	if err != nil && !errors.Is(err, models.ErrCompanyNotFound) {
-		return err
+		return false, err
 	}
 
 	member, err := s.departmentRepository.GetDepartmentMember(ctx, input.CompanyUUID, input.DepartmentUUID, input.RequestUser)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if member.Role != models.DepartmentMemberRoleLeader {
-		return models.ErrForbidden
+		return false, models.ErrForbidden
 	}
 	if input.Role != models.DepartmentMemberRoleEmployee {
-		return models.ErrForbidden
+		return false, models.ErrForbidden
 	}
 
-	return nil
+	// A leader never takes colleagues from another department by invitation:
+	// that move belongs to the deputy and goes through a transfer request.
+	departments, err := s.departmentRepository.ListUserDepartments(ctx, input.CompanyUUID, targetUserID)
+	if err != nil {
+		return false, err
+	}
+	for _, department := range departments {
+		if department.Role == models.DepartmentMemberRoleLeader {
+			return false, models.ErrForbidden
+		}
+		if department.DepartmentUUID != input.DepartmentUUID {
+			return false, &models.DepartmentTransferRequired{UserUUID: targetUserID}
+		}
+	}
+
+	return false, nil
 }

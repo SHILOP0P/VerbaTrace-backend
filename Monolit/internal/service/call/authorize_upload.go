@@ -29,7 +29,7 @@ func (s *Service) authorizeCompanyUpload(ctx context.Context, input models.Creat
 		return models.ErrForbidden
 	}
 
-	if member.Role != models.CompanyMemberRoleManager {
+	if !member.Role.ManagesCompany() {
 		return models.ErrForbidden
 	}
 
@@ -38,7 +38,7 @@ func (s *Service) authorizeCompanyUpload(ctx context.Context, input models.Creat
 
 func (s *Service) authorizeDepartmentUpload(ctx context.Context, input models.CreateCallInput) error {
 	companyMember, err := s.companyRepository.GetCompanyMember(ctx, input.CompanyUUID.UUID, input.UploadedByUserUUID)
-	if err == nil && companyMember.Role == models.CompanyMemberRoleManager {
+	if err == nil && companyMember.Role.ManagesCompany() {
 		return nil
 	}
 

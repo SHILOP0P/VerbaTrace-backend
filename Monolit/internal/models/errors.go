@@ -2,6 +2,8 @@ package models
 
 import (
 	"errors"
+
+	"github.com/google/uuid"
 )
 
 // CALL
@@ -52,6 +54,51 @@ var ErrInvalidCompanyInput = errors.New("invalid company input")
 var ErrCompanyTagAlreadyExists = errors.New("company tag already exists")
 var ErrUserAlreadyManagesCompany = errors.New("user already manages company")
 var ErrLastCompanyManager = errors.New("last company manager cannot be removed")
+var ErrCompanyMembershipConflict = errors.New("user already belongs to another company")
+var ErrCompanyNotEmpty = errors.New("company still has members")
+var ErrCompanyDeputyAlreadyAssigned = errors.New("company already has a deputy")
+var ErrCompanyDeputyNotAssigned = errors.New("company has no deputy")
+var ErrOwnerOnlyAction = errors.New("action is available to the company owner only")
+var ErrCompanyOwnershipTransferNotFound = errors.New("company ownership transfer not found")
+var ErrCompanyOwnershipTransferPending = errors.New("company ownership transfer is already pending")
+var ErrDepartmentTransferNotFound = errors.New("department transfer request not found")
+var ErrDepartmentTransferPending = errors.New("department transfer request is already pending")
+var ErrMembershipRestricted = errors.New("membership is restricted and needs approval")
+var ErrInvitationsMuted = errors.New("user does not accept invitations")
+var ErrTargetAlreadyEngaged = errors.New("user already belongs to a company or department")
+var ErrDepartmentTransferRequired = errors.New("moving this person between departments requires a transfer request")
+
+// DepartmentTransferRequired tells the interface which colleague a leader has to
+// request instead of inviting.
+type DepartmentTransferRequired struct {
+	UserUUID uuid.UUID
+}
+
+func (e *DepartmentTransferRequired) Error() string {
+	return ErrDepartmentTransferRequired.Error()
+}
+
+func (e *DepartmentTransferRequired) Unwrap() error {
+	return ErrDepartmentTransferRequired
+}
+
+// CompanyMembershipConflict carries the company a user is about to leave, so the
+// interface can name it in the confirmation alert instead of showing a bare
+// error.
+type CompanyMembershipConflict struct {
+	CurrentCompanyUUID uuid.UUID
+	CurrentCompanyName string
+}
+
+func (e *CompanyMembershipConflict) Error() string {
+	return ErrCompanyMembershipConflict.Error()
+}
+
+func (e *CompanyMembershipConflict) Unwrap() error {
+	return ErrCompanyMembershipConflict
+}
+
+var ErrInvitationApprovalRequired = errors.New("invitation needs approval")
 
 // DEPARTMENT
 var ErrDepartmentNotFound = errors.New("department not found")

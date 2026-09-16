@@ -192,7 +192,7 @@ func (s *Service) insertEvidence(ctx context.Context, tx *sql.Tx, actionID, call
 
 func canCreate(ctx context.Context, tx *sql.Tx, actor, company, department, callID uuid.UUID) (bool, error) {
 	var ok bool
-	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM calls c WHERE c.call_uuid=$4 AND c.company_uuid=$2 AND (EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=$2 AND cm.user_uuid=$1 AND cm.status='active' AND cm.role='company_manager') OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=$3 AND dm.user_uuid=$1 AND dm.status='active')))`, actor, company, department, callID).Scan(&ok)
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM calls c WHERE c.call_uuid=$4 AND c.company_uuid=$2 AND (EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=$2 AND cm.user_uuid=$1 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')) OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.department_uuid=$3 AND dm.user_uuid=$1 AND dm.status='active')))`, actor, company, department, callID).Scan(&ok)
 	return ok, err
 }
 func validAssignment(ctx context.Context, tx *sql.Tx, company, department, user uuid.UUID) (bool, error) {

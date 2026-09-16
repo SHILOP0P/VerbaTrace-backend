@@ -22,7 +22,7 @@ func (s *Service) CreateDepartment(ctx context.Context, input models.CreateDepar
 		return models.Department{}, err
 	}
 
-	if member.Role != models.CompanyMemberRoleManager {
+	if !member.Role.ManagesCompany() {
 		return models.Department{}, models.ErrForbidden
 	}
 

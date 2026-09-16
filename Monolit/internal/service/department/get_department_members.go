@@ -18,7 +18,7 @@ func (s *Service) ListDepartmentMembers(ctx context.Context, companyID uuid.UUID
 	}
 
 	companyMember, err := s.companyRepository.GetCompanyMember(ctx, companyID, userID)
-	if err == nil && companyMember.Role == models.CompanyMemberRoleManager {
+	if err == nil && companyMember.Role.ManagesCompany() {
 		return s.departmentRepository.ListDepartmentMembers(ctx, companyID, departmentID)
 	}
 

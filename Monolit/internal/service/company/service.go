@@ -8,6 +8,7 @@ import (
 	repo "verbatrace/monolit/internal/repository"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type jobTitleRepository interface {
@@ -24,10 +25,39 @@ type BillingLimiter interface {
 	CanAddCompanyMember(ctx context.Context, companyID uuid.UUID) error
 }
 
+type NotificationService interface {
+	Create(ctx context.Context, input models.CreateNotificationInput) (models.Notification, error)
+}
+
 type Service struct {
-	companyRepository repo.CompanyRepository
-	billingLimiter    BillingLimiter
-	log               logger.Logger
+	companyRepository   repo.CompanyRepository
+	billingLimiter      BillingLimiter
+	notificationService NotificationService
+	log                 logger.Logger
+}
+
+func (s *Service) SetNotificationService(notificationService NotificationService) {
+	s.notificationService = notificationService
+}
+
+// notify never fails the operation: a missing notification must not roll back a
+// membership decision that already happened.
+func (s *Service) notify(ctx context.Context, userID uuid.UUID, notificationType models.NotificationType, title string, body string, entityType string, entityID uuid.UUID) {
+	if s.notificationService == nil || userID == uuid.Nil {
+		return
+	}
+
+	_, err := s.notificationService.Create(ctx, models.CreateNotificationInput{
+		UserUUID:   userID,
+		Type:       notificationType,
+		Title:      title,
+		Body:       body,
+		EntityType: &entityType,
+		EntityUUID: uuid.NullUUID{UUID: entityID, Valid: entityID != uuid.Nil},
+	})
+	if err != nil {
+		s.log.Warn(ctx, "failed to create company notification", zap.String("user_id", userID.String()), zap.String("type", string(notificationType)), zap.Error(err))
+	}
 }
 
 func NewService(companyRepository repo.CompanyRepository, log logger.Logger) *Service {

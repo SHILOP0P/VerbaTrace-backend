@@ -381,7 +381,7 @@ func (s *Service) authorizeRead(ctx context.Context, analysis models.AggregateAn
 
 func (s *Service) requireCompanyManager(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) error {
 	member, err := s.companyRepository.GetCompanyMember(ctx, companyID, userID)
-	if err != nil || member.Role != models.CompanyMemberRoleManager || member.Status != models.MembershipStatusActive {
+	if err != nil || !member.Role.ManagesCompany() || member.Status != models.MembershipStatusActive {
 		return models.ErrForbidden
 	}
 	return nil

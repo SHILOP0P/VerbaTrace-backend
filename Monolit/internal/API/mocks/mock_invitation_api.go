@@ -55,6 +55,40 @@ func (_c *InvitationAPI_AcceptInvitation_Call) RunAndReturn(run func(http.Respon
 	return _c
 }
 
+// ApproveInvitation provides a mock function with given fields: w, r
+func (_m *InvitationAPI) ApproveInvitation(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// InvitationAPI_ApproveInvitation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ApproveInvitation'
+type InvitationAPI_ApproveInvitation_Call struct {
+	*mock.Call
+}
+
+// ApproveInvitation is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *InvitationAPI_Expecter) ApproveInvitation(w interface{}, r interface{}) *InvitationAPI_ApproveInvitation_Call {
+	return &InvitationAPI_ApproveInvitation_Call{Call: _e.mock.On("ApproveInvitation", w, r)}
+}
+
+func (_c *InvitationAPI_ApproveInvitation_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *InvitationAPI_ApproveInvitation_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *InvitationAPI_ApproveInvitation_Call) Return() *InvitationAPI_ApproveInvitation_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *InvitationAPI_ApproveInvitation_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *InvitationAPI_ApproveInvitation_Call {
+	_c.Run(run)
+	return _c
+}
+
 // CancelCompanyInvitation provides a mock function with given fields: w, r
 func (_m *InvitationAPI) CancelCompanyInvitation(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -225,6 +259,40 @@ func (_c *InvitationAPI_DeclineInvitation_Call) RunAndReturn(run func(http.Respo
 	return _c
 }
 
+// ListCompanyInvitations provides a mock function with given fields: w, r
+func (_m *InvitationAPI) ListCompanyInvitations(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// InvitationAPI_ListCompanyInvitations_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListCompanyInvitations'
+type InvitationAPI_ListCompanyInvitations_Call struct {
+	*mock.Call
+}
+
+// ListCompanyInvitations is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *InvitationAPI_Expecter) ListCompanyInvitations(w interface{}, r interface{}) *InvitationAPI_ListCompanyInvitations_Call {
+	return &InvitationAPI_ListCompanyInvitations_Call{Call: _e.mock.On("ListCompanyInvitations", w, r)}
+}
+
+func (_c *InvitationAPI_ListCompanyInvitations_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *InvitationAPI_ListCompanyInvitations_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *InvitationAPI_ListCompanyInvitations_Call) Return() *InvitationAPI_ListCompanyInvitations_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *InvitationAPI_ListCompanyInvitations_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *InvitationAPI_ListCompanyInvitations_Call {
+	_c.Run(run)
+	return _c
+}
+
 // ListUserInvitations provides a mock function with given fields: w, r
 func (_m *InvitationAPI) ListUserInvitations(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -255,6 +323,40 @@ func (_c *InvitationAPI_ListUserInvitations_Call) Return() *InvitationAPI_ListUs
 }
 
 func (_c *InvitationAPI_ListUserInvitations_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *InvitationAPI_ListUserInvitations_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RejectInvitation provides a mock function with given fields: w, r
+func (_m *InvitationAPI) RejectInvitation(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// InvitationAPI_RejectInvitation_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RejectInvitation'
+type InvitationAPI_RejectInvitation_Call struct {
+	*mock.Call
+}
+
+// RejectInvitation is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *InvitationAPI_Expecter) RejectInvitation(w interface{}, r interface{}) *InvitationAPI_RejectInvitation_Call {
+	return &InvitationAPI_RejectInvitation_Call{Call: _e.mock.On("RejectInvitation", w, r)}
+}
+
+func (_c *InvitationAPI_RejectInvitation_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *InvitationAPI_RejectInvitation_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *InvitationAPI_RejectInvitation_Call) Return() *InvitationAPI_RejectInvitation_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *InvitationAPI_RejectInvitation_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *InvitationAPI_RejectInvitation_Call {
 	_c.Run(run)
 	return _c
 }

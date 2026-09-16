@@ -62,7 +62,7 @@ func (s *Service) access(ctx context.Context, item Item, actor uuid.UUID, admin 
 		return Capabilities{CanStart: !terminal && actor == item.AssigneeUserUUID, CanComplete: !terminal && actor == item.AssigneeUserUUID, CanReschedule: !terminal && (actor == item.AssigneeUserUUID || adminAllowed), CanReopen: terminal && adminAllowed}, visible, nil
 	}
 	var manager, leaderSource, leaderTarget bool
-	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$2 AND user_uuid=$1 AND status='active' AND role='company_manager'),EXISTS(SELECT 1 FROM department_members WHERE department_uuid=$3 AND user_uuid=$1 AND status='active' AND role='department_leader'),EXISTS(SELECT 1 FROM department_members WHERE department_uuid=$4 AND user_uuid=$1 AND status='active' AND role='department_leader')`, actor, *item.CompanyUUID, item.SourceDepartmentUUID, item.TargetDepartmentUUID).Scan(&manager, &leaderSource, &leaderTarget)
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$2 AND user_uuid=$1 AND status='active' AND role IN ('company_manager','company_deputy')),EXISTS(SELECT 1 FROM department_members WHERE department_uuid=$3 AND user_uuid=$1 AND status='active' AND role='department_leader'),EXISTS(SELECT 1 FROM department_members WHERE department_uuid=$4 AND user_uuid=$1 AND status='active' AND role='department_leader')`, actor, *item.CompanyUUID, item.SourceDepartmentUUID, item.TargetDepartmentUUID).Scan(&manager, &leaderSource, &leaderTarget)
 	if err != nil {
 		return Capabilities{}, false, err
 	}
@@ -81,7 +81,7 @@ func (s *Service) access(ctx context.Context, item Item, actor uuid.UUID, admin 
 	manage := manager || leaderSource || leaderTarget || adminAllowed
 	assignedByManager := false
 	if leaderSource || leaderTarget {
-		err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=$1 AND cm.user_uuid=COALESCE((SELECT e.actor_user_uuid FROM call_action_events e WHERE e.action_uuid=$2 AND e.event_type='reassigned' AND e.actor_user_uuid IS NOT NULL ORDER BY e.created_at DESC,e.event_uuid DESC LIMIT 1),$3) AND cm.status='active' AND cm.role='company_manager')`, *item.CompanyUUID, item.ID, item.CreatedByUserUUID).Scan(&assignedByManager)
+		err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=$1 AND cm.user_uuid=COALESCE((SELECT e.actor_user_uuid FROM call_action_events e WHERE e.action_uuid=$2 AND e.event_type='reassigned' AND e.actor_user_uuid IS NOT NULL ORDER BY e.created_at DESC,e.event_uuid DESC LIMIT 1),$3) AND cm.status='active' AND cm.role IN ('company_manager','company_deputy'))`, *item.CompanyUUID, item.ID, item.CreatedByUserUUID).Scan(&assignedByManager)
 		if err != nil {
 			return Capabilities{}, false, err
 		}
@@ -149,7 +149,7 @@ func (s *Service) List(ctx context.Context, in ListInput) (ListResult, error) {
 			where = append(where, fmt.Sprintf("a.company_uuid=ANY($%d)", len(args)))
 		}
 	} else {
-		where = append(where, `(a.assignee_user_uuid=$1 OR a.created_by_user_uuid=$1 OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$1 AND cm.status='active' AND cm.role='company_manager') OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.user_uuid=$1 AND dm.status='active' AND dm.role='department_leader' AND dm.department_uuid IN (a.source_department_uuid,a.target_department_uuid)))`)
+		where = append(where, `(a.assignee_user_uuid=$1 OR a.created_by_user_uuid=$1 OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$1 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy')) OR EXISTS(SELECT 1 FROM department_members dm WHERE dm.user_uuid=$1 AND dm.status='active' AND dm.role='department_leader' AND dm.department_uuid IN (a.source_department_uuid,a.target_department_uuid)))`)
 	}
 	add := func(clause string, value any) {
 		args = append(args, value)

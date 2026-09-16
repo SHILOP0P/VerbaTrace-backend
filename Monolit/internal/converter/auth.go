@@ -45,5 +45,6 @@ func PreferencesModelToAPI(preferences models.UserPreferences) dto.UserPreferenc
 			From: preferences.DateRange.From,
 			To:   preferences.DateRange.To,
 		},
+		InvitationsMuted: preferences.InvitationsMuted,
 	}
 }

@@ -16,24 +16,6 @@ type AnalysisInstructionRepository struct {
 	mock.Mock
 }
 
-func (_m *AnalysisInstructionRepository) ListVersions(ctx context.Context, id uuid.UUID) ([]models.AnalysisInstructionVersion, error) {
-	ret := _m.Called(ctx, id)
-	var items []models.AnalysisInstructionVersion
-	if ret.Get(0) != nil {
-		items = ret.Get(0).([]models.AnalysisInstructionVersion)
-	}
-	return items, ret.Error(1)
-}
-
-func (_m *AnalysisInstructionRepository) GetVersion(ctx context.Context, id uuid.UUID, versionID uuid.UUID) (models.AnalysisInstructionVersion, error) {
-	ret := _m.Called(ctx, id, versionID)
-	var item models.AnalysisInstructionVersion
-	if ret.Get(0) != nil {
-		item = ret.Get(0).(models.AnalysisInstructionVersion)
-	}
-	return item, ret.Error(1)
-}
-
 type AnalysisInstructionRepository_Expecter struct {
 	mock *mock.Mock
 }
@@ -317,6 +299,64 @@ func (_c *AnalysisInstructionRepository_GetByUUIDIncludingInactive_Call) RunAndR
 	return _c
 }
 
+// GetVersion provides a mock function with given fields: ctx, id, versionID
+func (_m *AnalysisInstructionRepository) GetVersion(ctx context.Context, id uuid.UUID, versionID uuid.UUID) (models.AnalysisInstructionVersion, error) {
+	ret := _m.Called(ctx, id, versionID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetVersion")
+	}
+
+	var r0 models.AnalysisInstructionVersion
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (models.AnalysisInstructionVersion, error)); ok {
+		return rf(ctx, id, versionID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) models.AnalysisInstructionVersion); ok {
+		r0 = rf(ctx, id, versionID)
+	} else {
+		r0 = ret.Get(0).(models.AnalysisInstructionVersion)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, id, versionID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// AnalysisInstructionRepository_GetVersion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetVersion'
+type AnalysisInstructionRepository_GetVersion_Call struct {
+	*mock.Call
+}
+
+// GetVersion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - versionID uuid.UUID
+func (_e *AnalysisInstructionRepository_Expecter) GetVersion(ctx interface{}, id interface{}, versionID interface{}) *AnalysisInstructionRepository_GetVersion_Call {
+	return &AnalysisInstructionRepository_GetVersion_Call{Call: _e.mock.On("GetVersion", ctx, id, versionID)}
+}
+
+func (_c *AnalysisInstructionRepository_GetVersion_Call) Run(run func(ctx context.Context, id uuid.UUID, versionID uuid.UUID)) *AnalysisInstructionRepository_GetVersion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *AnalysisInstructionRepository_GetVersion_Call) Return(_a0 models.AnalysisInstructionVersion, _a1 error) *AnalysisInstructionRepository_GetVersion_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *AnalysisInstructionRepository_GetVersion_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.AnalysisInstructionVersion, error)) *AnalysisInstructionRepository_GetVersion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // List provides a mock function with given fields: ctx, input
 func (_m *AnalysisInstructionRepository) List(ctx context.Context, input models.ListAnalysisInstructionsInput) ([]models.AnalysisInstruction, error) {
 	ret := _m.Called(ctx, input)
@@ -372,6 +412,65 @@ func (_c *AnalysisInstructionRepository_List_Call) Return(_a0 []models.AnalysisI
 }
 
 func (_c *AnalysisInstructionRepository_List_Call) RunAndReturn(run func(context.Context, models.ListAnalysisInstructionsInput) ([]models.AnalysisInstruction, error)) *AnalysisInstructionRepository_List_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListVersions provides a mock function with given fields: ctx, id
+func (_m *AnalysisInstructionRepository) ListVersions(ctx context.Context, id uuid.UUID) ([]models.AnalysisInstructionVersion, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListVersions")
+	}
+
+	var r0 []models.AnalysisInstructionVersion
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]models.AnalysisInstructionVersion, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []models.AnalysisInstructionVersion); ok {
+		r0 = rf(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AnalysisInstructionVersion)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// AnalysisInstructionRepository_ListVersions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListVersions'
+type AnalysisInstructionRepository_ListVersions_Call struct {
+	*mock.Call
+}
+
+// ListVersions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+func (_e *AnalysisInstructionRepository_Expecter) ListVersions(ctx interface{}, id interface{}) *AnalysisInstructionRepository_ListVersions_Call {
+	return &AnalysisInstructionRepository_ListVersions_Call{Call: _e.mock.On("ListVersions", ctx, id)}
+}
+
+func (_c *AnalysisInstructionRepository_ListVersions_Call) Run(run func(ctx context.Context, id uuid.UUID)) *AnalysisInstructionRepository_ListVersions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *AnalysisInstructionRepository_ListVersions_Call) Return(_a0 []models.AnalysisInstructionVersion, _a1 error) *AnalysisInstructionRepository_ListVersions_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *AnalysisInstructionRepository_ListVersions_Call) RunAndReturn(run func(context.Context, uuid.UUID) ([]models.AnalysisInstructionVersion, error)) *AnalysisInstructionRepository_ListVersions_Call {
 	_c.Call.Return(run)
 	return _c
 }

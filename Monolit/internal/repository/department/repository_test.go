@@ -81,13 +81,7 @@ func (s *RepositorySuite) createDepartmentWithCompany() (models.Department, mode
 
 func (s *RepositorySuite) addCompanyEmployee(companyID uuid.UUID) models.CurrentUser {
 	user := s.createUser(uuid.NewString() + "@example.com")
-	_, err := s.companyRepository.AddCompanyMember(s.ctx, models.CompanyMember{
-		CompanyUUID: companyID,
-		UserUUID:    user.ID,
-		Role:        models.CompanyMemberRoleEmployee,
-		Status:      models.MembershipStatusActive,
-		CreatedAt:   time.Now().UTC().Truncate(time.Microsecond),
-	})
+	_, err := s.db.ExecContext(s.ctx, `INSERT INTO company_members (company_uuid, user_uuid, role, status) VALUES ($1, $2, $3, $4) ON CONFLICT (company_uuid, user_uuid) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`, companyID, user.ID, string(models.CompanyMemberRoleEmployee), string(models.MembershipStatusActive))
 	s.Require().NoError(err)
 
 	return user
@@ -153,7 +147,7 @@ func (s *RepositorySuite) TestGetDepartmentMemberReturnsNotFoundForInactiveOrWro
 	department, company, _ := s.createDepartmentWithCompany()
 	employee := s.addCompanyEmployee(company.ID)
 	member := testDepartmentMember(department.ID, employee.ID, models.DepartmentMemberRoleEmployee)
-	member.Status = models.MembershipStatusSuspended
+	member.Status = models.MembershipStatusLeft
 	_, err := s.repository.AddDepartmentMember(s.ctx, company.ID, member)
 	s.Require().NoError(err)
 
@@ -173,7 +167,7 @@ func (s *RepositorySuite) TestListDepartmentMembersReturnsOnlyActiveMembers() {
 	s.Require().NoError(err)
 
 	suspendedMember := testDepartmentMember(department.ID, suspended.ID, models.DepartmentMemberRoleEmployee)
-	suspendedMember.Status = models.MembershipStatusSuspended
+	suspendedMember.Status = models.MembershipStatusLeft
 	_, err = s.repository.AddDepartmentMember(s.ctx, company.ID, suspendedMember)
 	s.Require().NoError(err)
 
@@ -238,7 +232,7 @@ func (s *RepositorySuite) TestUpdateDepartmentMemberRoleRejectsInactiveOrWrongCo
 	department, company, _ := s.createDepartmentWithCompany()
 	employee := s.addCompanyEmployee(company.ID)
 	member := testDepartmentMember(department.ID, employee.ID, models.DepartmentMemberRoleEmployee)
-	member.Status = models.MembershipStatusSuspended
+	member.Status = models.MembershipStatusLeft
 	_, err := s.repository.AddDepartmentMember(s.ctx, company.ID, member)
 	s.Require().NoError(err)
 
@@ -255,9 +249,9 @@ func (s *RepositorySuite) TestUpdateDepartmentMemberStatus() {
 	_, err := s.repository.AddDepartmentMember(s.ctx, company.ID, testDepartmentMember(department.ID, employee.ID, models.DepartmentMemberRoleEmployee))
 	s.Require().NoError(err)
 
-	updated, err := s.repository.UpdateDepartmentMemberStatus(s.ctx, company.ID, department.ID, employee.ID, models.MembershipStatusSuspended)
+	updated, err := s.repository.UpdateDepartmentMemberStatus(s.ctx, company.ID, department.ID, employee.ID, models.MembershipStatusLeft)
 	s.Require().NoError(err)
-	s.Require().Equal(models.MembershipStatusSuspended, updated.Status)
+	s.Require().Equal(models.MembershipStatusLeft, updated.Status)
 
 	_, err = s.repository.GetDepartmentMember(s.ctx, company.ID, department.ID, employee.ID)
 	s.Require().ErrorIs(err, models.ErrDepartmentNotFound)
@@ -269,7 +263,7 @@ func (s *RepositorySuite) TestUpdateDepartmentMemberStatusRejectsWrongCompany() 
 	_, err := s.repository.AddDepartmentMember(s.ctx, company.ID, testDepartmentMember(department.ID, employee.ID, models.DepartmentMemberRoleEmployee))
 	s.Require().NoError(err)
 
-	_, err = s.repository.UpdateDepartmentMemberStatus(s.ctx, uuid.New(), department.ID, employee.ID, models.MembershipStatusSuspended)
+	_, err = s.repository.UpdateDepartmentMemberStatus(s.ctx, uuid.New(), department.ID, employee.ID, models.MembershipStatusLeft)
 
 	s.Require().ErrorIs(err, models.ErrDepartmentNotFound)
 }

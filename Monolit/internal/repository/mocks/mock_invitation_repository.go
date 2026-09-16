@@ -3,8 +3,8 @@
 package mocks
 
 import (
-	models "verbatrace/monolit/internal/models"
 	context "context"
+	models "verbatrace/monolit/internal/models"
 
 	mock "github.com/stretchr/testify/mock"
 
@@ -26,9 +26,9 @@ func (_m *InvitationRepository) EXPECT() *InvitationRepository_Expecter {
 	return &InvitationRepository_Expecter{mock: &_m.Mock}
 }
 
-// AcceptInvitation provides a mock function with given fields: ctx, id, now
-func (_m *InvitationRepository) AcceptInvitation(ctx context.Context, id uuid.UUID, now time.Time) (models.MembershipInvitation, error) {
-	ret := _m.Called(ctx, id, now)
+// AcceptInvitation provides a mock function with given fields: ctx, command
+func (_m *InvitationRepository) AcceptInvitation(ctx context.Context, command models.AcceptInvitationCommand) (models.MembershipInvitation, error) {
+	ret := _m.Called(ctx, command)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AcceptInvitation")
@@ -36,17 +36,17 @@ func (_m *InvitationRepository) AcceptInvitation(ctx context.Context, id uuid.UU
 
 	var r0 models.MembershipInvitation
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) (models.MembershipInvitation, error)); ok {
-		return rf(ctx, id, now)
+	if rf, ok := ret.Get(0).(func(context.Context, models.AcceptInvitationCommand) (models.MembershipInvitation, error)); ok {
+		return rf(ctx, command)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) models.MembershipInvitation); ok {
-		r0 = rf(ctx, id, now)
+	if rf, ok := ret.Get(0).(func(context.Context, models.AcceptInvitationCommand) models.MembershipInvitation); ok {
+		r0 = rf(ctx, command)
 	} else {
 		r0 = ret.Get(0).(models.MembershipInvitation)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, time.Time) error); ok {
-		r1 = rf(ctx, id, now)
+	if rf, ok := ret.Get(1).(func(context.Context, models.AcceptInvitationCommand) error); ok {
+		r1 = rf(ctx, command)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -61,15 +61,14 @@ type InvitationRepository_AcceptInvitation_Call struct {
 
 // AcceptInvitation is a helper method to define mock.On call
 //   - ctx context.Context
-//   - id uuid.UUID
-//   - now time.Time
-func (_e *InvitationRepository_Expecter) AcceptInvitation(ctx interface{}, id interface{}, now interface{}) *InvitationRepository_AcceptInvitation_Call {
-	return &InvitationRepository_AcceptInvitation_Call{Call: _e.mock.On("AcceptInvitation", ctx, id, now)}
+//   - command models.AcceptInvitationCommand
+func (_e *InvitationRepository_Expecter) AcceptInvitation(ctx interface{}, command interface{}) *InvitationRepository_AcceptInvitation_Call {
+	return &InvitationRepository_AcceptInvitation_Call{Call: _e.mock.On("AcceptInvitation", ctx, command)}
 }
 
-func (_c *InvitationRepository_AcceptInvitation_Call) Run(run func(ctx context.Context, id uuid.UUID, now time.Time)) *InvitationRepository_AcceptInvitation_Call {
+func (_c *InvitationRepository_AcceptInvitation_Call) Run(run func(ctx context.Context, command models.AcceptInvitationCommand)) *InvitationRepository_AcceptInvitation_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(time.Time))
+		run(args[0].(context.Context), args[1].(models.AcceptInvitationCommand))
 	})
 	return _c
 }
@@ -79,7 +78,103 @@ func (_c *InvitationRepository_AcceptInvitation_Call) Return(_a0 models.Membersh
 	return _c
 }
 
-func (_c *InvitationRepository_AcceptInvitation_Call) RunAndReturn(run func(context.Context, uuid.UUID, time.Time) (models.MembershipInvitation, error)) *InvitationRepository_AcceptInvitation_Call {
+func (_c *InvitationRepository_AcceptInvitation_Call) RunAndReturn(run func(context.Context, models.AcceptInvitationCommand) (models.MembershipInvitation, error)) *InvitationRepository_AcceptInvitation_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CancelCompanyInvitations provides a mock function with given fields: ctx, companyID, now
+func (_m *InvitationRepository) CancelCompanyInvitations(ctx context.Context, companyID uuid.UUID, now time.Time) error {
+	ret := _m.Called(ctx, companyID, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CancelCompanyInvitations")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) error); ok {
+		r0 = rf(ctx, companyID, now)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// InvitationRepository_CancelCompanyInvitations_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelCompanyInvitations'
+type InvitationRepository_CancelCompanyInvitations_Call struct {
+	*mock.Call
+}
+
+// CancelCompanyInvitations is a helper method to define mock.On call
+//   - ctx context.Context
+//   - companyID uuid.UUID
+//   - now time.Time
+func (_e *InvitationRepository_Expecter) CancelCompanyInvitations(ctx interface{}, companyID interface{}, now interface{}) *InvitationRepository_CancelCompanyInvitations_Call {
+	return &InvitationRepository_CancelCompanyInvitations_Call{Call: _e.mock.On("CancelCompanyInvitations", ctx, companyID, now)}
+}
+
+func (_c *InvitationRepository_CancelCompanyInvitations_Call) Run(run func(ctx context.Context, companyID uuid.UUID, now time.Time)) *InvitationRepository_CancelCompanyInvitations_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *InvitationRepository_CancelCompanyInvitations_Call) Return(_a0 error) *InvitationRepository_CancelCompanyInvitations_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *InvitationRepository_CancelCompanyInvitations_Call) RunAndReturn(run func(context.Context, uuid.UUID, time.Time) error) *InvitationRepository_CancelCompanyInvitations_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CancelDepartmentInvitations provides a mock function with given fields: ctx, departmentID, now
+func (_m *InvitationRepository) CancelDepartmentInvitations(ctx context.Context, departmentID uuid.UUID, now time.Time) error {
+	ret := _m.Called(ctx, departmentID, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CancelDepartmentInvitations")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) error); ok {
+		r0 = rf(ctx, departmentID, now)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// InvitationRepository_CancelDepartmentInvitations_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelDepartmentInvitations'
+type InvitationRepository_CancelDepartmentInvitations_Call struct {
+	*mock.Call
+}
+
+// CancelDepartmentInvitations is a helper method to define mock.On call
+//   - ctx context.Context
+//   - departmentID uuid.UUID
+//   - now time.Time
+func (_e *InvitationRepository_Expecter) CancelDepartmentInvitations(ctx interface{}, departmentID interface{}, now interface{}) *InvitationRepository_CancelDepartmentInvitations_Call {
+	return &InvitationRepository_CancelDepartmentInvitations_Call{Call: _e.mock.On("CancelDepartmentInvitations", ctx, departmentID, now)}
+}
+
+func (_c *InvitationRepository_CancelDepartmentInvitations_Call) Run(run func(ctx context.Context, departmentID uuid.UUID, now time.Time)) *InvitationRepository_CancelDepartmentInvitations_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(time.Time))
+	})
+	return _c
+}
+
+func (_c *InvitationRepository_CancelDepartmentInvitations_Call) Return(_a0 error) *InvitationRepository_CancelDepartmentInvitations_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *InvitationRepository_CancelDepartmentInvitations_Call) RunAndReturn(run func(context.Context, uuid.UUID, time.Time) error) *InvitationRepository_CancelDepartmentInvitations_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -199,6 +294,66 @@ func (_c *InvitationRepository_CreateInvitation_Call) RunAndReturn(run func(cont
 	return _c
 }
 
+// DecideInvitationApproval provides a mock function with given fields: ctx, id, approvedBy, approve, now
+func (_m *InvitationRepository) DecideInvitationApproval(ctx context.Context, id uuid.UUID, approvedBy uuid.UUID, approve bool, now time.Time) (models.MembershipInvitation, error) {
+	ret := _m.Called(ctx, id, approvedBy, approve, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DecideInvitationApproval")
+	}
+
+	var r0 models.MembershipInvitation
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, bool, time.Time) (models.MembershipInvitation, error)); ok {
+		return rf(ctx, id, approvedBy, approve, now)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, bool, time.Time) models.MembershipInvitation); ok {
+		r0 = rf(ctx, id, approvedBy, approve, now)
+	} else {
+		r0 = ret.Get(0).(models.MembershipInvitation)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, bool, time.Time) error); ok {
+		r1 = rf(ctx, id, approvedBy, approve, now)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// InvitationRepository_DecideInvitationApproval_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DecideInvitationApproval'
+type InvitationRepository_DecideInvitationApproval_Call struct {
+	*mock.Call
+}
+
+// DecideInvitationApproval is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - approvedBy uuid.UUID
+//   - approve bool
+//   - now time.Time
+func (_e *InvitationRepository_Expecter) DecideInvitationApproval(ctx interface{}, id interface{}, approvedBy interface{}, approve interface{}, now interface{}) *InvitationRepository_DecideInvitationApproval_Call {
+	return &InvitationRepository_DecideInvitationApproval_Call{Call: _e.mock.On("DecideInvitationApproval", ctx, id, approvedBy, approve, now)}
+}
+
+func (_c *InvitationRepository_DecideInvitationApproval_Call) Run(run func(ctx context.Context, id uuid.UUID, approvedBy uuid.UUID, approve bool, now time.Time)) *InvitationRepository_DecideInvitationApproval_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID), args[3].(bool), args[4].(time.Time))
+	})
+	return _c
+}
+
+func (_c *InvitationRepository_DecideInvitationApproval_Call) Return(_a0 models.MembershipInvitation, _a1 error) *InvitationRepository_DecideInvitationApproval_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *InvitationRepository_DecideInvitationApproval_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID, bool, time.Time) (models.MembershipInvitation, error)) *InvitationRepository_DecideInvitationApproval_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeclineInvitation provides a mock function with given fields: ctx, id, now
 func (_m *InvitationRepository) DeclineInvitation(ctx context.Context, id uuid.UUID, now time.Time) (models.MembershipInvitation, error) {
 	ret := _m.Called(ctx, id, now)
@@ -253,6 +408,63 @@ func (_c *InvitationRepository_DeclineInvitation_Call) Return(_a0 models.Members
 }
 
 func (_c *InvitationRepository_DeclineInvitation_Call) RunAndReturn(run func(context.Context, uuid.UUID, time.Time) (models.MembershipInvitation, error)) *InvitationRepository_DeclineInvitation_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ExpireInvitations provides a mock function with given fields: ctx, now
+func (_m *InvitationRepository) ExpireInvitations(ctx context.Context, now time.Time) (int64, error) {
+	ret := _m.Called(ctx, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExpireInvitations")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) (int64, error)); ok {
+		return rf(ctx, now)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) int64); ok {
+		r0 = rf(ctx, now)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time) error); ok {
+		r1 = rf(ctx, now)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// InvitationRepository_ExpireInvitations_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExpireInvitations'
+type InvitationRepository_ExpireInvitations_Call struct {
+	*mock.Call
+}
+
+// ExpireInvitations is a helper method to define mock.On call
+//   - ctx context.Context
+//   - now time.Time
+func (_e *InvitationRepository_Expecter) ExpireInvitations(ctx interface{}, now interface{}) *InvitationRepository_ExpireInvitations_Call {
+	return &InvitationRepository_ExpireInvitations_Call{Call: _e.mock.On("ExpireInvitations", ctx, now)}
+}
+
+func (_c *InvitationRepository_ExpireInvitations_Call) Run(run func(ctx context.Context, now time.Time)) *InvitationRepository_ExpireInvitations_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time))
+	})
+	return _c
+}
+
+func (_c *InvitationRepository_ExpireInvitations_Call) Return(_a0 int64, _a1 error) *InvitationRepository_ExpireInvitations_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *InvitationRepository_ExpireInvitations_Call) RunAndReturn(run func(context.Context, time.Time) (int64, error)) *InvitationRepository_ExpireInvitations_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -314,9 +526,9 @@ func (_c *InvitationRepository_GetInvitationByUUID_Call) RunAndReturn(run func(c
 	return _c
 }
 
-// ListCompanyInvitations provides a mock function with given fields: ctx, companyID, status
-func (_m *InvitationRepository) ListCompanyInvitations(ctx context.Context, companyID uuid.UUID, status models.InvitationStatus) ([]models.MembershipInvitation, error) {
-	ret := _m.Called(ctx, companyID, status)
+// ListCompanyInvitations provides a mock function with given fields: ctx, input
+func (_m *InvitationRepository) ListCompanyInvitations(ctx context.Context, input models.ListCompanyInvitationsInput) ([]models.MembershipInvitation, error) {
+	ret := _m.Called(ctx, input)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ListCompanyInvitations")
@@ -324,19 +536,19 @@ func (_m *InvitationRepository) ListCompanyInvitations(ctx context.Context, comp
 
 	var r0 []models.MembershipInvitation
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, models.InvitationStatus) ([]models.MembershipInvitation, error)); ok {
-		return rf(ctx, companyID, status)
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListCompanyInvitationsInput) ([]models.MembershipInvitation, error)); ok {
+		return rf(ctx, input)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, models.InvitationStatus) []models.MembershipInvitation); ok {
-		r0 = rf(ctx, companyID, status)
+	if rf, ok := ret.Get(0).(func(context.Context, models.ListCompanyInvitationsInput) []models.MembershipInvitation); ok {
+		r0 = rf(ctx, input)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.MembershipInvitation)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, models.InvitationStatus) error); ok {
-		r1 = rf(ctx, companyID, status)
+	if rf, ok := ret.Get(1).(func(context.Context, models.ListCompanyInvitationsInput) error); ok {
+		r1 = rf(ctx, input)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -351,15 +563,14 @@ type InvitationRepository_ListCompanyInvitations_Call struct {
 
 // ListCompanyInvitations is a helper method to define mock.On call
 //   - ctx context.Context
-//   - companyID uuid.UUID
-//   - status models.InvitationStatus
-func (_e *InvitationRepository_Expecter) ListCompanyInvitations(ctx interface{}, companyID interface{}, status interface{}) *InvitationRepository_ListCompanyInvitations_Call {
-	return &InvitationRepository_ListCompanyInvitations_Call{Call: _e.mock.On("ListCompanyInvitations", ctx, companyID, status)}
+//   - input models.ListCompanyInvitationsInput
+func (_e *InvitationRepository_Expecter) ListCompanyInvitations(ctx interface{}, input interface{}) *InvitationRepository_ListCompanyInvitations_Call {
+	return &InvitationRepository_ListCompanyInvitations_Call{Call: _e.mock.On("ListCompanyInvitations", ctx, input)}
 }
 
-func (_c *InvitationRepository_ListCompanyInvitations_Call) Run(run func(ctx context.Context, companyID uuid.UUID, status models.InvitationStatus)) *InvitationRepository_ListCompanyInvitations_Call {
+func (_c *InvitationRepository_ListCompanyInvitations_Call) Run(run func(ctx context.Context, input models.ListCompanyInvitationsInput)) *InvitationRepository_ListCompanyInvitations_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(models.InvitationStatus))
+		run(args[0].(context.Context), args[1].(models.ListCompanyInvitationsInput))
 	})
 	return _c
 }
@@ -369,7 +580,7 @@ func (_c *InvitationRepository_ListCompanyInvitations_Call) Return(_a0 []models.
 	return _c
 }
 
-func (_c *InvitationRepository_ListCompanyInvitations_Call) RunAndReturn(run func(context.Context, uuid.UUID, models.InvitationStatus) ([]models.MembershipInvitation, error)) *InvitationRepository_ListCompanyInvitations_Call {
+func (_c *InvitationRepository_ListCompanyInvitations_Call) RunAndReturn(run func(context.Context, models.ListCompanyInvitationsInput) ([]models.MembershipInvitation, error)) *InvitationRepository_ListCompanyInvitations_Call {
 	_c.Call.Return(run)
 	return _c
 }

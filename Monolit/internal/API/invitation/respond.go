@@ -1,7 +1,10 @@
 package invitation
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 
 	"verbatrace/monolit/internal/API/response"
 	"verbatrace/monolit/internal/converter"
@@ -35,8 +38,9 @@ func (h *Handler) respondToInvitation(w http.ResponseWriter, r *http.Request, ac
 	var invitation models.MembershipInvitation
 	if action == "accept" {
 		invitation, err = h.service.AcceptInvitation(r.Context(), models.AcceptInvitationInput{
-			InvitationUUID: invitationID,
-			RequestUser:    requestUserID,
+			InvitationUUID:  invitationID,
+			RequestUser:     requestUserID,
+			ConfirmTransfer: confirmTransferRequested(r),
 		})
 	} else {
 		invitation, err = h.service.DeclineInvitation(r.Context(), models.DeclineInvitationInput{
@@ -60,4 +64,26 @@ func (h *Handler) respondToInvitation(w http.ResponseWriter, r *http.Request, ac
 	}
 
 	_ = response.WriteJSON(w, http.StatusOK, resp)
+}
+
+// confirmTransferRequested reads the answer to the "you are leaving your current
+// company" dialog. It is accepted both in the body and in the query so the
+// confirmation survives a plain retry of the same request.
+func confirmTransferRequested(r *http.Request) bool {
+	if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("confirm_transfer")), "true") {
+		return true
+	}
+
+	if r.Body == nil {
+		return false
+	}
+
+	var body struct {
+		ConfirmTransfer bool `json:"confirm_transfer"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<10)).Decode(&body); err != nil {
+		return false
+	}
+
+	return body.ConfirmTransfer
 }

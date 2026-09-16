@@ -11,6 +11,7 @@ import (
 	"verbatrace/monolit/internal/username"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const defaultInvitationTTL = 7 * 24 * time.Hour
@@ -20,17 +21,66 @@ type BillingLimiter interface {
 	CanAddCompanyMember(ctx context.Context, companyID uuid.UUID) error
 }
 
+// PreferencesReader exposes the settings that decide whether a person can be
+// invited at all.
+type PreferencesReader interface {
+	Get(ctx context.Context, userID uuid.UUID) (models.UserPreferences, error)
+}
+
 type Service struct {
 	invitationRepository repo.InvitationRepository
 	userRepository       repo.UserRepository
 	companyRepository    repo.CompanyRepository
 	departmentRepository repo.DepartmentRepository
+	preferencesReader    PreferencesReader
 	notificationService  interface {
 		Create(ctx context.Context, input models.CreateNotificationInput) (models.Notification, error)
 	}
 	billingLimiter BillingLimiter
 	now            func() time.Time
 	log            logger.Logger
+}
+
+func (s *Service) SetPreferencesReader(reader PreferencesReader) {
+	s.preferencesReader = reader
+}
+
+// notify never fails the operation it reports on.
+func (s *Service) notify(ctx context.Context, userID uuid.UUID, notificationType models.NotificationType, title string, body string, entityID uuid.UUID) {
+	if s.notificationService == nil || userID == uuid.Nil {
+		return
+	}
+
+	entityType := "invitation"
+	_, err := s.notificationService.Create(ctx, models.CreateNotificationInput{
+		UserUUID:   userID,
+		Type:       notificationType,
+		Title:      title,
+		Body:       body,
+		EntityType: &entityType,
+		EntityUUID: uuid.NullUUID{UUID: entityID, Valid: entityID != uuid.Nil},
+		CreatedAt:  s.now(),
+	})
+	if err != nil {
+		s.log.Warn(ctx, "failed to create invitation notification", zap.Error(err), zap.String("invitation_uuid", entityID.String()))
+	}
+}
+
+// approverForCompany points every approval request at the deputy, and falls
+// back to the owner when the company has none.
+func (s *Service) approverForCompany(ctx context.Context, companyID uuid.UUID) (uuid.UUID, error) {
+	overview, err := s.companyRepository.GetCompanyMembersOverview(ctx, companyID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if overview.Deputy != nil {
+		return overview.Deputy.UserUUID, nil
+	}
+	if overview.Manager != nil {
+		return overview.Manager.UserUUID, nil
+	}
+
+	return uuid.Nil, models.ErrCompanyNotFound
 }
 
 func NewService(invitationRepository repo.InvitationRepository, userRepository repo.UserRepository, companyRepository repo.CompanyRepository, departmentRepository repo.DepartmentRepository, log logger.Logger) *Service {

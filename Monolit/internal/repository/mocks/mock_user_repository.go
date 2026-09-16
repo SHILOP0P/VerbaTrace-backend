@@ -3,8 +3,8 @@
 package mocks
 
 import (
-	models "verbatrace/monolit/internal/models"
 	context "context"
+	models "verbatrace/monolit/internal/models"
 
 	mock "github.com/stretchr/testify/mock"
 
@@ -59,7 +59,7 @@ type UserRepository_CreateUser_Call struct {
 
 // CreateUser is a helper method to define mock.On call
 //   - ctx context.Context
-//   - user models.User
+//   - user models.CurrentUser
 func (_e *UserRepository_Expecter) CreateUser(ctx interface{}, user interface{}) *UserRepository_CreateUser_Call {
 	return &UserRepository_CreateUser_Call{Call: _e.mock.On("CreateUser", ctx, user)}
 }

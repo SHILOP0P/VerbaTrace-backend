@@ -129,7 +129,10 @@ type UserPreferences struct {
 	ActiveCompanyUUID uuid.NullUUID
 	Theme             string
 	DateRange         PreferencesDateRange
-	UpdatedAt         time.Time
+	// InvitationsMuted is the "do not disturb" switch: nobody can send this user
+	// company or department invitations while it is on.
+	InvitationsMuted bool
+	UpdatedAt        time.Time
 }
 
 type UpdateUserPreferencesInput struct {
@@ -137,6 +140,7 @@ type UpdateUserPreferencesInput struct {
 	ActiveCompanyUUID *uuid.NullUUID
 	Theme             *string
 	DateRange         *PreferencesDateRange
+	InvitationsMuted  *bool
 }
 
 type LoginInput struct {

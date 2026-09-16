@@ -32,15 +32,21 @@ type CompanyMemberRole string
 
 const (
 	CompanyMemberRoleManager  CompanyMemberRole = "company_manager"
+	CompanyMemberRoleDeputy   CompanyMemberRole = "company_deputy"
 	CompanyMemberRoleEmployee CompanyMemberRole = "employee"
 )
+
+// ManagesCompany reports whether the role runs the company day to day. The
+// deputy shares the owner's rights except the owner-only actions.
+func (r CompanyMemberRole) ManagesCompany() bool {
+	return r == CompanyMemberRoleManager || r == CompanyMemberRoleDeputy
+}
 
 type MembershipStatus string
 
 const (
-	MembershipStatusActive    MembershipStatus = "active"
-	MembershipStatusSuspended MembershipStatus = "suspended"
-	MembershipStatusLeft      MembershipStatus = "left"
+	MembershipStatusActive MembershipStatus = "active"
+	MembershipStatusLeft   MembershipStatus = "left"
 )
 
 type CreateCompanyInput struct {
@@ -134,6 +140,120 @@ type CompanyMembersResult struct {
 type CompanyMembersOverview struct {
 	CompanyUUID      uuid.UUID
 	Manager          *CompanyMember
+	Deputy           *CompanyMember
 	CompanyEmployees []CompanyMember
 	Departments      []DepartmentMembersOverview
+}
+
+type AssignCompanyDeputyInput struct {
+	CompanyUUID uuid.UUID
+	RequestUser uuid.UUID
+	UserUUID    uuid.UUID
+}
+
+type RevokeCompanyDeputyInput struct {
+	CompanyUUID uuid.UUID
+	RequestUser uuid.UUID
+}
+
+type RemoveCompanyMemberInput struct {
+	CompanyUUID uuid.UUID
+	RequestUser uuid.UUID
+	UserUUID    uuid.UUID
+	Reason      string
+}
+
+// CompanyMembershipRestriction keeps an exclusion decision visible for a while
+// so a department leader cannot silently invite the person back.
+type CompanyMembershipRestriction struct {
+	ID                uuid.UUID
+	CompanyUUID       uuid.UUID
+	UserUUID          uuid.UUID
+	Kind              string
+	Reason            *string
+	CreatedByUserUUID uuid.UUID
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+}
+
+const CompanyRestrictionExcludedByManager = "excluded_by_manager"
+
+type DepartmentTransferStatus string
+
+const (
+	DepartmentTransferStatusPending  DepartmentTransferStatus = "pending"
+	DepartmentTransferStatusApproved DepartmentTransferStatus = "approved"
+	DepartmentTransferStatusRejected DepartmentTransferStatus = "rejected"
+	DepartmentTransferStatusCanceled DepartmentTransferStatus = "canceled"
+	DepartmentTransferStatusExpired  DepartmentTransferStatus = "expired"
+)
+
+type DepartmentTransferRequest struct {
+	ID                  uuid.UUID
+	CompanyUUID         uuid.UUID
+	UserUUID            uuid.UUID
+	FromDepartmentUUID  uuid.NullUUID
+	ToDepartmentUUID    uuid.UUID
+	RequestedByUserUUID uuid.UUID
+	Reason              *string
+	Status              DepartmentTransferStatus
+	DecidedByUserUUID   uuid.NullUUID
+	DecidedAt           *time.Time
+	DecisionComment     *string
+	LockVersion         int64
+	CreatedAt           time.Time
+	ExpiresAt           time.Time
+}
+
+type CreateDepartmentTransferInput struct {
+	CompanyUUID      uuid.UUID
+	ToDepartmentUUID uuid.UUID
+	UserUUID         uuid.UUID
+	RequestUser      uuid.UUID
+	Reason           string
+}
+
+type DecideDepartmentTransferInput struct {
+	RequestUUID uuid.UUID
+	RequestUser uuid.UUID
+	Approve     bool
+	Comment     string
+	LockVersion int64
+}
+
+type CompanyOwnershipTransferStatus string
+
+const (
+	CompanyOwnershipTransferPending  CompanyOwnershipTransferStatus = "pending"
+	CompanyOwnershipTransferAccepted CompanyOwnershipTransferStatus = "accepted"
+	CompanyOwnershipTransferDeclined CompanyOwnershipTransferStatus = "declined"
+	CompanyOwnershipTransferCanceled CompanyOwnershipTransferStatus = "canceled"
+	CompanyOwnershipTransferExpired  CompanyOwnershipTransferStatus = "expired"
+)
+
+type CompanyOwnershipTransfer struct {
+	ID           uuid.UUID
+	CompanyUUID  uuid.UUID
+	FromUserUUID uuid.UUID
+	ToUserUUID   uuid.UUID
+	Status       CompanyOwnershipTransferStatus
+	Reason       *string
+	DecidedAt    *time.Time
+	LockVersion  int64
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
+}
+
+type CreateCompanyOwnershipTransferInput struct {
+	CompanyUUID uuid.UUID
+	RequestUser uuid.UUID
+	ToUserUUID  uuid.UUID
+	Reason      string
+}
+
+type DecideCompanyOwnershipTransferInput struct {
+	TransferUUID uuid.UUID
+	RequestUser  uuid.UUID
+	Accept       bool
+	LockVersion  int64
 }

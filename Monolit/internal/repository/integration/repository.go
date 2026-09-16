@@ -787,7 +787,7 @@ func (r *Repository) GetIngestForActor(ctx context.Context, id, actorID uuid.UUI
 
 func (r *Repository) authorizeApplicationTx(ctx context.Context, tx *sql.Tx, app, actor uuid.UUID) error {
 	var ok bool
-	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM developer_applications a WHERE a.application_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role='company_manager')))))`, app, actor).Scan(&ok)
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM developer_applications a WHERE a.application_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role IN ('company_manager','company_deputy'))))))`, app, actor).Scan(&ok)
 	if err != nil {
 		return err
 	}
@@ -827,7 +827,7 @@ func (r *Repository) ListAudit(ctx context.Context, connectionID, actorID uuid.U
 
 func (r *Repository) authorizeApplication(ctx context.Context, app, actor uuid.UUID) error {
 	var ok bool
-	err := r.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM developer_applications a WHERE a.application_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role='company_manager')))))`, app, actor).Scan(&ok)
+	err := r.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM developer_applications a WHERE a.application_uuid=$1 AND ((a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies c WHERE c.company_uuid=a.company_uuid AND c.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members m WHERE m.company_uuid=a.company_uuid AND m.user_uuid=$2 AND m.status='active' AND m.role IN ('company_manager','company_deputy'))))))`, app, actor).Scan(&ok)
 	if err != nil {
 		return err
 	}
@@ -838,7 +838,7 @@ func (r *Repository) authorizeApplication(ctx context.Context, app, actor uuid.U
 }
 
 const connectionSelect = `SELECT c.connection_uuid,c.application_uuid,c.company_uuid,c.department_uuid,c.folder_uuid,c.created_by_user_uuid,c.name,c.provider,c.status,c.disable_policy,c.allow_folder_override,c.settings_version,c.settings,c.last_event_at,c.last_success_at,c.last_error_code,c.lock_version,c.created_at,c.updated_at FROM integration_connections c JOIN developer_applications a USING(application_uuid)`
-const actorAccessSQL = `(a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role='company_manager')))`
+const actorAccessSQL = `(a.owner_type='user' AND a.user_uuid=$2) OR (a.owner_type='company' AND (EXISTS(SELECT 1 FROM companies co WHERE co.company_uuid=a.company_uuid AND co.manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members cm WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=$2 AND cm.status='active' AND cm.role IN ('company_manager','company_deputy'))))`
 const ingestSelect = `SELECT i.ingest_item_uuid,i.application_uuid,i.connection_uuid,i.event_uuid,i.billing_account_uuid,i.external_call_id,i.source_ref,i.key_uuid,i.idempotency_key,i.source_kind,i.title,i.original_filename,i.occurred_at,i.metadata_redacted,i.status,i.stage,i.attempts,i.max_attempts,i.available_at,i.call_uuid,i.error_code,i.error_message_safe,i.created_at,i.updated_at,i.completed_at,i.cancelled_at,i.ai_mode,i.billing_environment,i.destination_scope,i.destination_user_uuid,i.destination_company_uuid,i.destination_department_uuid,i.destination_folder_uuid,i.placement_source,COALESCE((i.instruction_snapshot->>'inherit_scope_instructions')::boolean,false) FROM ingest_items i`
 
 type rowScanner interface{ Scan(...any) error }
@@ -887,7 +887,7 @@ func scanConnections(rows *sql.Rows) ([]models.IntegrationConnection, error) {
 }
 func companyManager(ctx context.Context, tx *sql.Tx, company, actor uuid.UUID) (bool, error) {
 	var ok bool
-	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM companies WHERE company_uuid=$1 AND manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active' AND role='company_manager')`, company, actor).Scan(&ok)
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM companies WHERE company_uuid=$1 AND manager_user_uuid=$2) OR EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active' AND role IN ('company_manager','company_deputy'))`, company, actor).Scan(&ok)
 	return ok, err
 }
 func audit(ctx context.Context, tx *sql.Tx, app uuid.UUID, connection uuid.NullUUID, actorType string, actor uuid.NullUUID, event, entity string, entityID uuid.UUID, metadata any) error {

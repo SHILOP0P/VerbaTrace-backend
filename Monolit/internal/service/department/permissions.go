@@ -14,7 +14,7 @@ func (s *Service) requireCompanyManager(ctx context.Context, companyID uuid.UUID
 		return err
 	}
 
-	if member.Role != models.CompanyMemberRoleManager {
+	if !member.Role.ManagesCompany() {
 		return models.ErrForbidden
 	}
 
@@ -23,6 +23,5 @@ func (s *Service) requireCompanyManager(ctx context.Context, companyID uuid.UUID
 
 func validMembershipStatus(status models.MembershipStatus) bool {
 	return status == models.MembershipStatusActive ||
-		status == models.MembershipStatusSuspended ||
 		status == models.MembershipStatusLeft
 }

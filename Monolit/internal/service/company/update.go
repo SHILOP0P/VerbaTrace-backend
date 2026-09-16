@@ -16,7 +16,7 @@ func (s *Service) UpdateCompany(ctx context.Context, input models.UpdateCompanyI
 		return models.Company{}, models.ErrInvalidCompanyInput
 	}
 
-	if err := s.requireCompanyManager(ctx, input.CompanyUUID, input.RequestUser); err != nil {
+	if err := s.requireCompanyOwner(ctx, input.CompanyUUID, input.RequestUser); err != nil {
 		return models.Company{}, err
 	}
 
@@ -35,7 +35,7 @@ func (s *Service) UpdateCompanyTag(ctx context.Context, input models.UpdateCompa
 	if err != nil {
 		return models.Company{}, err
 	}
-	if err := s.requireCompanyManager(ctx, input.CompanyUUID, input.RequestUser); err != nil {
+	if err := s.requireCompanyOwner(ctx, input.CompanyUUID, input.RequestUser); err != nil {
 		return models.Company{}, err
 	}
 	return s.companyRepository.UpdateCompanyTag(ctx, input.CompanyUUID, tag)
@@ -70,8 +70,18 @@ func (s *Service) DeleteCompany(ctx context.Context, input models.DeleteCompanyI
 		return models.ErrInvalidCompanyInput
 	}
 
-	if err := s.requireCompanyManager(ctx, input.CompanyUUID, input.RequestUser); err != nil {
+	if err := s.requireCompanyOwner(ctx, input.CompanyUUID, input.RequestUser); err != nil {
 		return err
+	}
+
+	// A company is deleted only once it is empty, otherwise members would lose
+	// access to their calls without ever being told.
+	others, err := s.companyRepository.CountActiveCompanyMembersExcept(ctx, input.CompanyUUID, input.RequestUser)
+	if err != nil {
+		return err
+	}
+	if others > 0 {
+		return models.ErrCompanyNotEmpty
 	}
 
 	return s.companyRepository.ArchiveCompany(ctx, input.CompanyUUID)

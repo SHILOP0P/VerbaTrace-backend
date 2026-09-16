@@ -75,6 +75,10 @@ func (s *ServiceSuite) TestDeleteCompanySuccess() {
 		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: managerID, Role: models.CompanyMemberRoleManager}, nil).
 		Once()
 	s.repository.EXPECT().
+		CountActiveCompanyMembersExcept(mock.Anything, companyID, managerID).
+		Return(0, nil).
+		Once()
+	s.repository.EXPECT().
 		ArchiveCompany(mock.Anything, companyID).
 		Return(nil).
 		Once()
@@ -85,4 +89,26 @@ func (s *ServiceSuite) TestDeleteCompanySuccess() {
 	})
 
 	s.Require().NoError(err)
+}
+
+// A company with people in it must not disappear from under them.
+func (s *ServiceSuite) TestDeleteCompanyRejectsNonEmptyCompany() {
+	companyID := uuid.New()
+	managerID := uuid.New()
+
+	s.repository.EXPECT().
+		GetCompanyMember(mock.Anything, companyID, managerID).
+		Return(models.CompanyMember{CompanyUUID: companyID, UserUUID: managerID, Role: models.CompanyMemberRoleManager}, nil).
+		Once()
+	s.repository.EXPECT().
+		CountActiveCompanyMembersExcept(mock.Anything, companyID, managerID).
+		Return(2, nil).
+		Once()
+
+	err := s.service.DeleteCompany(s.ctx, models.DeleteCompanyInput{
+		CompanyUUID: companyID,
+		RequestUser: managerID,
+	})
+
+	s.Require().ErrorIs(err, models.ErrCompanyNotEmpty)
 }

@@ -196,7 +196,7 @@ func (_c *TranscriptionRepository_MarkFailed_Call) RunAndReturn(run func(context
 	return _c
 }
 
-// MarkTranscribed provides a mock function with given fields: ctx, id, text, segments, language
+// MarkTranscribed provides a mock function with given fields: ctx, id, text, segments, words, language
 func (_m *TranscriptionRepository) MarkTranscribed(ctx context.Context, id uuid.UUID, text string, segments []models.TranscriptionSegment, words []models.TranscriptionWord, language *string) (models.Transcription, error) {
 	ret := _m.Called(ctx, id, text, segments, words, language)
 
@@ -234,6 +234,7 @@ type TranscriptionRepository_MarkTranscribed_Call struct {
 //   - id uuid.UUID
 //   - text string
 //   - segments []models.TranscriptionSegment
+//   - words []models.TranscriptionWord
 //   - language *string
 func (_e *TranscriptionRepository_Expecter) MarkTranscribed(ctx interface{}, id interface{}, text interface{}, segments interface{}, words interface{}, language interface{}) *TranscriptionRepository_MarkTranscribed_Call {
 	return &TranscriptionRepository_MarkTranscribed_Call{Call: _e.mock.On("MarkTranscribed", ctx, id, text, segments, words, language)}

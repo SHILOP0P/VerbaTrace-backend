@@ -13,13 +13,6 @@ type AnalysisInstructionAPI struct {
 	mock.Mock
 }
 
-func (_m *AnalysisInstructionAPI) ListVersions(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-func (_m *AnalysisInstructionAPI) GetVersionFile(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
 type AnalysisInstructionAPI_Expecter struct {
 	mock *mock.Mock
 }
@@ -164,6 +157,40 @@ func (_c *AnalysisInstructionAPI_GetFile_Call) RunAndReturn(run func(http.Respon
 	return _c
 }
 
+// GetVersionFile provides a mock function with given fields: w, r
+func (_m *AnalysisInstructionAPI) GetVersionFile(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// AnalysisInstructionAPI_GetVersionFile_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetVersionFile'
+type AnalysisInstructionAPI_GetVersionFile_Call struct {
+	*mock.Call
+}
+
+// GetVersionFile is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *AnalysisInstructionAPI_Expecter) GetVersionFile(w interface{}, r interface{}) *AnalysisInstructionAPI_GetVersionFile_Call {
+	return &AnalysisInstructionAPI_GetVersionFile_Call{Call: _e.mock.On("GetVersionFile", w, r)}
+}
+
+func (_c *AnalysisInstructionAPI_GetVersionFile_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *AnalysisInstructionAPI_GetVersionFile_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *AnalysisInstructionAPI_GetVersionFile_Call) Return() *AnalysisInstructionAPI_GetVersionFile_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *AnalysisInstructionAPI_GetVersionFile_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AnalysisInstructionAPI_GetVersionFile_Call {
+	_c.Run(run)
+	return _c
+}
+
 // List provides a mock function with given fields: w, r
 func (_m *AnalysisInstructionAPI) List(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -194,6 +221,40 @@ func (_c *AnalysisInstructionAPI_List_Call) Return() *AnalysisInstructionAPI_Lis
 }
 
 func (_c *AnalysisInstructionAPI_List_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AnalysisInstructionAPI_List_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ListVersions provides a mock function with given fields: w, r
+func (_m *AnalysisInstructionAPI) ListVersions(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// AnalysisInstructionAPI_ListVersions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListVersions'
+type AnalysisInstructionAPI_ListVersions_Call struct {
+	*mock.Call
+}
+
+// ListVersions is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *AnalysisInstructionAPI_Expecter) ListVersions(w interface{}, r interface{}) *AnalysisInstructionAPI_ListVersions_Call {
+	return &AnalysisInstructionAPI_ListVersions_Call{Call: _e.mock.On("ListVersions", w, r)}
+}
+
+func (_c *AnalysisInstructionAPI_ListVersions_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *AnalysisInstructionAPI_ListVersions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *AnalysisInstructionAPI_ListVersions_Call) Return() *AnalysisInstructionAPI_ListVersions_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *AnalysisInstructionAPI_ListVersions_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AnalysisInstructionAPI_ListVersions_Call {
 	_c.Run(run)
 	return _c
 }

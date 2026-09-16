@@ -3,10 +3,12 @@
 package mocks
 
 import (
-	models "verbatrace/monolit/internal/models"
 	context "context"
+	models "verbatrace/monolit/internal/models"
 
 	mock "github.com/stretchr/testify/mock"
+
+	time "time"
 
 	uuid "github.com/google/uuid"
 )
@@ -187,6 +189,181 @@ func (_c *DepartmentRepository_CreateDepartment_Call) RunAndReturn(run func(cont
 	return _c
 }
 
+// CreateDepartmentTransfer provides a mock function with given fields: ctx, request
+func (_m *DepartmentRepository) CreateDepartmentTransfer(ctx context.Context, request models.DepartmentTransferRequest) (models.DepartmentTransferRequest, error) {
+	ret := _m.Called(ctx, request)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateDepartmentTransfer")
+	}
+
+	var r0 models.DepartmentTransferRequest
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.DepartmentTransferRequest) (models.DepartmentTransferRequest, error)); ok {
+		return rf(ctx, request)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.DepartmentTransferRequest) models.DepartmentTransferRequest); ok {
+		r0 = rf(ctx, request)
+	} else {
+		r0 = ret.Get(0).(models.DepartmentTransferRequest)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.DepartmentTransferRequest) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DepartmentRepository_CreateDepartmentTransfer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateDepartmentTransfer'
+type DepartmentRepository_CreateDepartmentTransfer_Call struct {
+	*mock.Call
+}
+
+// CreateDepartmentTransfer is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request models.DepartmentTransferRequest
+func (_e *DepartmentRepository_Expecter) CreateDepartmentTransfer(ctx interface{}, request interface{}) *DepartmentRepository_CreateDepartmentTransfer_Call {
+	return &DepartmentRepository_CreateDepartmentTransfer_Call{Call: _e.mock.On("CreateDepartmentTransfer", ctx, request)}
+}
+
+func (_c *DepartmentRepository_CreateDepartmentTransfer_Call) Run(run func(ctx context.Context, request models.DepartmentTransferRequest)) *DepartmentRepository_CreateDepartmentTransfer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.DepartmentTransferRequest))
+	})
+	return _c
+}
+
+func (_c *DepartmentRepository_CreateDepartmentTransfer_Call) Return(_a0 models.DepartmentTransferRequest, _a1 error) *DepartmentRepository_CreateDepartmentTransfer_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *DepartmentRepository_CreateDepartmentTransfer_Call) RunAndReturn(run func(context.Context, models.DepartmentTransferRequest) (models.DepartmentTransferRequest, error)) *DepartmentRepository_CreateDepartmentTransfer_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DecideDepartmentTransfer provides a mock function with given fields: ctx, id, decidedBy, approve, comment, now
+func (_m *DepartmentRepository) DecideDepartmentTransfer(ctx context.Context, id uuid.UUID, decidedBy uuid.UUID, approve bool, comment string, now time.Time) (models.DepartmentTransferRequest, error) {
+	ret := _m.Called(ctx, id, decidedBy, approve, comment, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DecideDepartmentTransfer")
+	}
+
+	var r0 models.DepartmentTransferRequest
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, bool, string, time.Time) (models.DepartmentTransferRequest, error)); ok {
+		return rf(ctx, id, decidedBy, approve, comment, now)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, bool, string, time.Time) models.DepartmentTransferRequest); ok {
+		r0 = rf(ctx, id, decidedBy, approve, comment, now)
+	} else {
+		r0 = ret.Get(0).(models.DepartmentTransferRequest)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, bool, string, time.Time) error); ok {
+		r1 = rf(ctx, id, decidedBy, approve, comment, now)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DepartmentRepository_DecideDepartmentTransfer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DecideDepartmentTransfer'
+type DepartmentRepository_DecideDepartmentTransfer_Call struct {
+	*mock.Call
+}
+
+// DecideDepartmentTransfer is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - decidedBy uuid.UUID
+//   - approve bool
+//   - comment string
+//   - now time.Time
+func (_e *DepartmentRepository_Expecter) DecideDepartmentTransfer(ctx interface{}, id interface{}, decidedBy interface{}, approve interface{}, comment interface{}, now interface{}) *DepartmentRepository_DecideDepartmentTransfer_Call {
+	return &DepartmentRepository_DecideDepartmentTransfer_Call{Call: _e.mock.On("DecideDepartmentTransfer", ctx, id, decidedBy, approve, comment, now)}
+}
+
+func (_c *DepartmentRepository_DecideDepartmentTransfer_Call) Run(run func(ctx context.Context, id uuid.UUID, decidedBy uuid.UUID, approve bool, comment string, now time.Time)) *DepartmentRepository_DecideDepartmentTransfer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID), args[3].(bool), args[4].(string), args[5].(time.Time))
+	})
+	return _c
+}
+
+func (_c *DepartmentRepository_DecideDepartmentTransfer_Call) Return(_a0 models.DepartmentTransferRequest, _a1 error) *DepartmentRepository_DecideDepartmentTransfer_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *DepartmentRepository_DecideDepartmentTransfer_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID, bool, string, time.Time) (models.DepartmentTransferRequest, error)) *DepartmentRepository_DecideDepartmentTransfer_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ExpireDepartmentTransfers provides a mock function with given fields: ctx, now
+func (_m *DepartmentRepository) ExpireDepartmentTransfers(ctx context.Context, now time.Time) (int64, error) {
+	ret := _m.Called(ctx, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExpireDepartmentTransfers")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) (int64, error)); ok {
+		return rf(ctx, now)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, time.Time) int64); ok {
+		r0 = rf(ctx, now)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, time.Time) error); ok {
+		r1 = rf(ctx, now)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DepartmentRepository_ExpireDepartmentTransfers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExpireDepartmentTransfers'
+type DepartmentRepository_ExpireDepartmentTransfers_Call struct {
+	*mock.Call
+}
+
+// ExpireDepartmentTransfers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - now time.Time
+func (_e *DepartmentRepository_Expecter) ExpireDepartmentTransfers(ctx interface{}, now interface{}) *DepartmentRepository_ExpireDepartmentTransfers_Call {
+	return &DepartmentRepository_ExpireDepartmentTransfers_Call{Call: _e.mock.On("ExpireDepartmentTransfers", ctx, now)}
+}
+
+func (_c *DepartmentRepository_ExpireDepartmentTransfers_Call) Run(run func(ctx context.Context, now time.Time)) *DepartmentRepository_ExpireDepartmentTransfers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(time.Time))
+	})
+	return _c
+}
+
+func (_c *DepartmentRepository_ExpireDepartmentTransfers_Call) Return(_a0 int64, _a1 error) *DepartmentRepository_ExpireDepartmentTransfers_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *DepartmentRepository_ExpireDepartmentTransfers_Call) RunAndReturn(run func(context.Context, time.Time) (int64, error)) *DepartmentRepository_ExpireDepartmentTransfers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetDepartmentMember provides a mock function with given fields: ctx, companyID, departmentID, userID
 func (_m *DepartmentRepository) GetDepartmentMember(ctx context.Context, companyID uuid.UUID, departmentID uuid.UUID, userID uuid.UUID) (models.DepartmentMember, error) {
 	ret := _m.Called(ctx, companyID, departmentID, userID)
@@ -242,6 +419,63 @@ func (_c *DepartmentRepository_GetDepartmentMember_Call) Return(_a0 models.Depar
 }
 
 func (_c *DepartmentRepository_GetDepartmentMember_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (models.DepartmentMember, error)) *DepartmentRepository_GetDepartmentMember_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetDepartmentTransfer provides a mock function with given fields: ctx, id
+func (_m *DepartmentRepository) GetDepartmentTransfer(ctx context.Context, id uuid.UUID) (models.DepartmentTransferRequest, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetDepartmentTransfer")
+	}
+
+	var r0 models.DepartmentTransferRequest
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (models.DepartmentTransferRequest, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) models.DepartmentTransferRequest); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(models.DepartmentTransferRequest)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DepartmentRepository_GetDepartmentTransfer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDepartmentTransfer'
+type DepartmentRepository_GetDepartmentTransfer_Call struct {
+	*mock.Call
+}
+
+// GetDepartmentTransfer is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+func (_e *DepartmentRepository_Expecter) GetDepartmentTransfer(ctx interface{}, id interface{}) *DepartmentRepository_GetDepartmentTransfer_Call {
+	return &DepartmentRepository_GetDepartmentTransfer_Call{Call: _e.mock.On("GetDepartmentTransfer", ctx, id)}
+}
+
+func (_c *DepartmentRepository_GetDepartmentTransfer_Call) Run(run func(ctx context.Context, id uuid.UUID)) *DepartmentRepository_GetDepartmentTransfer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *DepartmentRepository_GetDepartmentTransfer_Call) Return(_a0 models.DepartmentTransferRequest, _a1 error) *DepartmentRepository_GetDepartmentTransfer_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *DepartmentRepository_GetDepartmentTransfer_Call) RunAndReturn(run func(context.Context, uuid.UUID) (models.DepartmentTransferRequest, error)) *DepartmentRepository_GetDepartmentTransfer_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -306,6 +540,126 @@ func (_c *DepartmentRepository_ListDepartmentMembers_Call) RunAndReturn(run func
 	return _c
 }
 
+// ListDepartmentTransfers provides a mock function with given fields: ctx, companyID, status
+func (_m *DepartmentRepository) ListDepartmentTransfers(ctx context.Context, companyID uuid.UUID, status models.DepartmentTransferStatus) ([]models.DepartmentTransferRequest, error) {
+	ret := _m.Called(ctx, companyID, status)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListDepartmentTransfers")
+	}
+
+	var r0 []models.DepartmentTransferRequest
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, models.DepartmentTransferStatus) ([]models.DepartmentTransferRequest, error)); ok {
+		return rf(ctx, companyID, status)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, models.DepartmentTransferStatus) []models.DepartmentTransferRequest); ok {
+		r0 = rf(ctx, companyID, status)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.DepartmentTransferRequest)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, models.DepartmentTransferStatus) error); ok {
+		r1 = rf(ctx, companyID, status)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DepartmentRepository_ListDepartmentTransfers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListDepartmentTransfers'
+type DepartmentRepository_ListDepartmentTransfers_Call struct {
+	*mock.Call
+}
+
+// ListDepartmentTransfers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - companyID uuid.UUID
+//   - status models.DepartmentTransferStatus
+func (_e *DepartmentRepository_Expecter) ListDepartmentTransfers(ctx interface{}, companyID interface{}, status interface{}) *DepartmentRepository_ListDepartmentTransfers_Call {
+	return &DepartmentRepository_ListDepartmentTransfers_Call{Call: _e.mock.On("ListDepartmentTransfers", ctx, companyID, status)}
+}
+
+func (_c *DepartmentRepository_ListDepartmentTransfers_Call) Run(run func(ctx context.Context, companyID uuid.UUID, status models.DepartmentTransferStatus)) *DepartmentRepository_ListDepartmentTransfers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(models.DepartmentTransferStatus))
+	})
+	return _c
+}
+
+func (_c *DepartmentRepository_ListDepartmentTransfers_Call) Return(_a0 []models.DepartmentTransferRequest, _a1 error) *DepartmentRepository_ListDepartmentTransfers_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *DepartmentRepository_ListDepartmentTransfers_Call) RunAndReturn(run func(context.Context, uuid.UUID, models.DepartmentTransferStatus) ([]models.DepartmentTransferRequest, error)) *DepartmentRepository_ListDepartmentTransfers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListUserDepartments provides a mock function with given fields: ctx, companyID, userID
+func (_m *DepartmentRepository) ListUserDepartments(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) ([]models.CompanyMemberDepartment, error) {
+	ret := _m.Called(ctx, companyID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListUserDepartments")
+	}
+
+	var r0 []models.CompanyMemberDepartment
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) ([]models.CompanyMemberDepartment, error)); ok {
+		return rf(ctx, companyID, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) []models.CompanyMemberDepartment); ok {
+		r0 = rf(ctx, companyID, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.CompanyMemberDepartment)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, companyID, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DepartmentRepository_ListUserDepartments_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListUserDepartments'
+type DepartmentRepository_ListUserDepartments_Call struct {
+	*mock.Call
+}
+
+// ListUserDepartments is a helper method to define mock.On call
+//   - ctx context.Context
+//   - companyID uuid.UUID
+//   - userID uuid.UUID
+func (_e *DepartmentRepository_Expecter) ListUserDepartments(ctx interface{}, companyID interface{}, userID interface{}) *DepartmentRepository_ListUserDepartments_Call {
+	return &DepartmentRepository_ListUserDepartments_Call{Call: _e.mock.On("ListUserDepartments", ctx, companyID, userID)}
+}
+
+func (_c *DepartmentRepository_ListUserDepartments_Call) Run(run func(ctx context.Context, companyID uuid.UUID, userID uuid.UUID)) *DepartmentRepository_ListUserDepartments_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *DepartmentRepository_ListUserDepartments_Call) Return(_a0 []models.CompanyMemberDepartment, _a1 error) *DepartmentRepository_ListUserDepartments_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *DepartmentRepository_ListUserDepartments_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) ([]models.CompanyMemberDepartment, error)) *DepartmentRepository_ListUserDepartments_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListVisibleCompanyDepartments provides a mock function with given fields: ctx, companyID, userID
 func (_m *DepartmentRepository) ListVisibleCompanyDepartments(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) ([]models.Department, error) {
 	ret := _m.Called(ctx, companyID, userID)
@@ -362,6 +716,63 @@ func (_c *DepartmentRepository_ListVisibleCompanyDepartments_Call) Return(_a0 []
 }
 
 func (_c *DepartmentRepository_ListVisibleCompanyDepartments_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) ([]models.Department, error)) *DepartmentRepository_ListVisibleCompanyDepartments_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MoveMemberToDepartment provides a mock function with given fields: ctx, input
+func (_m *DepartmentRepository) MoveMemberToDepartment(ctx context.Context, input models.MoveDepartmentMemberInput) (models.DepartmentMember, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MoveMemberToDepartment")
+	}
+
+	var r0 models.DepartmentMember
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.MoveDepartmentMemberInput) (models.DepartmentMember, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.MoveDepartmentMemberInput) models.DepartmentMember); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Get(0).(models.DepartmentMember)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.MoveDepartmentMemberInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DepartmentRepository_MoveMemberToDepartment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MoveMemberToDepartment'
+type DepartmentRepository_MoveMemberToDepartment_Call struct {
+	*mock.Call
+}
+
+// MoveMemberToDepartment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.MoveDepartmentMemberInput
+func (_e *DepartmentRepository_Expecter) MoveMemberToDepartment(ctx interface{}, input interface{}) *DepartmentRepository_MoveMemberToDepartment_Call {
+	return &DepartmentRepository_MoveMemberToDepartment_Call{Call: _e.mock.On("MoveMemberToDepartment", ctx, input)}
+}
+
+func (_c *DepartmentRepository_MoveMemberToDepartment_Call) Run(run func(ctx context.Context, input models.MoveDepartmentMemberInput)) *DepartmentRepository_MoveMemberToDepartment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.MoveDepartmentMemberInput))
+	})
+	return _c
+}
+
+func (_c *DepartmentRepository_MoveMemberToDepartment_Call) Return(_a0 models.DepartmentMember, _a1 error) *DepartmentRepository_MoveMemberToDepartment_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *DepartmentRepository_MoveMemberToDepartment_Call) RunAndReturn(run func(context.Context, models.MoveDepartmentMemberInput) (models.DepartmentMember, error)) *DepartmentRepository_MoveMemberToDepartment_Call {
 	_c.Call.Return(run)
 	return _c
 }

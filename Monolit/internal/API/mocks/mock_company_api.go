@@ -21,36 +21,70 @@ func (_m *CompanyAPI) EXPECT() *CompanyAPI_Expecter {
 	return &CompanyAPI_Expecter{mock: &_m.Mock}
 }
 
-// AddCompanyMember provides a mock function with given fields: w, r
-func (_m *CompanyAPI) AddCompanyMember(w http.ResponseWriter, r *http.Request) {
+// AcceptOwnership provides a mock function with given fields: w, r
+func (_m *CompanyAPI) AcceptOwnership(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
 }
 
-// CompanyAPI_AddCompanyMember_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddCompanyMember'
-type CompanyAPI_AddCompanyMember_Call struct {
+// CompanyAPI_AcceptOwnership_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AcceptOwnership'
+type CompanyAPI_AcceptOwnership_Call struct {
 	*mock.Call
 }
 
-// AddCompanyMember is a helper method to define mock.On call
+// AcceptOwnership is a helper method to define mock.On call
 //   - w http.ResponseWriter
 //   - r *http.Request
-func (_e *CompanyAPI_Expecter) AddCompanyMember(w interface{}, r interface{}) *CompanyAPI_AddCompanyMember_Call {
-	return &CompanyAPI_AddCompanyMember_Call{Call: _e.mock.On("AddCompanyMember", w, r)}
+func (_e *CompanyAPI_Expecter) AcceptOwnership(w interface{}, r interface{}) *CompanyAPI_AcceptOwnership_Call {
+	return &CompanyAPI_AcceptOwnership_Call{Call: _e.mock.On("AcceptOwnership", w, r)}
 }
 
-func (_c *CompanyAPI_AddCompanyMember_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_AddCompanyMember_Call {
+func (_c *CompanyAPI_AcceptOwnership_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_AcceptOwnership_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
 	})
 	return _c
 }
 
-func (_c *CompanyAPI_AddCompanyMember_Call) Return() *CompanyAPI_AddCompanyMember_Call {
+func (_c *CompanyAPI_AcceptOwnership_Call) Return() *CompanyAPI_AcceptOwnership_Call {
 	_c.Call.Return()
 	return _c
 }
 
-func (_c *CompanyAPI_AddCompanyMember_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_AddCompanyMember_Call {
+func (_c *CompanyAPI_AcceptOwnership_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_AcceptOwnership_Call {
+	_c.Run(run)
+	return _c
+}
+
+// CancelOwnershipOffer provides a mock function with given fields: w, r
+func (_m *CompanyAPI) CancelOwnershipOffer(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_CancelOwnershipOffer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelOwnershipOffer'
+type CompanyAPI_CancelOwnershipOffer_Call struct {
+	*mock.Call
+}
+
+// CancelOwnershipOffer is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) CancelOwnershipOffer(w interface{}, r interface{}) *CompanyAPI_CancelOwnershipOffer_Call {
+	return &CompanyAPI_CancelOwnershipOffer_Call{Call: _e.mock.On("CancelOwnershipOffer", w, r)}
+}
+
+func (_c *CompanyAPI_CancelOwnershipOffer_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_CancelOwnershipOffer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_CancelOwnershipOffer_Call) Return() *CompanyAPI_CancelOwnershipOffer_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_CancelOwnershipOffer_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_CancelOwnershipOffer_Call {
 	_c.Run(run)
 	return _c
 }
@@ -85,6 +119,40 @@ func (_c *CompanyAPI_Create_Call) Return() *CompanyAPI_Create_Call {
 }
 
 func (_c *CompanyAPI_Create_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_Create_Call {
+	_c.Run(run)
+	return _c
+}
+
+// DeclineOwnership provides a mock function with given fields: w, r
+func (_m *CompanyAPI) DeclineOwnership(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_DeclineOwnership_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeclineOwnership'
+type CompanyAPI_DeclineOwnership_Call struct {
+	*mock.Call
+}
+
+// DeclineOwnership is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) DeclineOwnership(w interface{}, r interface{}) *CompanyAPI_DeclineOwnership_Call {
+	return &CompanyAPI_DeclineOwnership_Call{Call: _e.mock.On("DeclineOwnership", w, r)}
+}
+
+func (_c *CompanyAPI_DeclineOwnership_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_DeclineOwnership_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_DeclineOwnership_Call) Return() *CompanyAPI_DeclineOwnership_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_DeclineOwnership_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_DeclineOwnership_Call {
 	_c.Run(run)
 	return _c
 }
@@ -259,6 +327,108 @@ func (_c *CompanyAPI_List_Call) RunAndReturn(run func(http.ResponseWriter, *http
 	return _c
 }
 
+// ListIncomingOwnership provides a mock function with given fields: w, r
+func (_m *CompanyAPI) ListIncomingOwnership(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_ListIncomingOwnership_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListIncomingOwnership'
+type CompanyAPI_ListIncomingOwnership_Call struct {
+	*mock.Call
+}
+
+// ListIncomingOwnership is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) ListIncomingOwnership(w interface{}, r interface{}) *CompanyAPI_ListIncomingOwnership_Call {
+	return &CompanyAPI_ListIncomingOwnership_Call{Call: _e.mock.On("ListIncomingOwnership", w, r)}
+}
+
+func (_c *CompanyAPI_ListIncomingOwnership_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_ListIncomingOwnership_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_ListIncomingOwnership_Call) Return() *CompanyAPI_ListIncomingOwnership_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_ListIncomingOwnership_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_ListIncomingOwnership_Call {
+	_c.Run(run)
+	return _c
+}
+
+// OfferOwnership provides a mock function with given fields: w, r
+func (_m *CompanyAPI) OfferOwnership(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_OfferOwnership_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OfferOwnership'
+type CompanyAPI_OfferOwnership_Call struct {
+	*mock.Call
+}
+
+// OfferOwnership is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) OfferOwnership(w interface{}, r interface{}) *CompanyAPI_OfferOwnership_Call {
+	return &CompanyAPI_OfferOwnership_Call{Call: _e.mock.On("OfferOwnership", w, r)}
+}
+
+func (_c *CompanyAPI_OfferOwnership_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_OfferOwnership_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_OfferOwnership_Call) Return() *CompanyAPI_OfferOwnership_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_OfferOwnership_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_OfferOwnership_Call {
+	_c.Run(run)
+	return _c
+}
+
+// RemoveCompanyMember provides a mock function with given fields: w, r
+func (_m *CompanyAPI) RemoveCompanyMember(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_RemoveCompanyMember_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveCompanyMember'
+type CompanyAPI_RemoveCompanyMember_Call struct {
+	*mock.Call
+}
+
+// RemoveCompanyMember is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) RemoveCompanyMember(w interface{}, r interface{}) *CompanyAPI_RemoveCompanyMember_Call {
+	return &CompanyAPI_RemoveCompanyMember_Call{Call: _e.mock.On("RemoveCompanyMember", w, r)}
+}
+
+func (_c *CompanyAPI_RemoveCompanyMember_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_RemoveCompanyMember_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_RemoveCompanyMember_Call) Return() *CompanyAPI_RemoveCompanyMember_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_RemoveCompanyMember_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_RemoveCompanyMember_Call {
+	_c.Run(run)
+	return _c
+}
+
 // Update provides a mock function with given fields: w, r
 func (_m *CompanyAPI) Update(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -357,40 +527,6 @@ func (_c *CompanyAPI_UpdateCompanyMemberRole_Call) Return() *CompanyAPI_UpdateCo
 }
 
 func (_c *CompanyAPI_UpdateCompanyMemberRole_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_UpdateCompanyMemberRole_Call {
-	_c.Run(run)
-	return _c
-}
-
-// UpdateCompanyMemberStatus provides a mock function with given fields: w, r
-func (_m *CompanyAPI) UpdateCompanyMemberStatus(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
-// CompanyAPI_UpdateCompanyMemberStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateCompanyMemberStatus'
-type CompanyAPI_UpdateCompanyMemberStatus_Call struct {
-	*mock.Call
-}
-
-// UpdateCompanyMemberStatus is a helper method to define mock.On call
-//   - w http.ResponseWriter
-//   - r *http.Request
-func (_e *CompanyAPI_Expecter) UpdateCompanyMemberStatus(w interface{}, r interface{}) *CompanyAPI_UpdateCompanyMemberStatus_Call {
-	return &CompanyAPI_UpdateCompanyMemberStatus_Call{Call: _e.mock.On("UpdateCompanyMemberStatus", w, r)}
-}
-
-func (_c *CompanyAPI_UpdateCompanyMemberStatus_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_UpdateCompanyMemberStatus_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
-	})
-	return _c
-}
-
-func (_c *CompanyAPI_UpdateCompanyMemberStatus_Call) Return() *CompanyAPI_UpdateCompanyMemberStatus_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *CompanyAPI_UpdateCompanyMemberStatus_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_UpdateCompanyMemberStatus_Call {
 	_c.Run(run)
 	return _c
 }

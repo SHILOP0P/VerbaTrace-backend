@@ -84,7 +84,7 @@ func (s *Service) CanManageCompany(ctx context.Context, companyID, userID uuid.U
 	var exists bool
 	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(
 		SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2
-		AND role='company_manager' AND status='active')`, companyID, userID).Scan(&exists)
+		AND role IN ('company_manager','company_deputy') AND status='active')`, companyID, userID).Scan(&exists)
 	return exists, err
 }
 

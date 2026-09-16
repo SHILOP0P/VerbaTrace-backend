@@ -44,8 +44,9 @@ func (h *AuthHandler) UpdatePreferences(w http.ResponseWriter, r *http.Request) 
 	}
 
 	input := models.UpdateUserPreferencesInput{
-		UserUUID: userID,
-		Theme:    req.Theme,
+		UserUUID:         userID,
+		Theme:            req.Theme,
+		InvitationsMuted: req.InvitationsMuted,
 	}
 	if req.ActiveCompanyUUID != nil {
 		if *req.ActiveCompanyUUID == "" {

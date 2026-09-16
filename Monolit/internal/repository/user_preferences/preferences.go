@@ -47,9 +47,15 @@ func (r *Repository) Upsert(ctx context.Context, input models.UpdateUserPreferen
 		dateTo = input.DateRange.To
 	}
 
+	invitationsMuted := current.InvitationsMuted
+	if input.InvitationsMuted != nil {
+		invitationsMuted = *input.InvitationsMuted
+	}
+
 	query := `UPDATE user_preferences
 	SET active_company_uuid = $2,
 	    theme = $3,
+	    invitations_muted = $6,
 	    date_range_from = $4,
 	    date_range_to = $5,
 	    updated_at = now()
@@ -59,9 +65,10 @@ func (r *Repository) Upsert(ctx context.Context, input models.UpdateUserPreferen
 	          theme,
 	          date_range_from,
 	          date_range_to,
+	          invitations_muted,
 	          updated_at`
 
-	row := r.db.QueryRowContext(ctx, query, input.UserUUID, activeCompanyUUID, theme, dateFrom, dateTo)
+	row := r.db.QueryRowContext(ctx, query, input.UserUUID, activeCompanyUUID, theme, dateFrom, dateTo, invitationsMuted)
 	return scanPreferences(row)
 }
 
@@ -71,6 +78,7 @@ func selectPreferencesQuery() string {
 	              theme,
 	              date_range_from,
 	              date_range_to,
+	              invitations_muted,
 	              updated_at
 	       FROM user_preferences`
 }
@@ -87,6 +95,7 @@ func scanPreferences(row interface{ Scan(dest ...any) error }) (models.UserPrefe
 		&preferences.Theme,
 		&dateFrom,
 		&dateTo,
+		&preferences.InvitationsMuted,
 		&preferences.UpdatedAt,
 	); err != nil {
 		return models.UserPreferences{}, fmt.Errorf("scan preferences: %w", err)
