@@ -8,6 +8,7 @@ const (
 	CodeAccessTokenStale                 = "access_token_stale"
 	CodeUnauthorized                     = "unauthorized"
 	CodeInvalidCredentials               = "invalid_credentials"
+	CodeTooManyAttempts                  = "too_many_attempts"
 	CodeInvalidRefreshToken              = "invalid_refresh_token"
 	CodeRefreshRotationConflict          = "refresh_rotation_conflict"
 	CodeInvalidUserInput                 = "invalid_user_input"

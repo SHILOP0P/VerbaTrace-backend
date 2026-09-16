@@ -14,12 +14,14 @@ import (
 func (s *APISuite) TestRegisterSuccess() {
 	userID := uuid.New()
 	body := `{"email":"user@example.com","password":"password123","full_name":"Dmitry","full_surname":"Mukhachev","username":"muxa"}`
+	// The handler passes the caller's address along for the signup rate limit.
 	input := models.CreateUserInput{
 		Email:       "user@example.com",
 		Password:    "password123",
 		FullName:    "Dmitry",
 		FullSurname: "Mukhachev",
 		Username:    "muxa",
+		IPAddress:   optionalString("192.0.2.1"),
 	}
 
 	s.service.On("Register", mock.Anything, input).
@@ -44,12 +46,14 @@ func (s *APISuite) TestRegisterRejectsInvalidBody() {
 
 func (s *APISuite) TestRegisterMapsAlreadyExists() {
 	body := `{"email":"user@example.com","password":"password123","full_name":"Dmitry","full_surname":"Mukhachev","username":"muxa"}`
+	// The handler passes the caller's address along for the signup rate limit.
 	input := models.CreateUserInput{
 		Email:       "user@example.com",
 		Password:    "password123",
 		FullName:    "Dmitry",
 		FullSurname: "Mukhachev",
 		Username:    "muxa",
+		IPAddress:   optionalString("192.0.2.1"),
 	}
 
 	s.service.On("Register", mock.Anything, input).

@@ -354,12 +354,14 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 					ApproveSupportAccessRequest(http.ResponseWriter, *http.Request)
 					DenySupportAccessRequest(http.ResponseWriter, *http.Request)
 					RevokeSupportAccessGrant(http.ResponseWriter, *http.Request)
+					ListCompanySupportJournal(http.ResponseWriter, *http.Request)
 				}); ok {
 					r.With(authGuard).Post("/support-access-requests", supportAccessAPI.CreateSupportAccessRequest)
 					r.With(authGuard).Get("/support-access-requests/{request_uuid}", supportAccessAPI.GetSupportAccessRequest)
 					r.With(authGuard).Post("/support-access-requests/{request_uuid}/approve", supportAccessAPI.ApproveSupportAccessRequest)
 					r.With(authGuard).Post("/support-access-requests/{request_uuid}/deny", supportAccessAPI.DenySupportAccessRequest)
 					r.With(authGuard).Post("/support-access-grants/{grant_uuid}/revoke", supportAccessAPI.RevokeSupportAccessGrant)
+					r.With(authGuard).Get("/companies/{uuid}/support-journal", supportAccessAPI.ListCompanySupportJournal)
 				}
 			}
 			r.With(authGuard).Get("/search", searchAPI.Search)

@@ -34,6 +34,14 @@ func (s *Service) Register(ctx context.Context, input model.CreateUserInput) (mo
 		return model.CurrentUser{}, model.ErrInvalidUserInput
 	}
 
+	// One address may only open so many accounts per hour: signups are free,
+	// and free things get scripted.
+	ip := rateSubject(input.IPAddress)
+	if err := s.ensureNotBlocked(ctx, model.SignupIPRateLimit, ip); err != nil {
+		return model.CurrentUser{}, err
+	}
+	s.registerFailure(ctx, model.SignupIPRateLimit, ip)
+
 	_, err := s.userRepository.GetUserByEmail(ctx, input.Email)
 	if err == nil {
 		return model.CurrentUser{}, model.ErrUserAlreadyExists

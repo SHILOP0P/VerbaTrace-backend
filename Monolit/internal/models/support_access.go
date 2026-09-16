@@ -50,3 +50,17 @@ type CreateSupportAccessRequestInput struct {
 	Commands                 []string
 	RequestedDurationMinutes int
 }
+
+// SupportAccessJournalEntry is one line of the company's own record of support
+// activity: who looked, when, under which reason, and until when the access was
+// valid. Modelled on Access Transparency: the customer sees it, not just us.
+type SupportAccessJournalEntry struct {
+	ID              uuid.UUID  `json:"id"`
+	EventType       string     `json:"event_type"`
+	Resource        string     `json:"resource"`
+	Command         string     `json:"command"`
+	ActorUsername   string     `json:"actor_username"`
+	Reason          string     `json:"reason"`
+	AccessExpiresAt *time.Time `json:"access_expires_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+}

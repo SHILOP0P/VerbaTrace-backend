@@ -32,6 +32,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			response.WriteError(w, http.StatusUnauthorized, response.CodeInvalidCredentials, "invalid credentials")
 			return
 		}
+		if errors.Is(err, model.ErrTooManyAttempts) {
+			response.WriteError(w, http.StatusTooManyRequests, response.CodeTooManyAttempts, "Слишком много попыток входа, попробуйте позже")
+			return
+		}
 		response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToLogin, "failed to login")
 		return
 	}

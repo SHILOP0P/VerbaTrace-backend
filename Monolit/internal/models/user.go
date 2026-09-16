@@ -65,6 +65,8 @@ type CreateUserInput struct {
 	FullSurname string
 	Username    string
 	Post        *string
+	// IPAddress is only used to rate limit signups from one address.
+	IPAddress *string
 }
 
 type UpdateUsernameInput struct {

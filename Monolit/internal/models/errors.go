@@ -31,6 +31,7 @@ var ErrAudioFileUnreadable = errors.New("audio file unreadable")
 var ErrUserNotFound = errors.New("user not found")
 var ErrUserAlreadyExists = errors.New("user already exists")
 var ErrInvalidCredentials = errors.New("invalid credentials")
+var ErrTooManyAttempts = errors.New("too many attempts")
 var ErrInvalidUserInput = errors.New("invalid user input")
 var ErrInvalidContactInput = errors.New("invalid contact input")
 

@@ -22,16 +22,35 @@ func (s *Service) Login(ctx context.Context, input model.LoginInput) (model.Curr
 		return model.CurrentUser{}, "", "", model.ErrInvalidCredentials
 	}
 
+	// Guessing passwords is cheap without a counter, so a blocked account or a
+	// blocked address is refused before the password is even compared.
+	ip := rateSubject(input.IPAddress)
+	if err := s.ensureNotBlocked(ctx, model.LoginAccountRateLimit, email); err != nil {
+		s.log.Warn(ctx, "login blocked", zap.String("reason", "account_rate_limited"))
+		return model.CurrentUser{}, "", "", err
+	}
+	if err := s.ensureNotBlocked(ctx, model.LoginIPRateLimit, ip); err != nil {
+		s.log.Warn(ctx, "login blocked", zap.String("reason", "ip_rate_limited"))
+		return model.CurrentUser{}, "", "", err
+	}
+
 	user, err := s.userRepository.GetUserByEmail(ctx, email)
 	if err != nil {
+		s.registerFailure(ctx, model.LoginAccountRateLimit, email)
+		s.registerFailure(ctx, model.LoginIPRateLimit, ip)
 		s.log.Warn(ctx, "login failed", zap.String("reason", "invalid_credentials"), zap.Error(err))
 		return model.CurrentUser{}, "", "", model.ErrInvalidCredentials
 	}
 
 	if err := password.Compare(input.Password, user.PasswordHash, s.passwordPepper); err != nil {
+		s.registerFailure(ctx, model.LoginAccountRateLimit, email)
+		s.registerFailure(ctx, model.LoginIPRateLimit, ip)
 		s.log.Warn(ctx, "login failed", zap.String("reason", "invalid_credentials"), zap.String("user_id", user.ID.String()))
 		return model.CurrentUser{}, "", "", model.ErrInvalidCredentials
 	}
+
+	s.clearFailures(ctx, model.LoginAccountRateLimit, email)
+	s.clearFailures(ctx, model.LoginIPRateLimit, ip)
 
 	refreshToken, err := refresh.Generate()
 	if err != nil {

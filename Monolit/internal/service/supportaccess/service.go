@@ -107,7 +107,15 @@ func (s *Service) Create(ctx context.Context, in models.CreateSupportAccessReque
 	case in.SubjectType == "user" && in.SubjectUserID.Valid && !in.SubjectCompanyID.Valid:
 		approver = in.SubjectUserID.UUID
 	case in.SubjectType == "company" && in.SubjectCompanyID.Valid && !in.SubjectUserID.Valid:
-		if err = tx.QueryRowContext(ctx, `SELECT manager_user_uuid FROM companies WHERE company_uuid=$1`, in.SubjectCompanyID.UUID).Scan(&approver); err != nil {
+		// The deputy answers for day-to-day access to the company's data; the
+		// owner decides only when there is no deputy.
+		if err = tx.QueryRowContext(ctx, `
+			SELECT COALESCE(
+				(SELECT cm.user_uuid FROM company_members cm
+				 WHERE cm.company_uuid=c.company_uuid AND cm.role='company_deputy' AND cm.status='active'
+				 LIMIT 1),
+				c.manager_user_uuid)
+			FROM companies c WHERE c.company_uuid=$1`, in.SubjectCompanyID.UUID).Scan(&approver); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return models.SupportAccessRequest{}, ErrNotFound
 			}

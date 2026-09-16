@@ -22,6 +22,7 @@ type SupportAccessService interface {
 	Approve(context.Context, uuid.UUID, uuid.UUID, int64, string) (models.SupportAccessGrant, error)
 	Deny(context.Context, uuid.UUID, uuid.UUID, int64, string) error
 	Revoke(context.Context, uuid.UUID, uuid.UUID, string) error
+	CompanyJournal(context.Context, uuid.UUID, uuid.UUID, int) ([]models.SupportAccessJournalEntry, error)
 }
 
 func (h *Handler) CreateSupportAccessRequest(w http.ResponseWriter, r *http.Request) {
@@ -166,4 +167,34 @@ func writeSupportAccessError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, 500, "support_access_failed", true)
 	}
+}
+
+// ListCompanySupportJournal is the company's own record of support activity:
+// who looked at their data, when and why.
+func (h *Handler) ListCompanySupportJournal(w http.ResponseWriter, r *http.Request) {
+	actor, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", false)
+		return
+	}
+	companyID, err := uuid.Parse(chi.URLParam(r, "uuid"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_company_input", false)
+		return
+	}
+	limit := 100
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, convErr := strconv.Atoi(raw)
+		if convErr != nil || parsed <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid_company_input", false)
+			return
+		}
+		limit = parsed
+	}
+	items, err := h.supportAccess.CompanyJournal(r.Context(), companyID, actor, limit)
+	if err != nil {
+		writeSupportAccessError(w, err)
+		return
+	}
+	_ = response.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
 }

@@ -26,6 +26,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		FullSurname: req.FullSurname,
 		Username:    firstNonEmpty(req.Username, req.NickName),
 		Post:        req.Headline,
+		IPAddress:   clientIPAddress(r),
 	})
 	if err != nil {
 		if errors.Is(err, models.ErrInvalidUserInput) {
@@ -34,6 +35,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, models.ErrUserAlreadyExists) {
 			response.WriteError(w, http.StatusConflict, response.CodeUserAlreadyExists, "user already exists")
+			return
+		}
+		if errors.Is(err, models.ErrTooManyAttempts) {
+			response.WriteError(w, http.StatusTooManyRequests, response.CodeTooManyAttempts, "Слишком много регистраций с этого адреса, попробуйте позже")
 			return
 		}
 

@@ -66,6 +66,7 @@ func TruncateTables(t *testing.T, db *sql.DB) {
 
 	query := `
 	TRUNCATE TABLE
+	    auth_rate_counters,
 	    credit_ledger_transactions,
 	    credit_ledger_accounts,
 	    billing_accounts,
