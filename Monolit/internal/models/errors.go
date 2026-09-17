@@ -53,6 +53,11 @@ var ErrUserAlreadyManagesCompany = errors.New("user already manages company")
 var ErrLastCompanyManager = errors.New("last company manager cannot be removed")
 var ErrCompanyMembershipConflict = errors.New("user already belongs to another company")
 var ErrCompanyNotEmpty = errors.New("company still has members")
+
+// ErrCompanyPurgePending means the company is not ready to be removed yet: its
+// calls are still being deleted with their files. It is a "come back later", not
+// a failure, and the lifecycle worker treats it as such.
+var ErrCompanyPurgePending = errors.New("company still has calls waiting to be deleted")
 var ErrCompanyDeputyAlreadyAssigned = errors.New("company already has a deputy")
 var ErrCompanyDeputyNotAssigned = errors.New("company has no deputy")
 var ErrOwnerOnlyAction = errors.New("action is available to the company owner only")

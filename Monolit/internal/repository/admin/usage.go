@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"verbatrace/monolit/internal/models"
@@ -31,13 +30,22 @@ func (r *Repository) ResetAdminUsage(ctx context.Context, input models.ResetAdmi
 	if actor.Role != models.UserRoleSuperAdmin {
 		return models.ErrForbidden
 	}
-	ownerColumn, owner, subjectType := "user_uuid", input.UserUUID, "user"
+	// Both kinds of plan hang off a user: a business plan off the owner of the
+	// company. The allowance therefore always lands on that user's billing
+	// account, which is the one the spending path draws from.
+	subscriptionType, ownerUser, subjectType := models.PlanTypePersonal, input.UserUUID, "user"
+	targetID := input.UserUUID
 	if input.CompanyUUID != uuid.Nil {
-		ownerColumn, owner, subjectType = "company_uuid", input.CompanyUUID, "company"
+		subscriptionType, subjectType, targetID = models.PlanTypeBusiness, "company", input.CompanyUUID
+		company, companyErr := getAdminCompany(ctx, tx, input.CompanyUUID)
+		if companyErr != nil {
+			return companyErr
+		}
+		ownerUser = company.ManagerUserUUID
 	}
 	var subscriptionID uuid.UUID
 	var allowance int64
-	err = tx.QueryRowContext(ctx, fmt.Sprintf(`SELECT s.subscription_uuid,p.monthly_credit_allowance FROM subscriptions s JOIN plans p USING(plan_uuid) WHERE s.%s=$1 AND s.status='active' ORDER BY s.starts_at DESC LIMIT 1 FOR UPDATE OF s`, ownerColumn), owner).Scan(&subscriptionID, &allowance)
+	err = tx.QueryRowContext(ctx, `SELECT s.subscription_uuid,p.monthly_credit_allowance FROM subscriptions s JOIN plans p USING(plan_uuid) WHERE s.user_uuid=$1 AND s.type=$2 AND s.status='active' ORDER BY s.starts_at DESC LIMIT 1 FOR UPDATE OF s`, ownerUser, subscriptionType).Scan(&subscriptionID, &allowance)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.ErrSubscriptionNotFound
 	}
@@ -45,11 +53,7 @@ func (r *Repository) ResetAdminUsage(ctx context.Context, input models.ResetAdmi
 		return err
 	}
 	accountID, _ := uuid.NewV7()
-	if subjectType == "user" {
-		err = tx.QueryRowContext(ctx, `INSERT INTO billing_accounts(billing_account_uuid,owner_type,user_uuid) VALUES($1,'user',$2) ON CONFLICT(user_uuid) WHERE user_uuid IS NOT NULL DO UPDATE SET updated_at=now() RETURNING billing_account_uuid`, accountID, owner).Scan(&accountID)
-	} else {
-		err = tx.QueryRowContext(ctx, `INSERT INTO billing_accounts(billing_account_uuid,owner_type,company_uuid) VALUES($1,'company',$2) ON CONFLICT(company_uuid) WHERE company_uuid IS NOT NULL DO UPDATE SET updated_at=now() RETURNING billing_account_uuid`, accountID, owner).Scan(&accountID)
-	}
+	err = tx.QueryRowContext(ctx, `INSERT INTO billing_accounts(billing_account_uuid,owner_type,user_uuid) VALUES($1,'user',$2) ON CONFLICT(user_uuid) WHERE user_uuid IS NOT NULL DO UPDATE SET updated_at=now() RETURNING billing_account_uuid`, accountID, ownerUser).Scan(&accountID)
 	if err != nil {
 		return err
 	}
@@ -78,8 +82,8 @@ func (r *Repository) ResetAdminUsage(ctx context.Context, input models.ResetAdmi
 	if err = openAllowance(ctx, tx, accountID, epochID, allowance, actor.ID, input.Metadata.Reason, monthEnd); err != nil {
 		return err
 	}
-	after, _ := json.Marshal(map[string]any{"owner_uuid": owner, "allowance_credits": allowance, "new_epoch_uuid": epochID, "wallet_changed": false})
-	if err = insertAudit(ctx, tx, models.AdminAuditLog{ID: mustUUIDv7(), ActorUserUUID: actor.ID, ActorRole: actor.Role, Action: "credit_allowance.reset", TargetType: subjectType, TargetUUID: uuid.NullUUID{UUID: owner, Valid: true}, AfterData: after, Reason: &input.Metadata.Reason, RequestID: input.Metadata.RequestID, IPAddress: input.Metadata.IPAddress, UserAgent: input.Metadata.UserAgent, CreatedAt: now}); err != nil {
+	after, _ := json.Marshal(map[string]any{"owner_uuid": ownerUser, "allowance_credits": allowance, "new_epoch_uuid": epochID, "wallet_changed": false})
+	if err = insertAudit(ctx, tx, models.AdminAuditLog{ID: mustUUIDv7(), ActorUserUUID: actor.ID, ActorRole: actor.Role, Action: "credit_allowance.reset", TargetType: subjectType, TargetUUID: uuid.NullUUID{UUID: targetID, Valid: true}, AfterData: after, Reason: &input.Metadata.Reason, RequestID: input.Metadata.RequestID, IPAddress: input.Metadata.IPAddress, UserAgent: input.Metadata.UserAgent, CreatedAt: now}); err != nil {
 		return err
 	}
 	return tx.Commit()

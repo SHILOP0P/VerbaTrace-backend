@@ -83,7 +83,7 @@ func (s *Service) RequestRerun(ctx context.Context, input models.CreateAnalysisR
 	}
 
 	for _, approver := range s.rerunApprovers(ctx, call) {
-		s.notify(ctx, approver, "analysis_rerun_requested", "Запрос на повторный анализ", "Сотрудник просит перезапустить анализ звонка", request.ID)
+		s.notify(ctx, approver, models.NotificationTypeAnalysisRerunRequested, "Запрос на повторный анализ", "Сотрудник просит перезапустить анализ звонка", request.ID)
 	}
 
 	return request, nil
@@ -127,7 +127,7 @@ func (s *Service) DecideRerun(ctx context.Context, input models.DecideAnalysisRe
 		}
 	}
 
-	s.notify(ctx, request.RequestedByUserUUID, "analysis_rerun_decided", "Решение по повторному анализу", rerunDecisionBody(input.Approve), request.ID)
+	s.notify(ctx, request.RequestedByUserUUID, models.NotificationTypeAnalysisRerunDecided, "Решение по повторному анализу", rerunDecisionBody(input.Approve), request.ID)
 
 	return decided, nil
 }
@@ -214,14 +214,14 @@ func (s *Service) rerunApprovers(ctx context.Context, call models.Call) []uuid.U
 	return nil
 }
 
-func (s *Service) notify(ctx context.Context, userID uuid.UUID, notificationType, title, body string, entityID uuid.UUID) {
+func (s *Service) notify(ctx context.Context, userID uuid.UUID, notificationType models.NotificationType, title, body string, entityID uuid.UUID) {
 	if s.notifications == nil || userID == uuid.Nil {
 		return
 	}
 	entityType := "call_analysis_rerun_request"
 	_, _ = s.notifications.Create(ctx, models.CreateNotificationInput{
 		UserUUID:   userID,
-		Type:       models.NotificationType(notificationType),
+		Type:       notificationType,
 		Title:      title,
 		Body:       body,
 		EntityType: &entityType,

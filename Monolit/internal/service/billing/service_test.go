@@ -169,135 +169,6 @@ func TestManagerBusinessSubscriptionRaisesPersonalLevel(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestActivatePersonalSubscriptionRejectsBusinessPlan(t *testing.T) {
-	repository := &fakeRepository{
-		plan: models.Plan{
-			Code: models.PlanCodeBusinessStart,
-			Type: models.PlanTypeBusiness,
-		},
-	}
-	service := NewService(repository)
-
-	_, err := service.ActivatePersonalSubscription(context.Background(), models.ActivatePersonalSubscriptionInput{
-		UserUUID: uuid.New(),
-		PlanCode: models.PlanCodeBusinessStart,
-	})
-
-	require.ErrorIs(t, err, models.ErrInvalidBillingInput)
-}
-
-func TestActivatePersonalSubscriptionDefaultsPersonalStart(t *testing.T) {
-	userID := uuid.New()
-	repository := &fakeRepository{
-		plan: models.Plan{
-			Code: models.PlanCodePersonalStart,
-			Type: models.PlanTypePersonal,
-		},
-		activatePersonalSubscription: models.Subscription{
-			ID:       uuid.New(),
-			UserUUID: uuid.NullUUID{UUID: userID, Valid: true},
-			Status:   models.SubscriptionStatusActive,
-			Plan: models.Plan{
-				Code: models.PlanCodePersonalStart,
-				Type: models.PlanTypePersonal,
-			},
-		},
-	}
-	service := NewService(repository)
-
-	_, err := service.ActivatePersonalSubscription(context.Background(), models.ActivatePersonalSubscriptionInput{
-		UserUUID: userID,
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, models.PlanCodePersonalStart, repository.activatePersonalInput.PlanCode)
-	require.Equal(t, userID, repository.activatePersonalInput.UserUUID)
-}
-
-func TestActivateCompanySubscriptionDefaultsBusinessPlanForManager(t *testing.T) {
-	companyID := uuid.New()
-	managerID := uuid.New()
-	repository := &fakeRepository{
-		plan: models.Plan{
-			Code: models.PlanCodeBusinessStart,
-			Type: models.PlanTypeBusiness,
-		},
-		activateSubscription: models.Subscription{
-			ID:          uuid.New(),
-			CompanyUUID: uuid.NullUUID{UUID: companyID, Valid: true},
-			Status:      models.SubscriptionStatusActive,
-		},
-	}
-	service := NewService(repository)
-	service.SetCompanyRepository(&fakeCompanyRepository{
-		member: models.CompanyMember{
-			CompanyUUID: companyID,
-			UserUUID:    managerID,
-			Role:        models.CompanyMemberRoleManager,
-			Status:      models.MembershipStatusActive,
-		},
-	})
-
-	_, err := service.ActivateCompanySubscription(context.Background(), models.ActivateCompanySubscriptionInput{
-		CompanyUUID: companyID,
-		RequestUser: managerID,
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, models.PlanCodeBusinessStart, repository.activateInput.PlanCode)
-	require.Equal(t, companyID, repository.activateInput.CompanyUUID)
-	require.Equal(t, managerID, repository.activateInput.RequestUser)
-}
-
-func TestActivateCompanySubscriptionRejectsNonManager(t *testing.T) {
-	companyID := uuid.New()
-	userID := uuid.New()
-	service := NewService(&fakeRepository{})
-	service.SetCompanyRepository(&fakeCompanyRepository{
-		member: models.CompanyMember{
-			CompanyUUID: companyID,
-			UserUUID:    userID,
-			Role:        models.CompanyMemberRoleEmployee,
-			Status:      models.MembershipStatusActive,
-		},
-	})
-
-	_, err := service.ActivateCompanySubscription(context.Background(), models.ActivateCompanySubscriptionInput{
-		CompanyUUID: companyID,
-		RequestUser: userID,
-	})
-
-	require.ErrorIs(t, err, models.ErrForbidden)
-}
-
-func TestActivateCompanySubscriptionRejectsPersonalPlan(t *testing.T) {
-	companyID := uuid.New()
-	managerID := uuid.New()
-	repository := &fakeRepository{
-		plan: models.Plan{
-			Code: models.PlanCodePersonalStart,
-			Type: models.PlanTypePersonal,
-		},
-	}
-	service := NewService(repository)
-	service.SetCompanyRepository(&fakeCompanyRepository{
-		member: models.CompanyMember{
-			CompanyUUID: companyID,
-			UserUUID:    managerID,
-			Role:        models.CompanyMemberRoleManager,
-			Status:      models.MembershipStatusActive,
-		},
-	})
-
-	_, err := service.ActivateCompanySubscription(context.Background(), models.ActivateCompanySubscriptionInput{
-		CompanyUUID: companyID,
-		RequestUser: managerID,
-		PlanCode:    models.PlanCodePersonalStart,
-	})
-
-	require.ErrorIs(t, err, models.ErrInvalidBillingInput)
-}
-
 func TestGetPersonalSubscriptionUsageCalculatesPeriodAndRemaining(t *testing.T) {
 	userID := uuid.New()
 	subscriptionID := uuid.New()
@@ -427,31 +298,25 @@ func TestGetCompanySubscriptionAllowsActiveEmployeeToReadPlan(t *testing.T) {
 }
 
 type fakeRepository struct {
-	personalSubscription         models.Subscription
-	businessSubscription         models.Subscription
-	managerBusinessSubscription  models.Subscription
-	plan                         models.Plan
-	plans                        map[models.PlanCode]models.Plan
-	personalErr                  error
-	businessErr                  error
-	managerBusinessErr           error
-	planErr                      error
-	usedMinutes                  int
-	companiesCount               int
-	departmentsCount             int
-	membersCount                 int
-	instructionsCount            int
-	activatePersonalInput        models.ActivatePersonalSubscriptionInput
-	activatePersonalSubscription models.Subscription
-	activatePersonalErr          error
-	activateInput                models.ActivateCompanySubscriptionInput
-	activateSubscription         models.Subscription
-	activateErr                  error
-	cancelCompanyID              uuid.UUID
-	cancelSubscription           models.Subscription
-	cancelErr                    error
-	countUsedSubscriptionID      uuid.UUID
-	countUsedPeriodStart         time.Time
+	personalSubscription        models.Subscription
+	businessSubscription        models.Subscription
+	managerBusinessSubscription models.Subscription
+	plan                        models.Plan
+	plans                       map[models.PlanCode]models.Plan
+	personalErr                 error
+	businessErr                 error
+	managerBusinessErr          error
+	planErr                     error
+	usedMinutes                 int
+	companiesCount              int
+	departmentsCount            int
+	membersCount                int
+	instructionsCount           int
+	cancelCompanyID             uuid.UUID
+	cancelSubscription          models.Subscription
+	cancelErr                   error
+	countUsedSubscriptionID     uuid.UUID
+	countUsedPeriodStart        time.Time
 }
 
 func (f *fakeRepository) GetPlanByCode(_ context.Context, code models.PlanCode) (models.Plan, error) {
@@ -504,22 +369,6 @@ func (f *fakeRepository) GetBestActiveBusinessSubscriptionForManager(context.Con
 
 func (f *fakeRepository) UpsertSubscription(context.Context, models.UpsertSubscriptionInput) (models.Subscription, error) {
 	return models.Subscription{}, nil
-}
-
-func (f *fakeRepository) ActivatePersonalSubscription(_ context.Context, input models.ActivatePersonalSubscriptionInput, _ time.Time) (models.Subscription, error) {
-	f.activatePersonalInput = input
-	if f.activatePersonalErr != nil {
-		return models.Subscription{}, f.activatePersonalErr
-	}
-	return f.activatePersonalSubscription, nil
-}
-
-func (f *fakeRepository) ActivateCompanySubscription(_ context.Context, input models.ActivateCompanySubscriptionInput, _ time.Time) (models.Subscription, error) {
-	f.activateInput = input
-	if f.activateErr != nil {
-		return models.Subscription{}, f.activateErr
-	}
-	return f.activateSubscription, nil
 }
 
 func (f *fakeRepository) CancelCompanySubscription(_ context.Context, companyID uuid.UUID, _ time.Time) (models.Subscription, error) {

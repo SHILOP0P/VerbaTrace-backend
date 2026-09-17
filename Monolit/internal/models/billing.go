@@ -278,17 +278,6 @@ type UpsertSubscriptionInput struct {
 	EndsAt      *time.Time
 }
 
-type ActivateCompanySubscriptionInput struct {
-	CompanyUUID uuid.UUID
-	RequestUser uuid.UUID
-	PlanCode    PlanCode
-}
-
-type ActivatePersonalSubscriptionInput struct {
-	UserUUID uuid.UUID
-	PlanCode PlanCode
-}
-
 type CancelCompanySubscriptionInput struct {
 	CompanyUUID uuid.UUID
 	RequestUser uuid.UUID

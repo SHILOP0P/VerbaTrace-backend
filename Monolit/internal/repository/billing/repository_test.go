@@ -99,20 +99,24 @@ func (s *RepositorySuite) TestGetBestActiveBusinessSubscriptionForManager() {
 	firstCompanyID := s.createCompany(managerID)
 	secondCompanyID := s.createCompany(managerID)
 
-	start, err := s.repository.ActivateCompanySubscription(s.ctx, models.ActivateCompanySubscriptionInput{
-		CompanyUUID: firstCompanyID,
-		PlanCode:    models.PlanCodeBusinessStart,
-	}, time.Now().UTC().Add(-time.Hour))
+	start, err := s.repository.UpsertSubscription(s.ctx, models.UpsertSubscriptionInput{
+		PlanCode: models.PlanCodeBusinessStart,
+		UserUUID: uuid.NullUUID{UUID: managerID, Valid: true},
+		Status:   models.SubscriptionStatusActive,
+		StartsAt: time.Now().UTC().Add(-time.Hour),
+	})
 	s.Require().NoError(err)
 
-	pro, err := s.repository.ActivateCompanySubscription(s.ctx, models.ActivateCompanySubscriptionInput{
-		CompanyUUID: secondCompanyID,
-		PlanCode:    models.PlanCodeBusinessPro,
-	}, time.Now().UTC().Add(-time.Hour))
+	pro, err := s.repository.UpsertSubscription(s.ctx, models.UpsertSubscriptionInput{
+		PlanCode: models.PlanCodeBusinessPro,
+		UserUUID: uuid.NullUUID{UUID: managerID, Valid: true},
+		Status:   models.SubscriptionStatusActive,
+		StartsAt: time.Now().UTC().Add(-time.Hour),
+	})
 	s.Require().NoError(err)
 
-	// One owner has one business plan: granting it again for another company
-	// upgrades the same subscription instead of creating a second one.
+	// One owner has one business plan: granting it again upgrades the same
+	// subscription instead of creating a second one.
 	s.Require().Equal(start.ID, pro.ID)
 
 	best, err := s.repository.GetBestActiveBusinessSubscriptionForManager(s.ctx, managerID)
@@ -128,41 +132,52 @@ func (s *RepositorySuite) TestGetBestActiveBusinessSubscriptionForManager() {
 	}
 }
 
-func (s *RepositorySuite) TestActivateAndCancelCompanySubscription() {
+func (s *RepositorySuite) TestOwnerPlanCoversCompanyUntilCanceled() {
 	ownerID := s.createUser("company-subscription-owner@example.com")
 	companyID := s.createCompany(ownerID)
 
 	startsAt := time.Now().UTC().Add(-time.Hour)
-	created, err := s.repository.ActivateCompanySubscription(s.ctx, models.ActivateCompanySubscriptionInput{
-		CompanyUUID: companyID,
-		PlanCode:    models.PlanCodeBusinessPlus,
-	}, startsAt)
+	created, err := s.repository.UpsertSubscription(s.ctx, models.UpsertSubscriptionInput{
+		PlanCode: models.PlanCodeBusinessPlus,
+		UserUUID: uuid.NullUUID{UUID: ownerID, Valid: true},
+		Status:   models.SubscriptionStatusActive,
+		StartsAt: startsAt,
+	})
 	s.Require().NoError(err)
 	s.Require().Equal(models.PlanCodeBusinessPlus, created.Plan.Code)
 	s.Require().Equal(models.SubscriptionStatusActive, created.Status)
 	s.Require().True(created.UserUUID.Valid)
 	s.Require().Equal(ownerID, created.UserUUID.UUID)
-
-	updated, err := s.repository.ActivateCompanySubscription(s.ctx, models.ActivateCompanySubscriptionInput{
-		CompanyUUID: companyID,
-		PlanCode:    models.PlanCodeBusinessPro,
-	}, startsAt.Add(time.Minute))
-	s.Require().NoError(err)
-	s.Require().Equal(created.ID, updated.ID)
-	s.Require().Equal(models.PlanCodeBusinessPro, updated.Plan.Code)
+	s.Require().False(created.CompanyUUID.Valid)
 
 	active, err := s.repository.GetActiveBusinessSubscription(s.ctx, companyID)
 	s.Require().NoError(err)
-	s.Require().Equal(updated.ID, active.ID)
+	s.Require().Equal(created.ID, active.ID)
 
 	canceled, err := s.repository.CancelCompanySubscription(s.ctx, companyID, time.Now().UTC())
 	s.Require().NoError(err)
-	s.Require().Equal(updated.ID, canceled.ID)
+	s.Require().Equal(created.ID, canceled.ID)
 	s.Require().Equal(models.SubscriptionStatusCanceled, canceled.Status)
 	s.Require().NotNil(canceled.EndsAt)
 
 	_, err = s.repository.GetActiveBusinessSubscription(s.ctx, companyID)
 	s.Require().ErrorIs(err, models.ErrSubscriptionNotFound)
+}
+
+// TestSubscriptionCannotBeStoredAgainstACompany guards the shape itself. The
+// administrator's grant used to write the company column, which produced a row
+// the application could never find again.
+func (s *RepositorySuite) TestSubscriptionCannotBeStoredAgainstACompany() {
+	ownerID := s.createUser("company-shaped-subscription@example.com")
+	companyID := s.createCompany(ownerID)
+
+	_, err := s.repository.UpsertSubscription(s.ctx, models.UpsertSubscriptionInput{
+		PlanCode:    models.PlanCodeBusinessPlus,
+		CompanyUUID: uuid.NullUUID{UUID: companyID, Valid: true},
+		Status:      models.SubscriptionStatusActive,
+		StartsAt:    time.Now().UTC(),
+	})
+	s.Require().ErrorIs(err, models.ErrInvalidBillingInput)
 }
 
 func (s *RepositorySuite) TestAddUsageMinutesAccumulatesCurrentPeriod() {
@@ -432,17 +447,20 @@ func (s *RepositorySuite) TestPersonalSubscriptionPlanAndUsageLifecycle() {
 	s.Require().NoError(err)
 	s.Require().Equal(models.PlanTypePersonal, plan.Type)
 
-	created, err := s.repository.ActivatePersonalSubscription(s.ctx, models.ActivatePersonalSubscriptionInput{
-		UserUUID: userID,
+	created, err := s.repository.UpsertSubscription(s.ctx, models.UpsertSubscriptionInput{
+		UserUUID: uuid.NullUUID{UUID: userID, Valid: true},
 		PlanCode: models.PlanCodePersonalStart,
-	}, time.Time{})
+		Status:   models.SubscriptionStatusActive,
+	})
 	s.Require().NoError(err)
 	s.Require().Equal(models.PlanCodePersonalStart, created.Plan.Code)
 
-	updated, err := s.repository.ActivatePersonalSubscription(s.ctx, models.ActivatePersonalSubscriptionInput{
-		UserUUID: userID,
+	updated, err := s.repository.UpsertSubscription(s.ctx, models.UpsertSubscriptionInput{
+		UserUUID: uuid.NullUUID{UUID: userID, Valid: true},
 		PlanCode: models.PlanCodePersonalPro,
-	}, time.Now().UTC().Add(-time.Hour))
+		Status:   models.SubscriptionStatusActive,
+		StartsAt: time.Now().UTC().Add(-time.Hour),
+	})
 	s.Require().NoError(err)
 	s.Require().Equal(created.ID, updated.ID)
 	s.Require().Equal(models.PlanCodePersonalPro, updated.Plan.Code)
@@ -464,10 +482,6 @@ func (s *RepositorySuite) TestPersonalSubscriptionPlanAndUsageLifecycle() {
 	s.Require().Zero(used)
 
 	_, err = s.repository.GetPlanByCode(s.ctx, "missing")
-	s.Require().ErrorIs(err, models.ErrPlanNotFound)
-	_, err = s.repository.ActivatePersonalSubscription(s.ctx, models.ActivatePersonalSubscriptionInput{
-		UserUUID: userID, PlanCode: "missing",
-	}, time.Now())
 	s.Require().ErrorIs(err, models.ErrPlanNotFound)
 	_, err = s.repository.GetUsageCounter(s.ctx, uuid.New(), period)
 	s.Require().ErrorIs(err, models.ErrSubscriptionNotFound)
@@ -524,10 +538,6 @@ func (s *RepositorySuite) TestResourceCountsAndMissingCompanySubscription() {
 
 	_, err = s.repository.CancelCompanySubscription(s.ctx, companyID, time.Time{})
 	s.Require().ErrorIs(err, models.ErrSubscriptionNotFound)
-	_, err = s.repository.ActivateCompanySubscription(s.ctx, models.ActivateCompanySubscriptionInput{
-		CompanyUUID: companyID, PlanCode: models.PlanCodePersonalStart,
-	}, time.Time{})
-	s.Require().ErrorIs(err, models.ErrPlanNotFound)
 }
 
 func (s *RepositorySuite) createUser(email string) uuid.UUID {

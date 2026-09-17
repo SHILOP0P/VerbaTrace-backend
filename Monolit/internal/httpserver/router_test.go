@@ -65,9 +65,15 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 	router.ServeHTTP(adminRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/admin/capabilities", nil))
 	require.Equal(t, http.StatusUnauthorized, adminRecorder.Code)
 
-	reopenRecorder := httptest.NewRecorder()
-	router.ServeHTTP(reopenRecorder, httptest.NewRequest(http.MethodPost, "/api/v1/admin/actions/00000000-0000-0000-0000-000000000001/reopen", nil))
-	require.Equal(t, http.StatusUnauthorized, reopenRecorder.Code)
+	// A registered admin route answers 401 without a token. The group answers 401
+	// for made-up paths too, so this has to point at a route that really exists.
+	adminActionRecorder := httptest.NewRecorder()
+	router.ServeHTTP(adminActionRecorder, httptest.NewRequest(http.MethodPost, "/api/v1/admin/actions/00000000-0000-0000-0000-000000000001/cancel", nil))
+	require.Equal(t, http.StatusUnauthorized, adminActionRecorder.Code)
+
+	cancelSubscriptionRecorder := httptest.NewRecorder()
+	router.ServeHTTP(cancelSubscriptionRecorder, httptest.NewRequest(http.MethodPost, "/api/v1/companies/00000000-0000-0000-0000-000000000001/subscription/cancel", nil))
+	require.Equal(t, http.StatusUnauthorized, cancelSubscriptionRecorder.Code)
 
 	notFoundRecorder := httptest.NewRecorder()
 	router.ServeHTTP(notFoundRecorder, httptest.NewRequest(http.MethodGet, "/missing", nil))

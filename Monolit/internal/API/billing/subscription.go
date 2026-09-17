@@ -1,13 +1,10 @@
 package billing
 
 import (
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"time"
 
-	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
 	"verbatrace/monolit/internal/converter"
 	"verbatrace/monolit/internal/models"
@@ -110,62 +107,8 @@ func (h *Handler) GetCompanySubscriptionUsage(w http.ResponseWriter, r *http.Req
 	writeSubscriptionUsageResponse(w, usage)
 }
 
-func (h *Handler) ActivateCompanySubscription(w http.ResponseWriter, r *http.Request) {
-	requestUserID, ok := userIDFromRequest(r)
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-
-	companyID, ok := companyIDFromRequest(w, r)
-	if !ok {
-		return
-	}
-
-	req, err := decodeActivateSubscriptionRequest(r)
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidRequestBody, "invalid request body")
-		return
-	}
-
-	subscription, err := h.service.ActivateCompanySubscription(r.Context(), models.ActivateCompanySubscriptionInput{
-		CompanyUUID: companyID,
-		RequestUser: requestUserID,
-		PlanCode:    models.PlanCode(req.PlanCode),
-	})
-	if err != nil {
-		writeBillingError(w, err, response.CodeFailedToActivateSubscription, "failed to activate subscription")
-		return
-	}
-
-	writeSubscriptionResponse(w, subscription)
-}
-
-func (h *Handler) ActivatePersonalSubscription(w http.ResponseWriter, r *http.Request) {
-	requestUserID, ok := userIDFromRequest(r)
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-
-	req, err := decodeActivateSubscriptionRequest(r)
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidRequestBody, "invalid request body")
-		return
-	}
-
-	subscription, err := h.service.ActivatePersonalSubscription(r.Context(), models.ActivatePersonalSubscriptionInput{
-		UserUUID: requestUserID,
-		PlanCode: models.PlanCode(req.PlanCode),
-	})
-	if err != nil {
-		writeBillingError(w, err, response.CodeFailedToActivateSubscription, "failed to activate subscription")
-		return
-	}
-
-	writeSubscriptionResponse(w, subscription)
-}
-
+// CancelCompanySubscription stops the plan that covers this company. Buying one
+// is an administrator's job for now, so there is no matching activation here.
 func (h *Handler) CancelCompanySubscription(w http.ResponseWriter, r *http.Request) {
 	requestUserID, ok := userIDFromRequest(r)
 	if !ok {
@@ -188,20 +131,6 @@ func (h *Handler) CancelCompanySubscription(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeSubscriptionResponse(w, subscription)
-}
-
-func decodeActivateSubscriptionRequest(r *http.Request) (dto.ActivateSubscriptionRequest, error) {
-	var req dto.ActivateSubscriptionRequest
-	if r.Body == nil {
-		return req, nil
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if errors.Is(err, io.EOF) {
-		return req, nil
-	}
-
-	return req, err
 }
 
 func companyIDFromRequest(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {

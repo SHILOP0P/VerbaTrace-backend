@@ -39,7 +39,54 @@ const (
 	NotificationTypeCompanyDeputyAssigned       NotificationType = "company_deputy_assigned"
 	NotificationTypeCompanyDeputyRevoked        NotificationType = "company_deputy_revoked"
 	NotificationTypeCompanyMemberRemoved        NotificationType = "company_member_removed"
+	NotificationTypeActionStatusReverted        NotificationType = "action_status_reverted"
+	NotificationTypeActionExternalSyncConflict  NotificationType = "action_external_sync_conflict"
+	NotificationTypeAnalysisRerunRequested      NotificationType = "analysis_rerun_requested"
+	NotificationTypeAnalysisRerunDecided        NotificationType = "analysis_rerun_decided"
 )
+
+// NotificationTypes is every type the application is allowed to write. The
+// notifications table carries a CHECK constraint on the same list, and the
+// project has already shipped a type that was missing from it, so the two are
+// compared by a test rather than by eye.
+func NotificationTypes() []NotificationType {
+	return []NotificationType{
+		NotificationTypeInvitation,
+		NotificationTypeReportReady,
+		NotificationTypeSubscription,
+		NotificationTypeProcessingFailed,
+		NotificationTypeActionAssigned,
+		NotificationTypeActionReassigned,
+		NotificationTypeActionDueChanged,
+		NotificationTypeActionCancelled,
+		NotificationTypeActionCompleted,
+		NotificationTypeActionTransferRequested,
+		NotificationTypeActionTransferApproved,
+		NotificationTypeActionTransferRejected,
+		NotificationTypeActionReminder,
+		NotificationTypeActionGraceStarted,
+		NotificationTypeActionOverdue,
+		NotificationTypeActionAssignmentInvalid,
+		NotificationTypeSupportAccessRequested,
+		NotificationTypeSupportAccessDecided,
+		NotificationTypeActionExternalSyncRequested,
+		NotificationTypeActionExternalSyncDecided,
+		NotificationTypeInvitationApprovalRequested,
+		NotificationTypeInvitationApprovalDecided,
+		NotificationTypeDepartmentTransferRequested,
+		NotificationTypeDepartmentTransferDecided,
+		NotificationTypeDepartmentMemberMoved,
+		NotificationTypeCompanyOwnerTransferAsked,
+		NotificationTypeCompanyOwnerTransferDecided,
+		NotificationTypeCompanyDeputyAssigned,
+		NotificationTypeCompanyDeputyRevoked,
+		NotificationTypeCompanyMemberRemoved,
+		NotificationTypeActionStatusReverted,
+		NotificationTypeActionExternalSyncConflict,
+		NotificationTypeAnalysisRerunRequested,
+		NotificationTypeAnalysisRerunDecided,
+	}
+}
 
 type Notification struct {
 	ID         uuid.UUID

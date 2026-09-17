@@ -125,6 +125,15 @@ const retentionClaim = `retention_state IN ('active','grace','deletion_failed') 
 // go through the same deletion pipeline: manifest, files, audit, retry.
 const binClaim = `retention_state IN ('active','grace','deletion_failed') AND deleted_at IS NOT NULL AND purge_after<=now()`
 
+// companyPurgeClaim selects the calls of a company whose soft deletion ran out.
+// They are deleted here rather than by the company purge itself: this is the one
+// place that knows how to remove a call together with its files and leave an
+// audit trail, and the company row cannot go until its calls are gone.
+const companyPurgeClaim = `retention_state IN ('active','grace','deletion_failed') AND company_uuid IN (
+	SELECT company_uuid FROM companies
+	WHERE lifecycle_state='soft_deleted' AND purge_after IS NOT NULL AND purge_after<=now()
+)`
+
 func (w *Worker) runCalls(ctx context.Context) {
 	ok, err := w.lock(ctx, callWorkerLock)
 	if err != nil || !ok {
@@ -136,7 +145,7 @@ func (w *Worker) runCalls(ctx context.Context) {
 	w.resumePendingFiles(ctx, run)
 	completed := int64(0)
 	selected := 0
-	for _, claim := range []string{retentionClaim, binClaim} {
+	for _, claim := range []string{retentionClaim, binClaim, companyPurgeClaim} {
 		ids := w.selectCalls(ctx, run, claim)
 		selected += len(ids)
 		for _, id := range ids {

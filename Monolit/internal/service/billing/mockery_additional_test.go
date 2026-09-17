@@ -104,7 +104,7 @@ func TestSubscriptionAndPlanMethodsWithMockery(t *testing.T) {
 	}
 
 	companyRepo.EXPECT().GetCompanyMember(mock.Anything, companyID, managerID).
-		Return(models.CompanyMember{Role: models.CompanyMemberRoleManager}, nil).Twice()
+		Return(models.CompanyMember{Role: models.CompanyMemberRoleManager, Status: models.MembershipStatusActive}, nil).Twice()
 	repo.EXPECT().GetActiveBusinessSubscription(mock.Anything, companyID).
 		Return(models.Subscription{ID: uuid.New()}, nil).Once()
 	if _, err := service.GetCompanySubscription(ctx, models.GetCompanySubscriptionInput{

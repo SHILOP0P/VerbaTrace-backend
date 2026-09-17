@@ -60,18 +60,30 @@ func getAdminCompany(ctx context.Context, q queryRower, id uuid.UUID) (models.Ad
 	return c, err
 }
 func (r *Repository) GetAdminPersonalSubscription(ctx context.Context, id uuid.UUID) (models.AdminSubscription, error) {
-	return getAdminSubscription(ctx, r.db, "user_uuid", id)
+	return getAdminSubscription(ctx, r.db, models.PlanTypePersonal, id)
 }
+
+// GetAdminCompanySubscription answers with the plan that covers this company.
+// A business subscription belongs to the owner of the company, not to the
+// company itself, so the lookup goes through the owner.
 func (r *Repository) GetAdminCompanySubscription(ctx context.Context, id uuid.UUID) (models.AdminSubscription, error) {
-	return getAdminSubscription(ctx, r.db, "company_uuid", id)
+	company, err := getAdminCompany(ctx, r.db, id)
+	if err != nil {
+		return models.AdminSubscription{}, err
+	}
+	return getAdminSubscription(ctx, r.db, models.PlanTypeBusiness, company.ManagerUserUUID)
 }
-func getAdminSubscription(ctx context.Context, q queryRower, owner string, id uuid.UUID) (models.AdminSubscription, error) {
-	row := q.QueryRowContext(ctx, fmt.Sprintf(`SELECT s.subscription_uuid,p.code,s.type,s.status,s.user_uuid,s.company_uuid,s.starts_at,s.ends_at,s.created_at,s.updated_at FROM subscriptions s JOIN plans p ON p.plan_uuid=s.plan_uuid WHERE s.%s=$1 AND s.status='active' AND s.starts_at<=now() AND (s.ends_at IS NULL OR s.ends_at>now()) ORDER BY s.starts_at DESC LIMIT 1`, owner), id)
+
+// getAdminSubscription always looks a subscription up by its owning user. The
+// type has to be part of the condition: one person may hold a personal and a
+// business plan at the same time, and without it the newer one would win.
+func getAdminSubscription(ctx context.Context, q queryRower, subscriptionType models.PlanType, ownerUser uuid.UUID) (models.AdminSubscription, error) {
+	row := q.QueryRowContext(ctx, `SELECT s.subscription_uuid,p.code,s.type,s.status,s.user_uuid,s.company_uuid,s.starts_at,s.ends_at,s.created_at,s.updated_at FROM subscriptions s JOIN plans p ON p.plan_uuid=s.plan_uuid WHERE s.user_uuid=$1 AND s.type=$2 AND s.status='active' AND s.starts_at<=now() AND (s.ends_at IS NULL OR s.ends_at>now()) ORDER BY s.starts_at DESC LIMIT 1`, ownerUser, subscriptionType)
 	return scanAdminSubscription(row)
 }
 
-func getAdminSubscriptionByPlan(ctx context.Context, q queryRower, owner string, id, planID uuid.UUID) (models.AdminSubscription, error) {
-	row := q.QueryRowContext(ctx, fmt.Sprintf(`SELECT s.subscription_uuid,p.code,s.type,s.status,s.user_uuid,s.company_uuid,s.starts_at,s.ends_at,s.created_at,s.updated_at FROM subscriptions s JOIN plans p ON p.plan_uuid=s.plan_uuid WHERE s.%s=$1 AND s.plan_uuid=$2 AND s.status='active' AND (s.ends_at IS NULL OR s.ends_at>now()) ORDER BY s.starts_at DESC,s.created_at DESC,s.subscription_uuid DESC LIMIT 1`, owner), id, planID)
+func getAdminSubscriptionByPlan(ctx context.Context, q queryRower, ownerUser, planID uuid.UUID) (models.AdminSubscription, error) {
+	row := q.QueryRowContext(ctx, `SELECT s.subscription_uuid,p.code,s.type,s.status,s.user_uuid,s.company_uuid,s.starts_at,s.ends_at,s.created_at,s.updated_at FROM subscriptions s JOIN plans p ON p.plan_uuid=s.plan_uuid WHERE s.user_uuid=$1 AND s.plan_uuid=$2 AND s.status='active' AND (s.ends_at IS NULL OR s.ends_at>now()) ORDER BY s.starts_at DESC,s.created_at DESC,s.subscription_uuid DESC LIMIT 1`, ownerUser, planID)
 	return scanAdminSubscription(row)
 }
 
@@ -107,13 +119,19 @@ func (r *Repository) GrantAdminSubscription(ctx context.Context, in models.Grant
 	if actor.Role != models.UserRoleAdmin && actor.Role != models.UserRoleSuperAdmin {
 		return models.AdminSubscription{}, models.ErrForbidden
 	}
-	ownerColumn, owner, subscriptionType := "user_uuid", in.UserUUID, models.PlanTypePersonal
+	// The plan is always stored against a user. For a business plan that user is
+	// the owner of the company, while the audit trail still points at the company
+	// the administrator acted on.
+	ownerUser, subscriptionType := in.UserUUID, models.PlanTypePersonal
+	targetType, targetID := "user", in.UserUUID
 	if in.CompanyUUID != uuid.Nil {
-		ownerColumn, owner, subscriptionType = "company_uuid", in.CompanyUUID, models.PlanTypeBusiness
-		if _, err := getAdminCompany(ctx, tx, owner); err != nil {
-			return models.AdminSubscription{}, err
+		subscriptionType, targetType, targetID = models.PlanTypeBusiness, "company", in.CompanyUUID
+		company, companyErr := getAdminCompany(ctx, tx, in.CompanyUUID)
+		if companyErr != nil {
+			return models.AdminSubscription{}, companyErr
 		}
-	} else if _, err := getAdminUser(ctx, tx, owner); err != nil {
+		ownerUser = company.ManagerUserUUID
+	} else if _, err := getAdminUser(ctx, tx, ownerUser); err != nil {
 		return models.AdminSubscription{}, err
 	}
 	var planID uuid.UUID
@@ -126,7 +144,7 @@ func (r *Repository) GrantAdminSubscription(ctx context.Context, in models.Grant
 	if models.PlanType(planType) != subscriptionType {
 		return models.AdminSubscription{}, models.ErrInvalidBillingInput
 	}
-	old, oldErr := getAdminSubscriptionByPlan(ctx, tx, ownerColumn, owner, planID)
+	old, oldErr := getAdminSubscriptionByPlan(ctx, tx, ownerUser, planID)
 	if oldErr == nil {
 		if _, err = tx.ExecContext(ctx, "UPDATE subscriptions SET ends_at=$2,updated_at=now() WHERE subscription_uuid=$1", old.ID, in.EndsAt); err != nil {
 			return models.AdminSubscription{}, err
@@ -134,7 +152,7 @@ func (r *Repository) GrantAdminSubscription(ctx context.Context, in models.Grant
 		old.EndsAt = &in.EndsAt
 		old.UpdatedAt = time.Now().UTC()
 		after, _ := json.Marshal(map[string]string{"plan_code": string(in.PlanCode), "status": "active", "operation": "extended"})
-		if err = insertAudit(ctx, tx, auditForSubscription(actor, ownerColumn, owner, "subscription.extended", after, in.Metadata)); err != nil {
+		if err = insertAudit(ctx, tx, auditForSubscription(actor, targetType, targetID, "subscription.extended", after, in.Metadata)); err != nil {
 			return models.AdminSubscription{}, err
 		}
 		return old, tx.Commit()
@@ -142,28 +160,24 @@ func (r *Repository) GrantAdminSubscription(ctx context.Context, in models.Grant
 	if oldErr != nil && !errors.Is(oldErr, models.ErrSubscriptionNotFound) {
 		return models.AdminSubscription{}, oldErr
 	}
-	if _, err = tx.ExecContext(ctx, fmt.Sprintf("UPDATE subscriptions SET status='canceled',ends_at=GREATEST(starts_at + INTERVAL '1 second',$2),updated_at=now() WHERE %s=$1 AND status='active'", ownerColumn), owner, in.StartsAt); err != nil {
+	// Only a plan of the same kind is replaced: granting a business plan must not
+	// cancel the same person's personal one.
+	if _, err = tx.ExecContext(ctx, "UPDATE subscriptions SET status='canceled',ends_at=GREATEST(starts_at + INTERVAL '1 second',$3),updated_at=now() WHERE user_uuid=$1 AND type=$2 AND status='active'", ownerUser, subscriptionType, in.StartsAt); err != nil {
 		return models.AdminSubscription{}, err
 	}
 	id := mustUUIDv7()
-	var user, company any
-	if subscriptionType == models.PlanTypePersonal {
-		user = owner
-	} else {
-		company = owner
-	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO subscriptions(subscription_uuid,plan_uuid,type,user_uuid,company_uuid,status,starts_at,ends_at) VALUES($1,$2,$3,$4,$5,'active',$6,$7)`, id, planID, subscriptionType, user, company, in.StartsAt, in.EndsAt); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO subscriptions(subscription_uuid,plan_uuid,type,user_uuid,company_uuid,status,starts_at,ends_at) VALUES($1,$2,$3,$4,NULL,'active',$5,$6)`, id, planID, subscriptionType, ownerUser, in.StartsAt, in.EndsAt); err != nil {
 		return models.AdminSubscription{}, err
 	}
 	after, _ := json.Marshal(map[string]string{"plan_code": string(in.PlanCode), "status": "active"})
-	if err = insertAudit(ctx, tx, auditForSubscription(actor, ownerColumn, owner, "subscription.granted", after, in.Metadata)); err != nil {
+	if err = insertAudit(ctx, tx, auditForSubscription(actor, targetType, targetID, "subscription.granted", after, in.Metadata)); err != nil {
 		return models.AdminSubscription{}, err
 	}
 	if err = tx.Commit(); err != nil {
 		return models.AdminSubscription{}, err
 	}
 	now := time.Now().UTC()
-	return models.AdminSubscription{ID: id, PlanCode: in.PlanCode, Type: subscriptionType, Status: models.SubscriptionStatusActive, UserUUID: uuid.NullUUID{UUID: in.UserUUID, Valid: in.UserUUID != uuid.Nil}, CompanyUUID: uuid.NullUUID{UUID: in.CompanyUUID, Valid: in.CompanyUUID != uuid.Nil}, StartsAt: in.StartsAt, EndsAt: &in.EndsAt, CreatedAt: now, UpdatedAt: now}, nil
+	return models.AdminSubscription{ID: id, PlanCode: in.PlanCode, Type: subscriptionType, Status: models.SubscriptionStatusActive, UserUUID: uuid.NullUUID{UUID: ownerUser, Valid: true}, StartsAt: in.StartsAt, EndsAt: &in.EndsAt, CreatedAt: now, UpdatedAt: now}, nil
 }
 func (r *Repository) CancelAdminSubscription(ctx context.Context, in models.CancelAdminSubscriptionInput) (models.AdminSubscription, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -178,13 +192,17 @@ func (r *Repository) CancelAdminSubscription(ctx context.Context, in models.Canc
 	if actor.Role != models.UserRoleAdmin && actor.Role != models.UserRoleSuperAdmin {
 		return models.AdminSubscription{}, models.ErrForbidden
 	}
-	col := "user_uuid"
-	owner := in.UserUUID
+	subscriptionType, ownerUser := models.PlanTypePersonal, in.UserUUID
+	targetType, targetID := "user", in.UserUUID
 	if in.CompanyUUID != uuid.Nil {
-		col = "company_uuid"
-		owner = in.CompanyUUID
+		subscriptionType, targetType, targetID = models.PlanTypeBusiness, "company", in.CompanyUUID
+		company, companyErr := getAdminCompany(ctx, tx, in.CompanyUUID)
+		if companyErr != nil {
+			return models.AdminSubscription{}, companyErr
+		}
+		ownerUser = company.ManagerUserUUID
 	}
-	sub, err := getAdminSubscription(ctx, tx, col, owner)
+	sub, err := getAdminSubscription(ctx, tx, subscriptionType, ownerUser)
 	if err != nil {
 		return models.AdminSubscription{}, err
 	}
@@ -193,7 +211,7 @@ func (r *Repository) CancelAdminSubscription(ctx context.Context, in models.Canc
 		return models.AdminSubscription{}, err
 	}
 	after, _ := json.Marshal(map[string]string{"status": "canceled"})
-	if err = insertAudit(ctx, tx, models.AdminAuditLog{ID: mustUUIDv7(), ActorUserUUID: actor.ID, ActorRole: actor.Role, Action: "subscription.canceled", TargetType: col[:len(col)-5], TargetUUID: uuid.NullUUID{UUID: owner, Valid: true}, AfterData: after, Reason: &in.Metadata.Reason, RequestID: in.Metadata.RequestID, IPAddress: in.Metadata.IPAddress, UserAgent: in.Metadata.UserAgent, CreatedAt: now}); err != nil {
+	if err = insertAudit(ctx, tx, models.AdminAuditLog{ID: mustUUIDv7(), ActorUserUUID: actor.ID, ActorRole: actor.Role, Action: "subscription.canceled", TargetType: targetType, TargetUUID: uuid.NullUUID{UUID: targetID, Valid: true}, AfterData: after, Reason: &in.Metadata.Reason, RequestID: in.Metadata.RequestID, IPAddress: in.Metadata.IPAddress, UserAgent: in.Metadata.UserAgent, CreatedAt: now}); err != nil {
 		return models.AdminSubscription{}, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -203,6 +221,6 @@ func (r *Repository) CancelAdminSubscription(ctx context.Context, in models.Canc
 	sub.EndsAt = &now
 	return sub, nil
 }
-func auditForSubscription(actor models.AdminUser, ownerColumn string, owner uuid.UUID, action string, after json.RawMessage, metadata models.AdminMutationMetadata) models.AdminAuditLog {
-	return models.AdminAuditLog{ID: mustUUIDv7(), ActorUserUUID: actor.ID, ActorRole: actor.Role, Action: action, TargetType: ownerColumn[:len(ownerColumn)-5], TargetUUID: uuid.NullUUID{UUID: owner, Valid: true}, AfterData: after, Reason: &metadata.Reason, RequestID: metadata.RequestID, IPAddress: metadata.IPAddress, UserAgent: metadata.UserAgent, CreatedAt: time.Now().UTC()}
+func auditForSubscription(actor models.AdminUser, targetType string, targetID uuid.UUID, action string, after json.RawMessage, metadata models.AdminMutationMetadata) models.AdminAuditLog {
+	return models.AdminAuditLog{ID: mustUUIDv7(), ActorUserUUID: actor.ID, ActorRole: actor.Role, Action: action, TargetType: targetType, TargetUUID: uuid.NullUUID{UUID: targetID, Valid: true}, AfterData: after, Reason: &metadata.Reason, RequestID: metadata.RequestID, IPAddress: metadata.IPAddress, UserAgent: metadata.UserAgent, CreatedAt: time.Now().UTC()}
 }

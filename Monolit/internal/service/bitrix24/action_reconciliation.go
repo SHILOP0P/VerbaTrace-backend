@@ -77,17 +77,29 @@ func (s *Service) scheduleTaskReconciliation(ctx context.Context, syncID uuid.UU
 	_, _ = s.db.ExecContext(ctx, `UPDATE call_action_external_syncs SET lease_until=NULL,last_error_code=$2,available_at=now()+interval '5 minutes',last_checked_at=now(),lock_version=lock_version+1,updated_at=now() WHERE sync_uuid=$1 AND state='synced' AND review_state IS NULL`, syncID, code)
 }
 
+// markExternalTaskReview parks a task that no longer matches its action and
+// tells the person who asked for the sync. Both happen in one transaction: a
+// review nobody is told about is worse than no review at all, so a failed
+// notification leaves the record alone and the reconciler tries again.
 func (s *Service) markExternalTaskReview(ctx context.Context, item models.ActionExternalSync, snapshot bitrixTaskSnapshot, reason string) {
 	raw, _ := json.Marshal(snapshot)
 	now := s.now().UTC()
-	result, err := s.db.ExecContext(ctx, `UPDATE call_action_external_syncs SET external_snapshot=$2,external_task_url=COALESCE(NULLIF($3,''),external_task_url),review_state='needs_review',review_reason=$4,last_checked_at=$5,lease_until=NULL,last_error_code=$4,lock_version=lock_version+1,updated_at=$5 WHERE sync_uuid=$1 AND state='synced' AND review_state IS NULL`, item.ID, raw, snapshot.Link, reason, now)
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, `UPDATE call_action_external_syncs SET external_snapshot=$2,external_task_url=COALESCE(NULLIF($3,''),external_task_url),review_state='needs_review',review_reason=$4,last_checked_at=$5,lease_until=NULL,last_error_code=$4,lock_version=lock_version+1,updated_at=$5 WHERE sync_uuid=$1 AND state='synced' AND review_state IS NULL`, item.ID, raw, snapshot.Link, reason, now)
 	if err != nil {
 		return
 	}
 	if affected, _ := result.RowsAffected(); affected != 1 {
 		return
 	}
-	_, _ = s.db.ExecContext(ctx, `INSERT INTO notifications(notification_uuid,user_uuid,type,title,body,entity_type,entity_uuid) VALUES($1,$2,'action_external_sync_conflict','Изменения задачи Bitrix24 требуют решения',$3,'action_external_sync',$4)`, uuid.New(), item.RequesterUserID, reviewReasonLabel(reason), item.ID)
+	if _, err = tx.ExecContext(ctx, `INSERT INTO notifications(notification_uuid,user_uuid,type,title,body,entity_type,entity_uuid) VALUES($1,$2,$3,'Изменения задачи Bitrix24 требуют решения',$4,'action_external_sync',$5)`, uuid.New(), item.RequesterUserID, models.NotificationTypeActionExternalSyncConflict, reviewReasonLabel(reason), item.ID); err != nil {
+		return
+	}
+	_ = tx.Commit()
 }
 
 func (s *Service) externalTaskConflictReason(ctx context.Context, actionID, connectionID uuid.UUID, snapshot bitrixTaskSnapshot) (string, error) {

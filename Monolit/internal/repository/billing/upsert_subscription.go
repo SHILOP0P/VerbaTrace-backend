@@ -29,11 +29,15 @@ func (r *Repository) UpsertSubscription(ctx context.Context, input models.Upsert
 		input.StartsAt = time.Now().UTC()
 	}
 
+	// Every plan, business ones included, belongs to a person. A row written
+	// against a company is the shape the application stopped reading, so it is
+	// refused here rather than becoming a subscription nobody can see.
+	if input.CompanyUUID.Valid {
+		return models.Subscription{}, models.ErrInvalidBillingInput
+	}
 	conflictTarget := "(subscription_uuid)"
 	if input.Status == models.SubscriptionStatusActive && input.UserUUID.Valid {
 		conflictTarget = "(type, user_uuid) WHERE status = 'active' AND user_uuid IS NOT NULL"
-	} else if input.Status == models.SubscriptionStatusActive && input.CompanyUUID.Valid {
-		conflictTarget = "(type, company_uuid) WHERE status = 'active' AND company_uuid IS NOT NULL"
 	}
 	query := `
 	WITH selected_plan AS (

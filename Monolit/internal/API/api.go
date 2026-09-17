@@ -240,8 +240,6 @@ type BillingAPI interface {
 	GetCompanySubscription(w http.ResponseWriter, r *http.Request)
 	GetPersonalSubscriptionUsage(w http.ResponseWriter, r *http.Request)
 	GetCompanySubscriptionUsage(w http.ResponseWriter, r *http.Request)
-	ActivatePersonalSubscription(w http.ResponseWriter, r *http.Request)
-	ActivateCompanySubscription(w http.ResponseWriter, r *http.Request)
 	CancelCompanySubscription(w http.ResponseWriter, r *http.Request)
 	SetCompanyCreditLimit(w http.ResponseWriter, r *http.Request)
 	SetDepartmentCreditLimit(w http.ResponseWriter, r *http.Request)

@@ -18,66 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestActivateCompanySubscriptionSuccess(t *testing.T) {
-	companyID := uuid.New()
-	userID := uuid.New()
-	subscription := testSubscription(companyID, models.PlanCodeBusinessPlus, models.SubscriptionStatusActive)
-	fake := &fakeBillingService{}
-	fake.activate = func(ctx context.Context, input models.ActivateCompanySubscriptionInput) (models.Subscription, error) {
-		require.Equal(t, companyID, input.CompanyUUID)
-		require.Equal(t, userID, input.RequestUser)
-		require.Equal(t, models.PlanCodeBusinessPlus, input.PlanCode)
-		return subscription, nil
-	}
-	api := NewHandler(fake)
-
-	rec, req := billingRequest(http.MethodPost, "/api/v1/companies/"+companyID.String()+"/subscription/activate", `{"plan_code":"business_plus"}`, userID, map[string]string{"uuid": companyID.String()})
-	api.ActivateCompanySubscription(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	var respBody struct {
-		ID     string `json:"id"`
-		Status string `json:"status"`
-		Plan   struct {
-			Code string `json:"code"`
-		} `json:"plan"`
-	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &respBody))
-	require.Equal(t, subscription.ID.String(), respBody.ID)
-	require.Equal(t, string(models.SubscriptionStatusActive), respBody.Status)
-	require.Equal(t, string(models.PlanCodeBusinessPlus), respBody.Plan.Code)
-}
-
-func TestActivatePersonalSubscriptionSuccess(t *testing.T) {
-	userID := uuid.New()
-	subscription := testPersonalSubscription(userID, models.PlanCodePersonalPlus, models.SubscriptionStatusActive)
-	fake := &fakeBillingService{}
-	fake.activatePersonal = func(ctx context.Context, input models.ActivatePersonalSubscriptionInput) (models.Subscription, error) {
-		require.Equal(t, userID, input.UserUUID)
-		require.Equal(t, models.PlanCodePersonalPlus, input.PlanCode)
-		return subscription, nil
-	}
-	api := NewHandler(fake)
-
-	rec, req := billingRequest(http.MethodPost, "/api/v1/subscription/activate", `{"plan_code":"personal_plus"}`, userID, nil)
-	api.ActivatePersonalSubscription(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	var respBody struct {
-		ID     string `json:"id"`
-		Status string `json:"status"`
-		Plan   struct {
-			Code string `json:"code"`
-		} `json:"plan"`
-	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &respBody))
-	require.Equal(t, subscription.ID.String(), respBody.ID)
-	require.Equal(t, string(models.SubscriptionStatusActive), respBody.Status)
-	require.Equal(t, string(models.PlanCodePersonalPlus), respBody.Plan.Code)
-}
-
 func TestGetPersonalSubscriptionSuccess(t *testing.T) {
 	userID := uuid.New()
 	subscription := testPersonalSubscription(userID, models.PlanCodePersonalPro, models.SubscriptionStatusActive)
@@ -262,28 +202,6 @@ func TestGetCompanySubscriptionMapsNotFound(t *testing.T) {
 	requireBillingErrorCode(t, rec, response.CodeSubscriptionNotFound)
 }
 
-func TestActivateCompanySubscriptionRequiresAuth(t *testing.T) {
-	companyID := uuid.New()
-	api := NewHandler(&fakeBillingService{})
-
-	rec, req := billingRequest(http.MethodPost, "/api/v1/companies/"+companyID.String()+"/subscription/activate", "", uuid.Nil, map[string]string{"uuid": companyID.String()})
-	api.ActivateCompanySubscription(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	requireBillingErrorCode(t, rec, response.CodeUnauthorized)
-}
-
-func TestActivateCompanySubscriptionRejectsInvalidBody(t *testing.T) {
-	companyID := uuid.New()
-	api := NewHandler(&fakeBillingService{})
-
-	rec, req := billingRequest(http.MethodPost, "/api/v1/companies/"+companyID.String()+"/subscription/activate", "{", uuid.New(), map[string]string{"uuid": companyID.String()})
-	api.ActivateCompanySubscription(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	requireBillingErrorCode(t, rec, response.CodeInvalidRequestBody)
-}
-
 func TestCancelCompanySubscriptionMapsNotFound(t *testing.T) {
 	companyID := uuid.New()
 	userID := uuid.New()
@@ -361,8 +279,6 @@ type fakeBillingService struct {
 	getCompany       func(context.Context, models.GetCompanySubscriptionInput) (models.Subscription, error)
 	getPersonalUsage func(context.Context, models.GetPersonalSubscriptionUsageInput) (models.SubscriptionUsage, error)
 	getCompanyUsage  func(context.Context, models.GetCompanySubscriptionUsageInput) (models.SubscriptionUsage, error)
-	activatePersonal func(context.Context, models.ActivatePersonalSubscriptionInput) (models.Subscription, error)
-	activate         func(context.Context, models.ActivateCompanySubscriptionInput) (models.Subscription, error)
 	cancel           func(context.Context, models.CancelCompanySubscriptionInput) (models.Subscription, error)
 }
 
@@ -395,14 +311,6 @@ func (f *fakeBillingService) GetPersonalSubscriptionUsage(ctx context.Context, i
 
 func (f *fakeBillingService) GetCompanySubscriptionUsage(ctx context.Context, input models.GetCompanySubscriptionUsageInput) (models.SubscriptionUsage, error) {
 	return f.getCompanyUsage(ctx, input)
-}
-
-func (f *fakeBillingService) ActivateCompanySubscription(ctx context.Context, input models.ActivateCompanySubscriptionInput) (models.Subscription, error) {
-	return f.activate(ctx, input)
-}
-
-func (f *fakeBillingService) ActivatePersonalSubscription(ctx context.Context, input models.ActivatePersonalSubscriptionInput) (models.Subscription, error) {
-	return f.activatePersonal(ctx, input)
 }
 
 func (f *fakeBillingService) CancelCompanySubscription(ctx context.Context, input models.CancelCompanySubscriptionInput) (models.Subscription, error) {

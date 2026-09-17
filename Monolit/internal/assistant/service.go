@@ -144,7 +144,7 @@ func (s *Service) Capabilities(ctx context.Context, user, company uuid.UUID) (mo
 		if err != nil {
 			return c, err
 		}
-		eligible = c.Role == "company_manager"
+		eligible = managesCompany(c.Role)
 		rows, err := s.db.QueryContext(ctx, `SELECT dm.department_uuid,dm.role FROM department_members dm JOIN departments d USING(department_uuid) WHERE d.company_uuid=$1 AND d.deleted_at IS NULL AND dm.user_uuid=$2 AND dm.status='active'`, company, user)
 		if err != nil {
 			return c, err
@@ -159,7 +159,7 @@ func (s *Service) Capabilities(ctx context.Context, user, company uuid.UUID) (mo
 			c.DepartmentUUIDs = append(c.DepartmentUUIDs, id)
 			if role == "department_leader" {
 				eligible = true
-				if c.Role != "company_manager" {
+				if !managesCompany(c.Role) {
 					c.Role = role
 				}
 			}
@@ -171,7 +171,18 @@ func (s *Service) Capabilities(ctx context.Context, user, company uuid.UUID) (mo
 		}
 	}
 	var enabled, research, export bool
-	err := s.db.QueryRowContext(ctx, `SELECT p.assistant_enabled,p.assistant_research_enabled,p.export_enabled FROM subscriptions sub JOIN plans p USING(plan_uuid) WHERE (($2::uuid IS NULL AND sub.user_uuid=$1 AND sub.company_uuid IS NULL) OR ($2::uuid IS NOT NULL AND sub.company_uuid=$2)) AND sub.status='active' AND sub.starts_at<=now() AND (sub.ends_at IS NULL OR sub.ends_at>now()) ORDER BY sub.starts_at DESC LIMIT 1`, user, optionalCompany(company)).Scan(&enabled, &research, &export)
+	// A business plan belongs to the owner of the company, not to the company, so
+	// the company branch resolves the owner first. Reading it any other way makes
+	// the assistant disagree with the credit meter about who is covered.
+	err := s.db.QueryRowContext(ctx, `SELECT p.assistant_enabled,p.assistant_research_enabled,p.export_enabled FROM subscriptions sub JOIN plans p USING(plan_uuid)
+		WHERE sub.status='active' AND sub.starts_at<=now() AND (sub.ends_at IS NULL OR sub.ends_at>now())
+		  AND (
+		      ($2::uuid IS NULL AND sub.type='personal' AND sub.user_uuid=$1)
+		      OR ($2::uuid IS NOT NULL AND sub.type='business' AND sub.user_uuid IN (
+		          SELECT manager_user_uuid FROM companies WHERE company_uuid=$2 AND deleted_at IS NULL AND lifecycle_state='active'
+		      ))
+		  )
+		ORDER BY sub.starts_at DESC LIMIT 1`, user, optionalCompany(company)).Scan(&enabled, &research, &export)
 	if errors.Is(err, sql.ErrNoRows) {
 		c.ReasonCode = "subscription_required"
 		return c, nil
@@ -195,6 +206,13 @@ func optionalCompany(id uuid.UUID) any {
 		return nil
 	}
 	return id
+}
+
+// managesCompany mirrors models.CompanyMemberRole.ManagesCompany: the deputy has
+// the manager's reach, and the assistant must not be the one place that forgets
+// it.
+func managesCompany(role string) bool {
+	return models.CompanyMemberRole(role).ManagesCompany()
 }
 func scopeSQL() string {
 	return "c.company_uuid IS NOT DISTINCT FROM NULLIF($2::uuid,'00000000-0000-0000-0000-000000000000'::uuid)"
@@ -377,7 +395,7 @@ func callAccessSQL() string {
 	return call.VisibleToUserCondition("c", "$1")
 }
 func validateDepartments(ids []uuid.UUID, c models.AssistantCapabilities) error {
-	if c.Role == "company_manager" {
+	if managesCompany(c.Role) {
 		return nil
 	}
 	allowed := map[uuid.UUID]bool{}

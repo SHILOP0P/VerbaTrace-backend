@@ -65,3 +65,33 @@ func (s *RepositorySuite) TestCompanyLifecycleFreezeSoftDeleteAndPurge() {
 		s.Require().Equal(1, users)
 	}
 }
+
+// A company with calls cannot be purged until the retention worker has removed
+// them together with their files. The purge used to try anyway and fail on a
+// foreign key every hour, forever, without anybody noticing.
+func (s *RepositorySuite) TestPurgeWaitsForTheRetentionWorkerToRemoveCalls() {
+	company, manager := s.createCompanyWithManager()
+
+	callID := uuid.New()
+	_, err := s.db.ExecContext(s.ctx, `
+		INSERT INTO calls (call_uuid, title, status, audio_path, original_filename, mime_type, size_bytes, duration_seconds, uploaded_by_user_uuid, company_uuid, visibility_scope, created_at)
+		VALUES ($1, 'call', 'analyzed', 'audio/x.ogg', 'x.ogg', 'audio/ogg', 10, 1, $2, $3, 'company', now())`,
+		callID, manager.ID, company.ID)
+	s.Require().NoError(err)
+
+	now := time.Now().UTC()
+	s.Require().ErrorIs(s.repository.PurgeCompany(s.ctx, company.ID, now), models.ErrCompanyPurgePending)
+
+	var stillThere int
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM companies WHERE company_uuid=$1`, company.ID).Scan(&stillThere))
+	s.Require().Equal(1, stillThere)
+
+	// Once the call is gone the purge goes through.
+	_, err = s.db.ExecContext(s.ctx, `DELETE FROM calls WHERE call_uuid=$1`, callID)
+	s.Require().NoError(err)
+	s.Require().NoError(s.repository.PurgeCompany(s.ctx, company.ID, now))
+
+	var remaining int
+	s.Require().NoError(s.db.QueryRowContext(s.ctx, `SELECT count(*) FROM companies WHERE company_uuid=$1`, company.ID).Scan(&remaining))
+	s.Require().Zero(remaining)
+}

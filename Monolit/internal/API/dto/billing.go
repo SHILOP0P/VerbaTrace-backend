@@ -1,9 +1,5 @@
 package dto
 
-type ActivateSubscriptionRequest struct {
-	PlanCode string `json:"plan_code"`
-}
-
 type PlanResponse struct {
 	ID                             string `json:"id"`
 	Code                           string `json:"code"`

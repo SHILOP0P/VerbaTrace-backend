@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"verbatrace/monolit/internal/API/response"
@@ -42,8 +41,6 @@ func TestBillingValidationWithMockery(t *testing.T) {
 	for _, method := range []func(http.ResponseWriter, *http.Request){
 		handler.GetPersonalSubscription,
 		handler.GetCompanySubscription,
-		handler.ActivatePersonalSubscription,
-		handler.ActivateCompanySubscription,
 		handler.CancelCompanySubscription,
 	} {
 		rec, req := billingRequest(http.MethodPost, "/", "", uuid.Nil, nil)
@@ -56,7 +53,6 @@ func TestBillingValidationWithMockery(t *testing.T) {
 	userID := uuid.New()
 	for _, method := range []func(http.ResponseWriter, *http.Request){
 		handler.GetCompanySubscription,
-		handler.ActivateCompanySubscription,
 		handler.CancelCompanySubscription,
 	} {
 		rec, req := billingRequest(http.MethodPost, "/", "{}", userID, map[string]string{"uuid": "bad"})
@@ -64,17 +60,6 @@ func TestBillingValidationWithMockery(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("invalid company status = %d", rec.Code)
 		}
-	}
-
-	rec, req := billingRequest(http.MethodPost, "/", "{", userID, nil)
-	handler.ActivatePersonalSubscription(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("invalid personal body status = %d", rec.Code)
-	}
-
-	emptyReq := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(""))
-	if decoded, err := decodeActivateSubscriptionRequest(emptyReq); err != nil || decoded.PlanCode != "" {
-		t.Fatalf("empty request = %+v, %v", decoded, err)
 	}
 }
 

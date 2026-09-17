@@ -2,6 +2,7 @@ package company
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"verbatrace/monolit/internal/models"
@@ -84,11 +85,17 @@ func (s *Service) RunLifecycleMaintenance(ctx context.Context, limit int) (int64
 
 	purged := 0
 	for _, companyID := range companies {
-		if err := lifecycle.PurgeCompany(ctx, companyID, now); err != nil {
+		err := lifecycle.PurgeCompany(ctx, companyID, now)
+		switch {
+		case err == nil:
+			purged++
+		case errors.Is(err, models.ErrCompanyPurgePending):
+			// The retention worker is still removing this company's calls and
+			// their files. Expected on the first passes, so it is not an error.
+			s.log.Info(ctx, "company purge waiting for its calls", zap.String("company_id", companyID.String()))
+		default:
 			s.log.Error(ctx, "failed to purge company", zap.String("company_id", companyID.String()), zap.Error(err))
-			continue
 		}
-		purged++
 	}
 
 	return softDeleted, purged, nil

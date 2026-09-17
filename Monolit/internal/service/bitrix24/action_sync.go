@@ -134,7 +134,7 @@ func (s *Service) CreateActionSync(ctx context.Context, actionID, connectionID, 
 		if err = rows.Scan(&recipient); err != nil {
 			return models.ActionExternalSync{}, false, err
 		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO notifications(notification_uuid,user_uuid,type,title,body,entity_type,entity_uuid) VALUES($1,$2,'action_external_sync_requested','Задача ожидает отправки в Bitrix24',$3,'action_external_sync',$4)`, uuid.New(), recipient, title, id); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO notifications(notification_uuid,user_uuid,type,title,body,entity_type,entity_uuid) VALUES($1,$2,$3,'Задача ожидает отправки в Bitrix24',$4,'action_external_sync',$5)`, uuid.New(), recipient, models.NotificationTypeActionExternalSyncRequested, title, id); err != nil {
 			return models.ActionExternalSync{}, false, err
 		}
 	}
@@ -217,7 +217,7 @@ func (s *Service) RejectActionSync(ctx context.Context, id, actor uuid.UUID, exp
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO notifications(notification_uuid,user_uuid,type,title,body,entity_type,entity_uuid) VALUES($1,$2,'action_external_sync_decided','Отправка в Bitrix24 отклонена',$3,'action_external_sync',$4)`, uuid.New(), item.RequesterUserID, comment, id)
+	_, err = tx.ExecContext(ctx, `INSERT INTO notifications(notification_uuid,user_uuid,type,title,body,entity_type,entity_uuid) VALUES($1,$2,$3,'Отправка в Bitrix24 отклонена',$4,'action_external_sync',$5)`, uuid.New(), item.RequesterUserID, models.NotificationTypeActionExternalSyncDecided, comment, id)
 	if err != nil {
 		return err
 	}
@@ -345,7 +345,7 @@ func (s *Service) processOneActionSync(ctx context.Context) {
 	}
 	now := s.now().UTC()
 	_, _ = s.db.ExecContext(ctx, `UPDATE call_action_external_syncs SET state='synced',external_task_id=$2,external_task_url=NULLIF($3,''),synced_at=$4,lease_until=NULL,last_error_code=NULL,available_at=$4+interval '1 minute',lock_version=lock_version+1,updated_at=$4 WHERE sync_uuid=$1 AND state='sending'`, item.ID, taskID, taskURL, now)
-	_, _ = s.db.ExecContext(ctx, `INSERT INTO notifications(notification_uuid,user_uuid,type,title,body,entity_type,entity_uuid) VALUES($1,$2,'action_external_sync_decided','Задача создана в Bitrix24',$3,'action_external_sync',$4)`, uuid.New(), item.RequesterUserID, "Bitrix24 task #"+taskID, item.ID)
+	_, _ = s.db.ExecContext(ctx, `INSERT INTO notifications(notification_uuid,user_uuid,type,title,body,entity_type,entity_uuid) VALUES($1,$2,$3,'Задача создана в Bitrix24',$4,'action_external_sync',$5)`, uuid.New(), item.RequesterUserID, models.NotificationTypeActionExternalSyncDecided, "Bitrix24 task #"+taskID, item.ID)
 }
 
 func (s *Service) recoverActionSyncLeases(ctx context.Context) {

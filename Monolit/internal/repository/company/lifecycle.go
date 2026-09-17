@@ -128,14 +128,94 @@ func (r *Repository) ClaimCompaniesForPurge(ctx context.Context, now time.Time, 
 	return ids, rows.Err()
 }
 
+// companyPurgeSteps clears what does not disappear on its own when the company
+// row goes. Two rules decide each line, and they pull in opposite directions.
+//
+// Personal and operational data is destroyed: ingest bookkeeping, portal user
+// mappings, OAuth secrets, webhook queues. Calls are absent from the list on
+// purpose — the retention worker removes them together with their files and an
+// audit trail before a company is ever purged, and everything hanging off a call
+// goes with it.
+//
+// The credit ledger and the integration audit are append-only by design, guarded
+// by database triggers that reject DELETE outright. They cannot be erased, so
+// the rows that carry them — billing accounts, developer applications and
+// connections — survive and are merely detached from the company and revoked.
+//
+// Almost every foreign key here is ON DELETE RESTRICT, so the order below is the
+// dependency order and not a matter of taste: children first, parents after.
+var companyPurgeSteps = []string{
+	// Anything that identifies people or opens a door to the customer's portal.
+	`DELETE FROM integration_oauth_credentials
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+	`DELETE FROM integration_oauth_states
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+	`DELETE FROM integration_external_user_mappings
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+	`DELETE FROM integration_sync_checkpoints
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+	`DELETE FROM integration_backfill_candidates
+	 WHERE backfill_uuid IN (
+	     SELECT backfill_uuid FROM integration_backfills
+	     WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)
+	 )`,
+	`DELETE FROM integration_backfills
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+	`DELETE FROM bitrix_call_candidates
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+
+	// Delivery queues and their endpoints.
+	`DELETE FROM integration_webhook_deliveries d USING integration_webhook_endpoints e
+	 WHERE d.webhook_endpoint_uuid=e.webhook_endpoint_uuid
+	   AND e.connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+	`DELETE FROM integration_webhook_endpoints
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+	`DELETE FROM integration_outbox
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+	`DELETE FROM integration_mapping_bulk_commands
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+
+	// Ingest bookkeeping, then the events it points at.
+	`DELETE FROM ingest_items
+	 WHERE destination_company_uuid=$1
+	    OR connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+	`DELETE FROM ingest_events
+	 WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)`,
+
+	// Credentials stay as rows because metered usage points at them, but they
+	// stop working.
+	`UPDATE integration_api_keys SET revoked_at=COALESCE(revoked_at,now())
+	 WHERE service_account_uuid IN (
+	     SELECT service_account_uuid FROM integration_service_accounts
+	     WHERE connection_uuid IN (SELECT connection_uuid FROM integration_connections WHERE company_uuid=$1)
+	 )`,
+	`UPDATE integration_connections SET status='revoked', revoked_at=COALESCE(revoked_at,now()), company_uuid=NULL, department_uuid=NULL
+	 WHERE company_uuid=$1`,
+
+	// The ledger outlives the company; it just no longer names one.
+	`UPDATE developer_applications SET status='revoked', revoked_at=COALESCE(revoked_at,now()), company_uuid=NULL WHERE company_uuid=$1`,
+	`UPDATE billing_accounts SET company_uuid=NULL, status='closed' WHERE company_uuid=$1`,
+}
+
 // PurgeCompany removes the company for good. Members are detached first so the
-// people stay, only their membership goes.
+// people stay, only their membership goes. It refuses while the company still
+// has calls: those carry files on disk and are the retention worker's job, and
+// deleting the company row around them is what used to fail on a foreign key
+// every hour, forever.
 func (r *Repository) PurgeCompany(ctx context.Context, companyID uuid.UUID, now time.Time) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("purge company: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	var remainingCalls int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM calls WHERE company_uuid=$1`, companyID).Scan(&remainingCalls); err != nil {
+		return fmt.Errorf("count company calls for purge: %w", err)
+	}
+	if remainingCalls > 0 {
+		return models.ErrCompanyPurgePending
+	}
 
 	rows, err := tx.QueryContext(ctx, `SELECT user_uuid FROM company_members WHERE company_uuid=$1 AND status='active'`, companyID)
 	if err != nil {
@@ -157,6 +237,13 @@ func (r *Repository) PurgeCompany(ctx context.Context, companyID uuid.UUID, now 
 			return err
 		}
 	}
+
+	for _, step := range companyPurgeSteps {
+		if _, err := tx.ExecContext(ctx, step, companyID); err != nil {
+			return fmt.Errorf("purge company: %w", err)
+		}
+	}
+
 	if _, err := tx.ExecContext(ctx, `DELETE FROM companies WHERE company_uuid=$1`, companyID); err != nil {
 		return fmt.Errorf("purge company: %w", err)
 	}

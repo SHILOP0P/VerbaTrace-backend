@@ -189,8 +189,6 @@ type BillingService interface {
 	GetCompanySubscription(ctx context.Context, input models.GetCompanySubscriptionInput) (models.Subscription, error)
 	GetPersonalSubscriptionUsage(ctx context.Context, input models.GetPersonalSubscriptionUsageInput) (models.SubscriptionUsage, error)
 	GetCompanySubscriptionUsage(ctx context.Context, input models.GetCompanySubscriptionUsageInput) (models.SubscriptionUsage, error)
-	ActivatePersonalSubscription(ctx context.Context, input models.ActivatePersonalSubscriptionInput) (models.Subscription, error)
-	ActivateCompanySubscription(ctx context.Context, input models.ActivateCompanySubscriptionInput) (models.Subscription, error)
 	CancelCompanySubscription(ctx context.Context, input models.CancelCompanySubscriptionInput) (models.Subscription, error)
 	SetCompanyCreditLimit(ctx context.Context, input models.SetCreditLimitInput) error
 	SetDepartmentCreditLimit(ctx context.Context, input models.SetCreditLimitInput) error

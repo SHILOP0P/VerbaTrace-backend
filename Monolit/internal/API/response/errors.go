@@ -164,7 +164,6 @@ const (
 	CodeAPIAccessDenied                  = "api_access_denied"
 	CodeFailedToListPlans                = "failed_to_list_plans"
 	CodeFailedToConvertPlan              = "failed_to_convert_plan"
-	CodeFailedToActivateSubscription     = "failed_to_activate_subscription"
 	CodeFailedToCancelSubscription       = "failed_to_cancel_subscription"
 	CodeFailedToConvertSubscription      = "failed_to_convert_subscription"
 	CodeFailedToGetCreditDashboard       = "failed_to_get_credit_dashboard"

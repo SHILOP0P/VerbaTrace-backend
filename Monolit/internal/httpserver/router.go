@@ -406,6 +406,9 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Get("/subscription/usage", billingAPI.GetPersonalSubscriptionUsage)
 			r.With(authGuard).Get("/companies/{uuid}/subscription", billingAPI.GetCompanySubscription)
 			r.With(authGuard).Get("/companies/{uuid}/subscription/usage", billingAPI.GetCompanySubscriptionUsage)
+			// Buying a plan is still an administrator's job, but stopping one is the
+			// owner's own decision and needs a route of its own.
+			r.With(authGuard).Post("/companies/{uuid}/subscription/cancel", billingAPI.CancelCompanySubscription)
 			r.With(authGuard).Put("/companies/{uuid}/credit-limit", billingAPI.SetCompanyCreditLimit)
 			r.With(authGuard).Put("/companies/{uuid}/departments/{department_uuid}/credit-limit", billingAPI.SetDepartmentCreditLimit)
 			r.With(authGuard).Get("/companies/{uuid}/credit-forecast", billingAPI.GetCompanyCreditForecast)

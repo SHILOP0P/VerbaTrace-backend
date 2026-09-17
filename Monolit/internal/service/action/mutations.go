@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/models"
+
 	"github.com/google/uuid"
 )
 
@@ -153,7 +155,7 @@ func (s *Service) RevertStatus(ctx context.Context, in UpdateInput) (Item, error
 		return Item{}, err
 	}
 	if in.ActorUserUUID != item.AssigneeUserUUID {
-		if err = createNotification(ctx, tx, in.ActionUUID, item.AssigneeUserUUID, "action_status_reverted", "Статус действия возвращён", item.Title, item.LockVersion+1); err != nil {
+		if err = createNotification(ctx, tx, in.ActionUUID, item.AssigneeUserUUID, string(models.NotificationTypeActionStatusReverted), "Статус действия возвращён", item.Title, item.LockVersion+1); err != nil {
 			return Item{}, err
 		}
 	}
