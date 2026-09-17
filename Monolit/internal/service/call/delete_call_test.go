@@ -11,10 +11,37 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// expectReadyToDelete stands in for the check that a call is not still being
+// processed. Deleting one mid-flight is refused now, so every deletion first
+// reads the call to see where it stands.
+func (s *ServiceSuite) expectReadyToDelete(callID, userID uuid.UUID) {
+	s.repository.EXPECT().
+		GetByUUID(mock.Anything, callID, userID).
+		Return(models.Call{ID: callID, Status: models.CallStatusAnalyzed}, nil).
+		Once()
+}
+
+// A call the queue is still working on keeps its files and its credit
+// reservation, so it has to be cancelled before it can be thrown away.
+func (s *ServiceSuite) TestDeleteCallRefusesWhileStillProcessing() {
+	callID := uuid.New()
+	userID := uuid.New()
+
+	for _, status := range []models.CallStatus{models.CallStatusNew, models.CallStatusProcessing, models.CallStatusAwaitingCredits} {
+		s.repository.EXPECT().
+			GetByUUID(mock.Anything, callID, userID).
+			Return(models.Call{ID: callID, Status: status}, nil).
+			Once()
+
+		s.Require().ErrorIs(s.service.DeleteCall(s.ctx, callID, userID), models.ErrCallProcessingInProgress)
+	}
+}
+
 func (s *ServiceSuite) TestDeleteCallMovesCallToBin() {
 	callID := uuid.New()
 	userID := uuid.New()
 
+	s.expectReadyToDelete(callID, userID)
 	s.repository.EXPECT().
 		SoftDeleteCall(mock.Anything, callID, userID, mock.Anything, mock.Anything).
 		RunAndReturn(func(_ context.Context, id uuid.UUID, _ uuid.UUID, now time.Time, purgeAfter time.Time) (models.Call, error) {
@@ -31,6 +58,7 @@ func (s *ServiceSuite) TestDeleteCallKeepsFiles() {
 	userID := uuid.New()
 
 	// Files must survive the bin: a restore has to bring the audio back.
+	s.expectReadyToDelete(callID, userID)
 	s.repository.EXPECT().
 		SoftDeleteCall(mock.Anything, callID, userID, mock.Anything, mock.Anything).
 		Return(models.Call{ID: callID, AudioPath: "uploads/call.wav", ASRCachePath: "asr/call.ogg"}, nil).
@@ -45,6 +73,7 @@ func (s *ServiceSuite) TestDeleteCallReturnsRepositoryError() {
 	userID := uuid.New()
 	repoErr := errors.New("delete failed")
 
+	s.expectReadyToDelete(callID, userID)
 	s.repository.EXPECT().
 		SoftDeleteCall(mock.Anything, callID, userID, mock.Anything, mock.Anything).
 		Return(models.Call{}, repoErr).

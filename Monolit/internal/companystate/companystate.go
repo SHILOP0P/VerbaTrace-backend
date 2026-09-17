@@ -58,3 +58,27 @@ func EnsureActiveNullable(ctx context.Context, q Querier, companyID uuid.NullUUI
 
 	return EnsureActive(ctx, q, companyID.UUID)
 }
+
+// EnsureCallNotInBin refuses to change anything that belongs to a call waiting
+// in the bin. Quality reviews and actions stay visible with their whole history
+// while the call is there, and come back to life when it is restored; what they
+// must not do meanwhile is move.
+func EnsureCallNotInBin(ctx context.Context, q Querier, callID uuid.UUID) error {
+	if q == nil || callID == uuid.Nil {
+		return nil
+	}
+
+	var deleted bool
+	err := q.QueryRowContext(ctx, `SELECT deleted_at IS NOT NULL FROM calls WHERE call_uuid=$1`, callID).Scan(&deleted)
+	if errors.Is(err, sql.ErrNoRows) {
+		return models.ErrCallNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if deleted {
+		return models.ErrCallInBin
+	}
+
+	return nil
+}

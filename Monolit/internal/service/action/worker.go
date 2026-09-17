@@ -50,7 +50,9 @@ func (w *Worker) RunOnce(ctx context.Context) {
 
 func (w *Worker) runReminders(ctx context.Context) {
 	now := w.service.now().UTC()
-	rows, err := w.service.db.QueryContext(ctx, `SELECT action_uuid,assignee_user_uuid,title,due_at,schedule_version FROM call_actions WHERE status IN ('open','in_progress') AND assignment_state='valid' AND due_at <= $1 AND grace_expires_at > $2 ORDER BY due_at,action_uuid LIMIT $3`, now.Add(7*24*time.Hour), now, w.batch)
+	// A call in the bin freezes its actions: no reminders go out while it is
+	// there, and they resume untouched if it comes back.
+	rows, err := w.service.db.QueryContext(ctx, `SELECT a.action_uuid,a.assignee_user_uuid,a.title,a.due_at,a.schedule_version FROM call_actions a JOIN calls c ON c.call_uuid=a.call_uuid WHERE a.status IN ('open','in_progress') AND a.assignment_state='valid' AND c.deleted_at IS NULL AND a.due_at <= $1 AND a.grace_expires_at > $2 ORDER BY a.due_at,a.action_uuid LIMIT $3`, now.Add(7*24*time.Hour), now, w.batch)
 	if err != nil {
 		return
 	}
@@ -144,7 +146,9 @@ func (w *OverdueWorker) RunOnce(ctx context.Context) {
 		if err != nil {
 			return
 		}
-		rows, err := tx.QueryContext(ctx, `SELECT action_uuid,company_uuid,target_department_uuid,assignee_user_uuid,title,lock_version FROM call_actions WHERE status IN ('open','in_progress') AND assignment_state='valid' AND grace_expires_at <= $1 ORDER BY grace_expires_at,action_uuid FOR UPDATE SKIP LOCKED LIMIT $2`, w.service.now().UTC(), w.batch)
+		// An action whose call is in the bin does not fall overdue: the clock stops
+		// with the call and starts again if it is restored.
+		rows, err := tx.QueryContext(ctx, `SELECT a.action_uuid,a.company_uuid,a.target_department_uuid,a.assignee_user_uuid,a.title,a.lock_version FROM call_actions a JOIN calls c ON c.call_uuid=a.call_uuid WHERE a.status IN ('open','in_progress') AND a.assignment_state='valid' AND c.deleted_at IS NULL AND a.grace_expires_at <= $1 ORDER BY a.grace_expires_at,a.action_uuid FOR UPDATE OF a SKIP LOCKED LIMIT $2`, w.service.now().UTC(), w.batch)
 		if err != nil {
 			_ = tx.Rollback()
 			return

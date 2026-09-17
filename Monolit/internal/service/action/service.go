@@ -30,6 +30,18 @@ func (s *Service) ensureCompanyActive(ctx context.Context, companyID *uuid.UUID)
 	return companystate.EnsureActive(ctx, s.db, *companyID)
 }
 
+// ensureChangeable is the full guard for changing an action: the company has to
+// be running and the call it came from has to be out of the bin. A binned call
+// freezes its actions rather than cancelling them — they come back exactly as
+// they were when the call is restored.
+func (s *Service) ensureChangeable(ctx context.Context, companyID *uuid.UUID, callID uuid.UUID) error {
+	if err := s.ensureCompanyActive(ctx, companyID); err != nil {
+		return err
+	}
+
+	return companystate.EnsureCallNotInBin(ctx, s.db, callID)
+}
+
 func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 	in.Title, in.Description = strings.TrimSpace(in.Title), strings.TrimSpace(in.Description)
 	if in.ActorUserUUID == uuid.Nil || in.CallUUID == uuid.Nil || in.AnalysisUUID == uuid.Nil || in.Title == "" || len([]rune(in.Title)) > 200 || len([]rune(in.Description)) > 10000 || !in.DueAt.After(s.now()) || len(in.Evidence) > 20 || len(in.IdempotencyKey) < 8 || len(in.IdempotencyKey) > 200 {

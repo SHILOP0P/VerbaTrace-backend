@@ -306,6 +306,7 @@ func main() {
 	billingSvc.SetCompanyRepository(companyRepository)
 	billingSvc.SetDepartmentRepository(departmentRepository)
 	callSvc.SetBillingLimiter(billingSvc)
+	callSvc.SetCreditReleaser(billingRepository)
 	callSvc.SetTranscriptionModeResolver(billingSvc)
 	companySvc.SetBillingLimiter(billingSvc)
 	departmentSvc.SetBillingLimiter(billingSvc)

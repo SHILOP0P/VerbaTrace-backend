@@ -44,13 +44,20 @@ func (r *Repository) GetRerunRequest(ctx context.Context, id uuid.UUID) (models.
 }
 
 func (r *Repository) ListRerunRequests(ctx context.Context, companyID uuid.UUID, status models.AnalysisRerunRequestStatus) ([]models.AnalysisRerunRequest, error) {
-	query := `SELECT ` + rerunRequestColumns + ` FROM call_analysis_rerun_requests WHERE company_uuid=$1`
+	// A request whose call went to the bin cannot be decided either way, because
+	// deciding it needs the call. Leaving it in the queue would give the leader a
+	// row with no working button.
+	query := `SELECT r.request_uuid, r.call_uuid, r.company_uuid, r.department_uuid, r.requested_by_user_uuid,
+		r.reason, r.status, r.decided_by_user_uuid, r.decided_at, r.comment, r.created_at, r.updated_at
+		FROM call_analysis_rerun_requests r
+		WHERE r.company_uuid=$1
+		  AND EXISTS (SELECT 1 FROM calls c WHERE c.call_uuid=r.call_uuid AND c.deleted_at IS NULL)`
 	args := []any{companyID}
 	if status != "" {
 		args = append(args, string(status))
-		query += fmt.Sprintf(" AND status=$%d", len(args))
+		query += fmt.Sprintf(" AND r.status=$%d", len(args))
 	}
-	query += " ORDER BY created_at DESC, request_uuid DESC"
+	query += " ORDER BY r.created_at DESC, r.request_uuid DESC"
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {

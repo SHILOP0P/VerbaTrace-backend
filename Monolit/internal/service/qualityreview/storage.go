@@ -46,6 +46,9 @@ func loadReviewTx(ctx context.Context, tx *sql.Tx, id uuid.UUID, lock bool) (mod
 	if err = companystate.EnsureActiveNullable(ctx, tx, review.CompanyUUID); err != nil {
 		return review, analysis, err
 	}
+	if err = companystate.EnsureCallNotInBin(ctx, tx, review.CallUUID); err != nil {
+		return review, analysis, err
+	}
 
 	return review, analysis, nil
 }

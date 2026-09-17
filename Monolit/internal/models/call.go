@@ -51,9 +51,13 @@ const (
 	// and must never be shown as one.
 	CallStatusAwaitingCredits CallStatus = "awaiting_credits"
 	CallStatusProcessing      CallStatus = "processing"
-	CallStatusTranscribed     CallStatus = "transcribed"
-	CallStatusAnalyzed        CallStatus = "analyzed"
-	CallStatusFailed          CallStatus = "failed"
+	// CallStatusCancelled is a call whose processing was stopped on purpose. The
+	// audio is still there and the call can be started again, switched to
+	// transcription only, downloaded or binned.
+	CallStatusCancelled   CallStatus = "cancelled"
+	CallStatusTranscribed CallStatus = "transcribed"
+	CallStatusAnalyzed    CallStatus = "analyzed"
+	CallStatusFailed      CallStatus = "failed"
 )
 
 const (

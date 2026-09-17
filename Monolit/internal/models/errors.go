@@ -16,6 +16,17 @@ var ErrInvalidCallPlacement = errors.New("invalid call placement")
 var ErrInvalidCallFilter = errors.New("invalid call filter")
 var ErrInvalidCallStatus = errors.New("invalid call status")
 var ErrInvalidCallStatusTransition = errors.New("invalid call status transition")
+
+// ErrCallProcessingInProgress means the call cannot be deleted yet: the queue is
+// still working on it and its credits are reserved. Cancelling the processing
+// comes first, and that is a deliberate step rather than a side effect of
+// deletion.
+var ErrCallProcessingInProgress = errors.New("call is still being processed")
+
+// ErrCallInBin means the call this record belongs to is in the bin. The record
+// stays readable and keeps its history; it simply cannot be changed until the
+// call is restored.
+var ErrCallInBin = errors.New("call is in the bin")
 var ErrCallFolderNotFound = errors.New("call folder not found")
 var ErrInvalidCallFolderInput = errors.New("invalid call folder input")
 var ErrCallFolderScopeMismatch = errors.New("call folder scope mismatch")

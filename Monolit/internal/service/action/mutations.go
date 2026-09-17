@@ -28,7 +28,7 @@ func (s *Service) statusMutation(ctx context.Context, in UpdateInput, status, ev
 	if err != nil {
 		return Item{}, err
 	}
-	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+	if err = s.ensureChangeable(ctx, item.CompanyUUID, item.CallUUID); err != nil {
 		return Item{}, err
 	}
 	if status == "in_progress" && !item.Capabilities.CanStart || status == "completed" && !item.Capabilities.CanComplete {
@@ -81,7 +81,7 @@ func (s *Service) Edit(ctx context.Context, in EditInput) (Item, error) {
 	if err != nil {
 		return Item{}, err
 	}
-	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+	if err = s.ensureChangeable(ctx, item.CompanyUUID, item.CallUUID); err != nil {
 		return Item{}, err
 	}
 	if !item.Capabilities.CanEditFields {
@@ -119,7 +119,7 @@ func (s *Service) RevertStatus(ctx context.Context, in UpdateInput) (Item, error
 	if err != nil {
 		return Item{}, err
 	}
-	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+	if err = s.ensureChangeable(ctx, item.CompanyUUID, item.CallUUID); err != nil {
 		return Item{}, err
 	}
 	if !item.Capabilities.CanRevertStatus {
@@ -183,7 +183,7 @@ func (s *Service) Cancel(ctx context.Context, in UpdateInput) (Item, error) {
 	if err != nil {
 		return Item{}, err
 	}
-	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+	if err = s.ensureChangeable(ctx, item.CompanyUUID, item.CallUUID); err != nil {
 		return Item{}, err
 	}
 	if !item.Capabilities.CanCancel {
@@ -231,7 +231,7 @@ func (s *Service) Reschedule(ctx context.Context, in RescheduleInput) (Item, err
 	if err != nil {
 		return Item{}, err
 	}
-	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+	if err = s.ensureChangeable(ctx, item.CompanyUUID, item.CallUUID); err != nil {
 		return Item{}, err
 	}
 	if !item.Capabilities.CanReschedule {
@@ -274,7 +274,7 @@ func (s *Service) Reassign(ctx context.Context, in ReassignInput) (Item, error) 
 	if err != nil {
 		return Item{}, err
 	}
-	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+	if err = s.ensureChangeable(ctx, item.CompanyUUID, item.CallUUID); err != nil {
 		return Item{}, err
 	}
 	if !item.Capabilities.CanReassign {
@@ -329,7 +329,7 @@ func (s *Service) CreateTransfer(ctx context.Context, in TransferInput) (Transfe
 	if err != nil {
 		return TransferRequest{}, err
 	}
-	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+	if err = s.ensureChangeable(ctx, item.CompanyUUID, item.CallUUID); err != nil {
 		return TransferRequest{}, err
 	}
 	if !item.Capabilities.CanRequestTransfer {
@@ -424,7 +424,7 @@ func (s *Service) ResolveTransfer(ctx context.Context, in ResolveTransferInput) 
 	if err != nil {
 		return Item{}, err
 	}
-	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+	if err = s.ensureChangeable(ctx, item.CompanyUUID, item.CallUUID); err != nil {
 		return Item{}, err
 	}
 	if !item.Capabilities.CanResolveTransfer {

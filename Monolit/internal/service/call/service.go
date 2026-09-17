@@ -32,6 +32,12 @@ type PrivacyAdmissionResolver interface {
 	ResolveCallPrivacy(context.Context, models.Call) (models.CallPrivacyState, error)
 }
 
+// CreditReleaser hands back what a cancelled call had reserved. Cancelling work
+// that never reached a provider must not leave the money committed.
+type CreditReleaser interface {
+	ReleaseCallReservations(ctx context.Context, callID uuid.UUID) error
+}
+
 type Service struct {
 	repository                repo.CallRepository
 	transcriptionRepository   repo.TranscriptionRepository
@@ -44,6 +50,7 @@ type Service struct {
 	billingLimiter            BillingLimiter
 	transcriptionModeResolver TranscriptionModeResolver
 	privacyAdmissionResolver  PrivacyAdmissionResolver
+	creditReleaser            CreditReleaser
 	processingJobMaxAttempts  int
 	log                       logger.Logger
 }
@@ -67,6 +74,12 @@ func NewService(
 		processingJobMaxAttempts: defaultProcessingJobMaxAttempts,
 		log:                      log,
 	}
+}
+
+// SetCreditReleaser wires the ledger so a cancelled call gives its reservation
+// back instead of leaving it to the reconciler.
+func (s *Service) SetCreditReleaser(releaser CreditReleaser) {
+	s.creditReleaser = releaser
 }
 
 func (s *Service) SetTranscriptionRepository(repository repo.TranscriptionRepository) {

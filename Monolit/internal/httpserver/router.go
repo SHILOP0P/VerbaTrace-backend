@@ -265,6 +265,11 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Delete("/calls/{uuid}", callAPI.DeleteCall)
 			r.With(authGuard).Get("/calls-bin", callAPI.ListDeletedCalls)
 			r.With(authGuard).Post("/calls/{uuid}/restore", callAPI.RestoreCall)
+			if cancelAPI, ok := callAPI.(interface {
+				CancelProcessing(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Post("/calls/{uuid}/cancel-processing", cancelAPI.CancelProcessing)
+			}
 
 			//CALL FOLDERS
 			r.With(authGuard).Get("/call-folders", callFolderAPI.List)
