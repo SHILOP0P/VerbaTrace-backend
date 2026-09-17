@@ -534,6 +534,9 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Patch("/companies/{uuid}/members/{user_uuid}/job-title", companyAPI.UpdateCompanyMemberJobTitle)
 			r.With(authGuard).Post("/companies/{uuid}/leave", companyAPI.LeaveCompany)
 			r.With(authGuard).Post("/companies/{uuid}/ownership-transfers", companyAPI.OfferOwnership)
+			// Handing over every company at once is not a company-scoped
+			// operation: the plan that covers them belongs to the owner.
+			r.With(authGuard).Post("/ownership-transfers", companyAPI.OfferAllOwnership)
 			r.With(authGuard).Get("/ownership-transfers/incoming", companyAPI.ListIncomingOwnership)
 			r.With(authGuard).Post("/ownership-transfers/{transfer_uuid}/accept", companyAPI.AcceptOwnership)
 			r.With(authGuard).Post("/ownership-transfers/{transfer_uuid}/decline", companyAPI.DeclineOwnership)

@@ -2,8 +2,10 @@ package admin
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"verbatrace/monolit/internal/API/dto"
@@ -128,13 +130,39 @@ func (h *Handler) grantSubscription(w http.ResponseWriter, r *http.Request, in m
 			return
 		}
 	}
+	active := make([]uuid.UUID, 0, len(req.ActiveCompanyUUIDs))
+	for _, raw := range req.ActiveCompanyUUIDs {
+		id, parseErr := uuid.Parse(strings.TrimSpace(raw))
+		if parseErr != nil {
+			response.WriteError(w, http.StatusBadRequest, response.CodeInvalidAdminInput, "invalid active_company_uuids")
+			return
+		}
+		active = append(active, id)
+	}
+
 	in.ActorUserUUID = actor
 	in.PlanCode = models.PlanCode(req.PlanCode)
 	in.StartsAt = starts
 	in.EndsAt = ends
+	in.ActiveCompanyUUIDs = active
 	in.Metadata = adminMetadata(r, req.Reason)
 	sub, err := h.service.GrantSubscription(r.Context(), in)
 	if err != nil {
+		// The choice of which companies keep working is the interface's to make,
+		// so the answer carries what it needs to ask.
+		var selection *models.CompanySelectionRequired
+		if errors.As(err, &selection) {
+			companies := make([]string, 0, len(selection.CompanyUUIDs))
+			for _, id := range selection.CompanyUUIDs {
+				companies = append(companies, id.String())
+			}
+			response.WriteErrorWithDetails(w, http.StatusConflict, response.CodeCompanySelectionRequired, "choose which companies stay active", map[string]any{
+				"owner_user_uuid": selection.OwnerUserUUID.String(),
+				"company_uuids":   companies,
+				"company_limit":   selection.CompanyLimit,
+			})
+			return
+		}
 		writeAdminError(w, err, response.CodeFailedToGrantAdminSubscription, "failed to grant subscription")
 		return
 	}

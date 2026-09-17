@@ -231,24 +231,46 @@ const (
 	CompanyOwnershipTransferExpired  CompanyOwnershipTransferStatus = "expired"
 )
 
+// CompanyOwnershipTransferScope says what is being handed over. A business plan
+// belongs to the owner and covers several companies, so a single company can be
+// given away only when it is the only one under that plan; otherwise all of them
+// move together.
+type CompanyOwnershipTransferScope string
+
+const (
+	CompanyOwnershipTransferScopeCompany CompanyOwnershipTransferScope = "company"
+	CompanyOwnershipTransferScopeAll     CompanyOwnershipTransferScope = "all"
+)
+
 type CompanyOwnershipTransfer struct {
-	ID           uuid.UUID
-	CompanyUUID  uuid.UUID
-	FromUserUUID uuid.UUID
-	ToUserUUID   uuid.UUID
-	Status       CompanyOwnershipTransferStatus
-	Reason       *string
-	DecidedAt    *time.Time
-	LockVersion  int64
-	CreatedAt    time.Time
-	ExpiresAt    time.Time
+	ID    uuid.UUID
+	Scope CompanyOwnershipTransferScope
+	// CompanyUUID is set for a single-company transfer and empty for "all".
+	CompanyUUID uuid.NullUUID
+	// CompanyUUIDs is what the offer actually covers, resolved when it is read.
+	CompanyUUIDs []uuid.UUID
+	// StayCompanyUUIDs are the companies the previous owner asked to remain in
+	// as an ordinary member. Anything not listed here they leave.
+	StayCompanyUUIDs []uuid.UUID
+	FromUserUUID     uuid.UUID
+	ToUserUUID       uuid.UUID
+	Status           CompanyOwnershipTransferStatus
+	Reason           *string
+	DecidedAt        *time.Time
+	LockVersion      int64
+	CreatedAt        time.Time
+	ExpiresAt        time.Time
 }
 
 type CreateCompanyOwnershipTransferInput struct {
-	CompanyUUID uuid.UUID
-	RequestUser uuid.UUID
-	ToUserUUID  uuid.UUID
-	Reason      string
+	// CompanyUUID is required for a single-company transfer and ignored when the
+	// scope is "all".
+	CompanyUUID      uuid.UUID
+	Scope            CompanyOwnershipTransferScope
+	RequestUser      uuid.UUID
+	ToUserUUID       uuid.UUID
+	StayCompanyUUIDs []uuid.UUID
+	Reason           string
 }
 
 type DecideCompanyOwnershipTransferInput struct {

@@ -6,27 +6,38 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
+	"verbatrace/monolit/internal/converter"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
-// OfferOwnership proposes the company to another member of the same company.
+// OfferOwnership proposes this one company. It is refused when the owner's plan
+// covers more than one, because the plan cannot be split.
 func (h *Handler) OfferOwnership(w http.ResponseWriter, r *http.Request) {
-	requestUserID, ok := userIDFromRequest(r)
-	if !ok {
-		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-
 	companyID, err := uuid.Parse(chi.URLParam(r, "uuid"))
 	if err != nil {
 		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCompanyInput, "invalid company uuid")
+		return
+	}
+
+	h.offerOwnership(w, r, models.CompanyOwnershipTransferScopeCompany, companyID)
+}
+
+// OfferAllOwnership hands over every company the owner has, together with the
+// plan that covers them.
+func (h *Handler) OfferAllOwnership(w http.ResponseWriter, r *http.Request) {
+	h.offerOwnership(w, r, models.CompanyOwnershipTransferScopeAll, uuid.Nil)
+}
+
+func (h *Handler) offerOwnership(w http.ResponseWriter, r *http.Request, scope models.CompanyOwnershipTransferScope, companyID uuid.UUID) {
+	requestUserID, ok := userIDFromRequest(r)
+	if !ok {
+		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
 		return
 	}
 
@@ -42,18 +53,39 @@ func (h *Handler) OfferOwnership(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stay, err := parseUUIDList(req.StayCompanyUUIDs)
+	if err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCompanyInput, "invalid stay company uuid")
+		return
+	}
+
 	transfer, err := h.service.OfferOwnership(r.Context(), models.CreateCompanyOwnershipTransferInput{
-		CompanyUUID: companyID,
-		RequestUser: requestUserID,
-		ToUserUUID:  targetID,
-		Reason:      req.Reason,
+		CompanyUUID:      companyID,
+		Scope:            scope,
+		RequestUser:      requestUserID,
+		ToUserUUID:       targetID,
+		StayCompanyUUIDs: stay,
+		Reason:           req.Reason,
 	})
 	if err != nil {
 		writeCompanyMemberError(w, err, response.CodeFailedToUpdateCompanyMember, "failed to offer ownership")
 		return
 	}
 
-	_ = response.WriteJSON(w, http.StatusCreated, ownershipTransferToAPI(transfer))
+	_ = response.WriteJSON(w, http.StatusCreated, converter.OwnershipTransferModelToAPI(transfer))
+}
+
+func parseUUIDList(raw []string) ([]uuid.UUID, error) {
+	ids := make([]uuid.UUID, 0, len(raw))
+	for _, value := range raw {
+		id, err := uuid.Parse(strings.TrimSpace(value))
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+
+	return ids, nil
 }
 
 // ListIncomingOwnership shows the offers waiting for the current user.
@@ -72,7 +104,7 @@ func (h *Handler) ListIncomingOwnership(w http.ResponseWriter, r *http.Request) 
 
 	items := make([]dto.CompanyOwnershipTransferResponse, 0, len(transfers))
 	for _, transfer := range transfers {
-		items = append(items, ownershipTransferToAPI(transfer))
+		items = append(items, converter.OwnershipTransferModelToAPI(transfer))
 	}
 
 	_ = response.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
@@ -110,7 +142,7 @@ func (h *Handler) decideOwnership(w http.ResponseWriter, r *http.Request, accept
 		return
 	}
 
-	_ = response.WriteJSON(w, http.StatusOK, ownershipTransferToAPI(transfer))
+	_ = response.WriteJSON(w, http.StatusOK, converter.OwnershipTransferModelToAPI(transfer))
 }
 
 // CancelOwnershipOffer withdraws an offer the owner no longer wants.
@@ -133,7 +165,7 @@ func (h *Handler) CancelOwnershipOffer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = response.WriteJSON(w, http.StatusOK, ownershipTransferToAPI(transfer))
+	_ = response.WriteJSON(w, http.StatusOK, converter.OwnershipTransferModelToAPI(transfer))
 }
 
 func decodeOptionalBody(r *http.Request, target any) error {
@@ -145,17 +177,4 @@ func decodeOptionalBody(r *http.Request, target any) error {
 	}
 
 	return nil
-}
-
-func ownershipTransferToAPI(transfer models.CompanyOwnershipTransfer) dto.CompanyOwnershipTransferResponse {
-	return dto.CompanyOwnershipTransferResponse{
-		ID:          transfer.ID.String(),
-		CompanyUUID: transfer.CompanyUUID.String(),
-		FromUser:    transfer.FromUserUUID.String(),
-		ToUser:      transfer.ToUserUUID.String(),
-		Status:      string(transfer.Status),
-		Reason:      transfer.Reason,
-		CreatedAt:   transfer.CreatedAt.Format(time.RFC3339),
-		ExpiresAt:   transfer.ExpiresAt.Format(time.RFC3339),
-	}
 }

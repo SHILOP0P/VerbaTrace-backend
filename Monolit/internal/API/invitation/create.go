@@ -38,12 +38,11 @@ func (h *Handler) CreateCompanyInvitation(w http.ResponseWriter, r *http.Request
 	}
 
 	invitation, err := h.service.CreateCompanyInvitation(r.Context(), models.CreateCompanyInvitationInput{
-		CompanyUUID:                  companyID,
-		RequestUser:                  requestUserID,
-		UserUUID:                     userID,
-		Username:                     req.Username,
-		Role:                         models.CompanyMemberRole(req.Role),
-		AcknowledgeCurrentMembership: req.AcknowledgeCurrentMembership,
+		CompanyUUID: companyID,
+		RequestUser: requestUserID,
+		UserUUID:    userID,
+		Username:    req.Username,
+		Role:        models.CompanyMemberRole(req.Role),
 	})
 	if err != nil {
 		writeInvitationError(w, err, response.CodeFailedToCreateInvitation, "failed to create invitation")
@@ -90,13 +89,12 @@ func (h *Handler) CreateDepartmentInvitation(w http.ResponseWriter, r *http.Requ
 	}
 
 	invitation, err := h.service.CreateDepartmentInvitation(r.Context(), models.CreateDepartmentInvitationInput{
-		CompanyUUID:                  companyID,
-		DepartmentUUID:               departmentID,
-		RequestUser:                  requestUserID,
-		UserUUID:                     userID,
-		Username:                     req.Username,
-		Role:                         models.DepartmentMemberRole(req.Role),
-		AcknowledgeCurrentMembership: req.AcknowledgeCurrentMembership,
+		CompanyUUID:    companyID,
+		DepartmentUUID: departmentID,
+		RequestUser:    requestUserID,
+		UserUUID:       userID,
+		Username:       req.Username,
+		Role:           models.DepartmentMemberRole(req.Role),
 	})
 	if err != nil {
 		writeInvitationError(w, err, response.CodeFailedToCreateInvitation, "failed to create invitation")

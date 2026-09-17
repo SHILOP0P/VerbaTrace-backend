@@ -91,6 +91,30 @@ func writeCompanyMemberError(w http.ResponseWriter, err error, fallbackCode stri
 		response.WriteError(w, http.StatusPaymentRequired, response.CodeSubscriptionRequired, "subscription required")
 		return
 	}
+	if errors.Is(err, models.ErrOwnerOnlyAction) {
+		response.WriteError(w, http.StatusForbidden, response.CodeOwnerOnlyAction, "action is available to the company owner only")
+		return
+	}
+	if errors.Is(err, models.ErrCompanyDeputyAlreadyAssigned) {
+		response.WriteError(w, http.StatusConflict, response.CodeCompanyDeputyAlreadyAssigned, "company already has a deputy")
+		return
+	}
+	if errors.Is(err, models.ErrOwnershipRecipientBusy) {
+		response.WriteError(w, http.StatusConflict, response.CodeOwnershipRecipientBusy, "recipient already owns a company or holds a business plan")
+		return
+	}
+	if errors.Is(err, models.ErrOwnershipScopeMismatch) {
+		response.WriteError(w, http.StatusConflict, response.CodeOwnershipScopeMismatch, "the plan covers a different number of companies")
+		return
+	}
+	if errors.Is(err, models.ErrCompanyOwnershipTransferPending) {
+		response.WriteError(w, http.StatusConflict, response.CodeOwnershipTransferPending, "company ownership transfer is already pending")
+		return
+	}
+	if errors.Is(err, models.ErrCompanyOwnershipTransferNotFound) {
+		response.WriteError(w, http.StatusNotFound, response.CodeOwnershipTransferNotFound, "company ownership transfer not found")
+		return
+	}
 
 	response.WriteError(w, http.StatusInternalServerError, fallbackCode, fallbackMessage)
 }

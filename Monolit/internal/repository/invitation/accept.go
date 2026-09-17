@@ -8,17 +8,19 @@ import (
 	"time"
 
 	model "verbatrace/monolit/internal/models"
-	companyRepo "verbatrace/monolit/internal/repository/company"
 	"verbatrace/monolit/internal/repository/converter"
 	repoModel "verbatrace/monolit/internal/repository/models"
 	"verbatrace/monolit/internal/repository/scaner"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// AcceptInvitation turns a pending invitation into a membership. A user works in
-// one company at a time, so joining a new one means leaving the previous one in
-// the same transaction, and only after the user confirmed the move.
+// AcceptInvitation turns a pending invitation into a membership. Working in
+// several companies at once is allowed, so accepting adds a membership and
+// touches nothing the person already has elsewhere. Inside one company the
+// single-department rule still holds, and that is the one thing accepting may
+// close.
 func (r *Repository) AcceptInvitation(ctx context.Context, command model.AcceptInvitationCommand) (model.MembershipInvitation, error) {
 	now := command.Now
 	if now.IsZero() {
@@ -63,28 +65,8 @@ func (r *Repository) AcceptInvitation(ctx context.Context, command model.AcceptI
 		return model.MembershipInvitation{}, err
 	}
 
-	previousCompany, err := activeEmployerCompanyForUpdate(ctx, tx, invitation.InvitedUserUUID)
-	if err != nil {
-		return model.MembershipInvitation{}, err
-	}
-	if previousCompany != uuid.Nil && previousCompany != invitation.CompanyUUID {
-		if !command.ConfirmTransfer {
-			return model.MembershipInvitation{}, model.ErrCompanyMembershipConflict
-		}
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE company_members
-			SET status = 'left'
-			WHERE company_uuid = $1 AND user_uuid = $2 AND status = 'active'
-		`, previousCompany, invitation.InvitedUserUUID); err != nil {
-			return model.MembershipInvitation{}, fmt.Errorf("leave previous company: %w", err)
-		}
-		if err := companyRepo.CleanupCompanyAccessTx(ctx, tx, previousCompany, invitation.InvitedUserUUID, now); err != nil {
-			return model.MembershipInvitation{}, err
-		}
-	}
-
 	if err := upsertCompanyMember(ctx, tx, invitation); err != nil {
-		return model.MembershipInvitation{}, companyRepo.MembershipConflictError(err)
+		return model.MembershipInvitation{}, err
 	}
 
 	if invitation.DepartmentUUID.Valid {
@@ -155,24 +137,6 @@ func ensureScopeAlive(ctx context.Context, tx *sql.Tx, invitation repoModel.Memb
 	return nil
 }
 
-func activeEmployerCompanyForUpdate(ctx context.Context, tx *sql.Tx, userID uuid.UUID) (uuid.UUID, error) {
-	var companyID uuid.UUID
-	err := tx.QueryRowContext(ctx, `
-		SELECT company_uuid
-		FROM company_members
-		WHERE user_uuid = $1 AND status = 'active' AND role = 'employee'
-		FOR UPDATE
-	`, userID).Scan(&companyID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return uuid.Nil, nil
-	}
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("lock current company membership: %w", err)
-	}
-
-	return companyID, nil
-}
-
 func markExpired(ctx context.Context, tx *sql.Tx, id uuid.UUID, now time.Time) error {
 	query := `
 	UPDATE membership_invitations
@@ -207,6 +171,13 @@ func upsertCompanyMember(ctx context.Context, tx *sql.Tx, invitation repoModel.M
 	`
 
 	if _, err := tx.ExecContext(ctx, query, invitation.CompanyUUID, invitation.InvitedUserUUID, invitation.CompanyRole); err != nil {
+		// An invitation may name the deputy seat, and the seat holds one person.
+		// Somebody else could have taken it while this invitation was waiting, and
+		// that is a product answer rather than a database failure.
+		var pg *pgconn.PgError
+		if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "uq_company_members_active_deputy" {
+			return model.ErrCompanyDeputyAlreadyAssigned
+		}
 		return fmt.Errorf("upsert company member: %w", err)
 	}
 

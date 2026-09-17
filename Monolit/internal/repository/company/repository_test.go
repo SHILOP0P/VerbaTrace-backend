@@ -196,26 +196,64 @@ func (s *RepositorySuite) TestGetCompanyByUUIDRejectsInactiveOrMissingMember() {
 	s.Require().ErrorIs(err, models.ErrCompanyNotFound)
 }
 
-// An employee belongs to one company, which the database has to guarantee even
-// if some future code path forgets to check it.
-func (s *RepositorySuite) TestSingleActiveEmployerIsEnforcedByDatabase() {
+// Working in several companies at once is allowed now. The database used to
+// forbid it, and this test exists so that bringing the index back is a
+// deliberate decision rather than an accident.
+func (s *RepositorySuite) TestEmployeeMayBelongToSeveralCompanies() {
 	first, _ := s.createCompanyWithManager()
 	second, _ := s.createCompanyWithManager()
 	employee := s.createUser(uuid.NewString() + "@example.com")
 
 	s.addMember(first.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
-
 	_, err := s.db.ExecContext(
 		s.ctx,
 		`INSERT INTO company_members (company_uuid, user_uuid, role, status) VALUES ($1, $2, 'employee', 'active')`,
 		second.ID,
 		employee.ID,
 	)
-	s.Require().Error(err)
-
-	employer, err := s.repository.ActiveEmployerCompany(s.ctx, employee.ID)
 	s.Require().NoError(err)
-	s.Require().Equal(first.ID, employer.ID)
+
+	var companies int
+	s.Require().NoError(s.db.QueryRowContext(
+		s.ctx,
+		`SELECT count(*) FROM company_members WHERE user_uuid = $1 AND status = 'active'`,
+		employee.ID,
+	).Scan(&companies))
+	s.Require().Equal(2, companies)
+}
+
+// The rule that did not go away: inside one company a person sits in one
+// department. Losing this one would break call visibility and department limits
+// at the same time.
+func (s *RepositorySuite) TestSingleActiveDepartmentPerCompanyIsEnforcedByDatabase() {
+	company, _ := s.createCompanyWithManager()
+	employee := s.createUser(uuid.NewString() + "@example.com")
+	s.addMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
+
+	firstDepartment := uuid.New()
+	secondDepartment := uuid.New()
+	for _, id := range []uuid.UUID{firstDepartment, secondDepartment} {
+		_, err := s.db.ExecContext(
+			s.ctx,
+			`INSERT INTO departments (department_uuid, company_uuid, name) VALUES ($1, $2, $3)`,
+			id, company.ID, "dept-"+id.String()[:8],
+		)
+		s.Require().NoError(err)
+	}
+
+	_, err := s.db.ExecContext(
+		s.ctx,
+		`INSERT INTO department_members (department_uuid, company_uuid, user_uuid, role, status) VALUES ($1, $2, $3, 'employee', 'active')`,
+		firstDepartment, company.ID, employee.ID,
+	)
+	s.Require().NoError(err)
+
+	_, err = s.db.ExecContext(
+		s.ctx,
+		`INSERT INTO department_members (department_uuid, company_uuid, user_uuid, role, status) VALUES ($1, $2, $3, 'employee', 'active')`,
+		secondDepartment, company.ID, employee.ID,
+	)
+	s.Require().Error(err)
 }
 
 func (s *RepositorySuite) TestAssignAndRevokeCompanyDeputy() {

@@ -80,4 +80,8 @@ type GrantAdminSubscriptionRequest struct {
 	StartsAt *string `json:"starts_at,omitempty"`
 	EndsAt   string  `json:"ends_at"`
 	Reason   string  `json:"reason"`
+	// ActiveCompanyUUIDs answers "which companies keep working" when the new
+	// business plan covers fewer than the owner has. Without it such a grant is
+	// refused with company_selection_required and the list to choose from.
+	ActiveCompanyUUIDs []string `json:"active_company_uuids,omitempty"`
 }

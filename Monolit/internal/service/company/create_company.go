@@ -19,6 +19,15 @@ func (s *Service) CreateCompany(ctx context.Context, input models.CreateCompanyI
 		return models.Company{}, models.ErrInvalidCompanyInput
 	}
 
+	// The plan decides how many companies an owner may run, and the answer has
+	// to be given here: a company created over the limit would resolve to the
+	// same subscription as the paid ones and work for free.
+	if s.billingLimiter != nil {
+		if err := s.billingLimiter.CanCreateCompany(ctx, input.ManagerUserID); err != nil {
+			return models.Company{}, err
+		}
+	}
+
 	companyID, err := uuid.NewV7()
 	if err != nil {
 		return models.Company{}, err

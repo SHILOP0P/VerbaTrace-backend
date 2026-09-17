@@ -56,14 +56,19 @@ const creditSpendingExpression = `COALESCE((
 ),0)`
 
 // checkCreditLimits refuses the reservation when the department or the company
-// has already spent what it was allowed this period. A missing limit means no
-// cap of its own, zero forbids spending entirely.
+// cannot afford it this period. A missing limit means no cap of its own, zero
+// forbids spending entirely.
+//
+// The cap is hard: what the operation may cost at most is added to what has
+// already been committed before the two are compared. Checking only what was
+// spent before let a single expensive call overshoot the cap by any amount,
+// because nothing ever refused the operation that did the overshooting.
 func checkCreditLimits(ctx context.Context, tx *sql.Tx, input models.ReserveCreditsInput, periodStart, periodEnd time.Time) error {
 	if input.DepartmentUUID.Valid {
 		exceeded, err := limitExceeded(ctx, tx, `
 			SELECT (SELECT limit_credits FROM department_credit_limits WHERE department_uuid=$1),
 			       `+fmt.Sprintf(creditSpendingExpression, "department_uuid"),
-			input.DepartmentUUID.UUID, periodStart, periodEnd)
+			input.DepartmentUUID.UUID, periodStart, periodEnd, input.MaximumCharge)
 		if err != nil {
 			return err
 		}
@@ -75,7 +80,7 @@ func checkCreditLimits(ctx context.Context, tx *sql.Tx, input models.ReserveCred
 	exceeded, err := limitExceeded(ctx, tx, `
 		SELECT (SELECT limit_credits FROM company_credit_limits WHERE company_uuid=$1),
 		       `+fmt.Sprintf(creditSpendingExpression, "company_uuid"),
-		input.CompanyUUID.UUID, periodStart, periodEnd)
+		input.CompanyUUID.UUID, periodStart, periodEnd, input.MaximumCharge)
 	if err != nil {
 		return err
 	}
@@ -86,7 +91,7 @@ func checkCreditLimits(ctx context.Context, tx *sql.Tx, input models.ReserveCred
 	return nil
 }
 
-func limitExceeded(ctx context.Context, tx *sql.Tx, query string, subjectID uuid.UUID, start, end time.Time) (bool, error) {
+func limitExceeded(ctx context.Context, tx *sql.Tx, query string, subjectID uuid.UUID, start, end time.Time, maximumCharge int64) (bool, error) {
 	var limit sql.NullInt64
 	var used int64
 	if err := tx.QueryRowContext(ctx, query, subjectID, start, end).Scan(&limit, &used); err != nil {
@@ -95,8 +100,11 @@ func limitExceeded(ctx context.Context, tx *sql.Tx, query string, subjectID uuid
 	if !limit.Valid {
 		return false, nil
 	}
+	if maximumCharge < 0 {
+		maximumCharge = 0
+	}
 
-	return used >= limit.Int64, nil
+	return used+maximumCharge > limit.Int64, nil
 }
 
 // CompanyCreditSpending reports what the company spent in the given period and

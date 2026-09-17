@@ -70,20 +70,19 @@ type CreateCompanyInvitationInput struct {
 	RequestUser uuid.UUID
 	UserUUID    uuid.UUID
 	Username    string
-	Role        CompanyMemberRole
-	// AcknowledgeCurrentMembership is the answer to the "this person already
-	// works somewhere" alert shown to the person who invites.
-	AcknowledgeCurrentMembership bool
+	// Role is the seat offered: an ordinary member, or the deputy seat straight
+	// away. Inviting a deputy directly exists because a deputy no longer has to
+	// join as an employee first, and only the owner may offer that seat.
+	Role CompanyMemberRole
 }
 
 type CreateDepartmentInvitationInput struct {
-	CompanyUUID                  uuid.UUID
-	DepartmentUUID               uuid.UUID
-	RequestUser                  uuid.UUID
-	UserUUID                     uuid.UUID
-	Username                     string
-	Role                         DepartmentMemberRole
-	AcknowledgeCurrentMembership bool
+	CompanyUUID    uuid.UUID
+	DepartmentUUID uuid.UUID
+	RequestUser    uuid.UUID
+	UserUUID       uuid.UUID
+	Username       string
+	Role           DepartmentMemberRole
 }
 
 type ListUserInvitationsInput struct {
@@ -94,15 +93,11 @@ type ListUserInvitationsInput struct {
 type AcceptInvitationInput struct {
 	InvitationUUID uuid.UUID
 	RequestUser    uuid.UUID
-	// ConfirmTransfer is the answer to the "you are leaving your current
-	// company" alert. Without it a move between companies is refused.
-	ConfirmTransfer bool
 }
 
 type AcceptInvitationCommand struct {
-	InvitationUUID  uuid.UUID
-	ConfirmTransfer bool
-	Now             time.Time
+	InvitationUUID uuid.UUID
+	Now            time.Time
 }
 
 type DeclineInvitationInput struct {

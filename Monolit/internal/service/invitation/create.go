@@ -11,7 +11,14 @@ import (
 )
 
 func (s *Service) CreateCompanyInvitation(ctx context.Context, input models.CreateCompanyInvitationInput) (models.MembershipInvitation, error) {
-	if input.CompanyUUID == uuid.Nil || input.RequestUser == uuid.Nil || input.Role != models.CompanyMemberRoleEmployee {
+	role := input.Role
+	if role == "" {
+		role = models.CompanyMemberRoleEmployee
+	}
+	if input.CompanyUUID == uuid.Nil || input.RequestUser == uuid.Nil {
+		return models.MembershipInvitation{}, models.ErrInvalidInvitationInput
+	}
+	if role != models.CompanyMemberRoleEmployee && role != models.CompanyMemberRoleDeputy {
 		return models.MembershipInvitation{}, models.ErrInvalidInvitationInput
 	}
 
@@ -20,7 +27,13 @@ func (s *Service) CreateCompanyInvitation(ctx context.Context, input models.Crea
 		return models.MembershipInvitation{}, err
 	}
 
-	if err := s.requireCompanyManager(ctx, input.CompanyUUID, input.RequestUser); err != nil {
+	// Offering the deputy seat is the owner's decision alone, exactly like
+	// promoting a member to it. A deputy must not be able to seat another deputy.
+	if role == models.CompanyMemberRoleDeputy {
+		if err := s.requireCompanyOwner(ctx, input.CompanyUUID, input.RequestUser); err != nil {
+			return models.MembershipInvitation{}, err
+		}
+	} else if err := s.requireCompanyManager(ctx, input.CompanyUUID, input.RequestUser); err != nil {
 		return models.MembershipInvitation{}, err
 	}
 
@@ -40,25 +53,28 @@ func (s *Service) CreateCompanyInvitation(ctx context.Context, input models.Crea
 		return models.MembershipInvitation{}, models.ErrInvalidInvitationInput
 	}
 
-	// Pulling somebody out of another company is a move, so the person who
-	// invites confirms it first and the invited user confirms it again later.
-	if !input.AcknowledgeCurrentMembership {
-		engaged, err := s.employedElsewhere(ctx, targetUserID, input.CompanyUUID)
+	// The deputy seat holds one person, and finding that out only when the
+	// invitation is accepted wastes everybody's time.
+	if role == models.CompanyMemberRoleDeputy {
+		taken, err := s.companyHasDeputy(ctx, input.CompanyUUID)
 		if err != nil {
 			return models.MembershipInvitation{}, err
 		}
-		if engaged {
-			return models.MembershipInvitation{}, models.ErrTargetAlreadyEngaged
+		if taken {
+			return models.MembershipInvitation{}, models.ErrCompanyDeputyAlreadyAssigned
 		}
 	}
 
+	// Working somewhere else is no longer a conflict: the invitation adds a
+	// membership and leaves every other one alone.
+	//
 	// The member limit is checked when the invitation is accepted: a pending
 	// invitation must not hold a seat.
 	return s.createInvitation(ctx, models.MembershipInvitation{
 		CompanyUUID:       input.CompanyUUID,
 		InvitedUserUUID:   targetUserID,
 		InvitedByUserUUID: input.RequestUser,
-		CompanyRole:       models.CompanyMemberRoleEmployee,
+		CompanyRole:       role,
 	})
 }
 
@@ -106,13 +122,17 @@ func (s *Service) CreateDepartmentInvitation(ctx context.Context, input models.C
 		return models.MembershipInvitation{}, models.ErrInvalidInvitationInput
 	}
 
-	if !input.AcknowledgeCurrentMembership {
-		engaged, err := s.engagedElsewhere(ctx, targetUserID, input.CompanyUUID, activeCompanyMember)
+	// Several companies at once is fine; several departments inside one company
+	// is not. A colleague who already sits in another department of this company
+	// is moved, not invited, so the answer names the transfer instead of
+	// creating an invitation that could never be honoured.
+	if activeCompanyMember {
+		departments, err := s.departmentRepository.ListUserDepartments(ctx, input.CompanyUUID, targetUserID)
 		if err != nil {
 			return models.MembershipInvitation{}, err
 		}
-		if engaged {
-			return models.MembershipInvitation{}, models.ErrTargetAlreadyEngaged
+		if len(departments) > 0 {
+			return models.MembershipInvitation{}, &models.DepartmentTransferRequired{UserUUID: targetUserID}
 		}
 	}
 
@@ -182,30 +202,14 @@ func (s *Service) ensureInvitationsAllowed(ctx context.Context, userID uuid.UUID
 	return nil
 }
 
-func (s *Service) employedElsewhere(ctx context.Context, userID uuid.UUID, companyID uuid.UUID) (bool, error) {
-	company, err := s.companyRepository.ActiveEmployerCompany(ctx, userID)
-	if err != nil {
-		if errors.Is(err, models.ErrCompanyNotFound) {
-			return false, nil
-		}
-		return false, err
-	}
-
-	return company.ID != companyID, nil
-}
-
-func (s *Service) engagedElsewhere(ctx context.Context, userID uuid.UUID, companyID uuid.UUID, memberOfCompany bool) (bool, error) {
-	if !memberOfCompany {
-		return s.employedElsewhere(ctx, userID, companyID)
-	}
-
-	// Already a colleague, so the only move left is between departments.
-	departments, err := s.departmentRepository.ListUserDepartments(ctx, companyID, userID)
+// companyHasDeputy answers whether the deputy seat of this company is taken.
+func (s *Service) companyHasDeputy(ctx context.Context, companyID uuid.UUID) (bool, error) {
+	overview, err := s.companyRepository.GetCompanyMembersOverview(ctx, companyID)
 	if err != nil {
 		return false, err
 	}
 
-	return len(departments) > 0, nil
+	return overview.Deputy != nil, nil
 }
 
 func (s *Service) notifyInvitationCreated(ctx context.Context, invitation models.MembershipInvitation) {
@@ -244,8 +248,9 @@ func (s *Service) requireDepartmentInvitePermission(ctx context.Context, input m
 		return false, models.ErrForbidden
 	}
 
-	// A leader never takes colleagues from another department by invitation:
-	// that move belongs to the deputy and goes through a transfer request.
+	// A leader never pulls another department's leader into their own. Taking a
+	// plain colleague from another department is refused too, but by the shared
+	// transfer check in the caller, which answers the same way for everybody.
 	departments, err := s.departmentRepository.ListUserDepartments(ctx, input.CompanyUUID, targetUserID)
 	if err != nil {
 		return false, err
@@ -253,9 +258,6 @@ func (s *Service) requireDepartmentInvitePermission(ctx context.Context, input m
 	for _, department := range departments {
 		if department.Role == models.DepartmentMemberRoleLeader {
 			return false, models.ErrForbidden
-		}
-		if department.DepartmentUUID != input.DepartmentUUID {
-			return false, &models.DepartmentTransferRequired{UserUUID: targetUserID}
 		}
 	}
 

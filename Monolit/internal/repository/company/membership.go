@@ -34,39 +34,6 @@ func (r *Repository) CountActiveCompanyMembersExcept(ctx context.Context, compan
 	return count, nil
 }
 
-// ActiveEmployerCompany returns the company where the user currently works as a
-// regular member. Owners and deputies are not bound by the one-company rule, so
-// their memberships are ignored here.
-func (r *Repository) ActiveEmployerCompany(ctx context.Context, userID uuid.UUID) (model.Company, error) {
-	const query = `
-	SELECT c.company_uuid,
-	       c.name,
-	       c.tag,
-	       c.manager_user_uuid,
-	       c.member_limit,
-	       c.created_at,
-	       c.deleted_at
-	FROM companies c
-	JOIN company_members cm ON cm.company_uuid = c.company_uuid
-	WHERE cm.user_uuid = $1
-	  AND cm.status = 'active'
-	  AND cm.role = 'employee'
-	  AND c.deleted_at IS NULL
-	LIMIT 1
-	`
-
-	row := r.db.QueryRowContext(ctx, query, userID)
-	repoCompany, err := scaner.ScanCompany(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return model.Company{}, model.ErrCompanyNotFound
-		}
-		return model.Company{}, fmt.Errorf("get active employer company: %w", err)
-	}
-
-	return converter.RepoCompanyToModel(repoCompany)
-}
-
 // AssignCompanyDeputy promotes an active member to the deputy seat. The unique
 // index keeps a company to a single deputy.
 func (r *Repository) AssignCompanyDeputy(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (model.CompanyMember, error) {
@@ -76,7 +43,7 @@ func (r *Repository) AssignCompanyDeputy(ctx context.Context, companyID uuid.UUI
 	WHERE company_uuid = $1
 	  AND user_uuid = $2
 	  AND status = 'active'
-	  AND role = 'employee'
+	  AND role <> 'company_manager'
 	RETURNING company_uuid, user_uuid, role, status, created_at
 	`
 
@@ -160,13 +127,9 @@ func (r *Repository) RemoveCompanyMember(ctx context.Context, companyID uuid.UUI
 	return converter.RepoCompanyMemberToModel(repoMember)
 }
 
-// CleanupCompanyAccessTx lets another repository end a membership inside its own
-// transaction, so accepting an invitation and leaving the previous company stay
-// one atomic step.
-func CleanupCompanyAccessTx(ctx context.Context, tx *sql.Tx, companyID uuid.UUID, userID uuid.UUID, now time.Time) error {
-	return cleanupCompanyAccess(ctx, tx, companyID, userID, now)
-}
-
+// cleanupCompanyAccess takes away everything a company gave a person. Leaving,
+// being excluded and handing the company over all end here, so none of them can
+// forget one of these rows.
 func cleanupCompanyAccess(ctx context.Context, tx *sql.Tx, companyID uuid.UUID, userID uuid.UUID, now time.Time) error {
 	statements := []struct {
 		name  string
@@ -290,17 +253,13 @@ func (r *Repository) DeleteExpiredMembershipRestrictions(ctx context.Context, no
 	return affected, nil
 }
 
-// MembershipConflictError turns the database guarantees into product errors:
-// one company per employee and one deputy per company.
+// MembershipConflictError turns the one database guarantee left on membership —
+// a single active deputy per company — into a product error.
 func MembershipConflictError(err error) error {
 	var pg *pgconn.PgError
-	if errors.As(err, &pg) && pg.Code == "23505" {
-		switch pg.ConstraintName {
-		case "uq_company_members_single_active_employee":
-			return model.ErrCompanyMembershipConflict
-		case "uq_company_members_active_deputy":
-			return model.ErrCompanyDeputyAlreadyAssigned
-		}
+	if errors.As(err, &pg) && pg.Code == "23505" && pg.ConstraintName == "uq_company_members_active_deputy" {
+		return model.ErrCompanyDeputyAlreadyAssigned
 	}
+
 	return err
 }

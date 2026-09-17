@@ -55,6 +55,54 @@ func (s *RepositorySuite) TestCreditLimitCountsReservationsNotOnlySettledOperati
 	s.Require().ErrorIs(reserve("second", 1), models.ErrCompanyCreditLimitExceeded)
 }
 
+// The cap is hard: an operation that would overshoot it is refused before it
+// starts. Comparing only what was already spent let one expensive call overshoot
+// the cap by any amount, because nothing ever refused that call.
+func (s *RepositorySuite) TestCreditLimitRefusesAnOperationThatWouldOvershootIt() {
+	ownerID := s.createUser("hard-limit-owner@example.com")
+	companyID := s.createCompany(ownerID)
+
+	subscription, err := s.repository.UpsertSubscription(s.ctx, models.UpsertSubscriptionInput{
+		PlanCode: models.PlanCodeBusinessPro,
+		UserUUID: uuid.NullUUID{UUID: ownerID, Valid: true},
+		Status:   models.SubscriptionStatusActive,
+		StartsAt: time.Now().UTC().Add(-time.Hour),
+	})
+	s.Require().NoError(err)
+
+	limit := int64(1000)
+	s.Require().NoError(s.repository.SetCompanyCreditLimit(s.ctx, models.SetCreditLimitInput{
+		CompanyUUID:  companyID,
+		UserUUID:     ownerID,
+		LimitCredits: &limit,
+	}))
+
+	now := time.Now().UTC()
+	reserve := func(key string, maximum int64) error {
+		_, reserveErr := s.repository.ReserveCredits(s.ctx, subscription, models.ReserveCreditsInput{
+			OperationUUID:  uuid.New(),
+			CompanyUUID:    uuid.NullUUID{UUID: companyID, Valid: true},
+			OperationType:  "analysis",
+			Environment:    "production",
+			Provider:       "openrouter",
+			Model:          "openai/gpt-5-mini",
+			IdempotencyKey: key,
+			MaximumCharge:  maximum,
+		}, now)
+		return reserveErr
+	}
+
+	// 999 of 1000 committed: the cap is not exhausted yet.
+	s.Require().NoError(reserve("almost-full", 999))
+
+	// An operation worth 50 000 no longer fits, and used to be allowed because
+	// only 999 had been spent so far.
+	s.Require().ErrorIs(reserve("expensive", 50_000), models.ErrCompanyCreditLimitExceeded)
+
+	// What still fits is still allowed.
+	s.Require().NoError(reserve("last-credit", 1))
+}
+
 // The window follows the owner's plan, so spending under a previous window does
 // not count against the current one even when both fall in the same month.
 func (s *RepositorySuite) TestCreditLimitWindowFollowsTheSubscription() {

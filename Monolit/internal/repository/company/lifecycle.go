@@ -56,18 +56,46 @@ func (r *Repository) ActivateCompany(ctx context.Context, companyID uuid.UUID, n
 	-- An owner without a business plan falls back to the "free" plan, where the
 	-- zeros are written out. Reading a missing plan as an empty limit would mean
 	-- "no cap" under the project's own rule, which is the opposite of the truth.
-	WITH owner_plan AS (
-	    SELECT c.manager_user_uuid,
-	           COALESCE(p.company_limit, (SELECT company_limit FROM plans WHERE code = 'free')) AS company_limit
-	    FROM companies c
-	    LEFT JOIN subscriptions s ON s.user_uuid = c.manager_user_uuid AND s.type='business' AND s.status='active'
-	    LEFT JOIN plans p ON p.plan_uuid = s.plan_uuid
-	    WHERE c.company_uuid = $1
+	--
+	-- "No plan" and "a plan with no cap" therefore have to stay distinguishable,
+	-- which is why the plan is found first and only then read for its limit.
+	WITH owner AS (
+	    SELECT manager_user_uuid FROM companies WHERE company_uuid = $1
+	), owner_plan AS (
+	    SELECT (
+	        SELECT p.company_limit
+	        FROM subscriptions s
+	        JOIN plans p ON p.plan_uuid = s.plan_uuid
+	        WHERE s.user_uuid = (SELECT manager_user_uuid FROM owner)
+	          AND s.type = 'business'
+	          AND s.status = 'active'
+	          AND s.starts_at <= now()
+	          AND (s.ends_at IS NULL OR s.ends_at > now())
+	        ORDER BY s.starts_at DESC
+	        LIMIT 1
+	    ) AS company_limit,
+	    EXISTS (
+	        SELECT 1
+	        FROM subscriptions s
+	        WHERE s.user_uuid = (SELECT manager_user_uuid FROM owner)
+	          AND s.type = 'business'
+	          AND s.status = 'active'
+	          AND s.starts_at <= now()
+	          AND (s.ends_at IS NULL OR s.ends_at > now())
+	    ) AS has_plan
+	), effective AS (
+	    SELECT CASE
+	               WHEN NOT (SELECT has_plan FROM owner_plan)
+	                   THEN (SELECT company_limit FROM plans WHERE code = 'free')
+	               ELSE (SELECT company_limit FROM owner_plan)
+	           END AS company_limit
 	), used AS (
 	    SELECT count(*) AS active_companies
 	    FROM companies c
-	    JOIN owner_plan ON owner_plan.manager_user_uuid = c.manager_user_uuid
-	    WHERE c.deleted_at IS NULL AND c.lifecycle_state='active' AND c.company_uuid <> $1
+	    WHERE c.manager_user_uuid = (SELECT manager_user_uuid FROM owner)
+	      AND c.deleted_at IS NULL
+	      AND c.lifecycle_state = 'active'
+	      AND c.company_uuid <> $1
 	)
 	UPDATE companies
 	SET lifecycle_state='active', frozen_at=NULL, soft_deleted_at=NULL, purge_after=NULL, freeze_reason=NULL
@@ -75,7 +103,10 @@ func (r *Repository) ActivateCompany(ctx context.Context, companyID uuid.UUID, n
 	  AND deleted_at IS NULL
 	  AND lifecycle_state='frozen'
 	  AND freeze_reason IS DISTINCT FROM 'deletion'
-	  AND (SELECT active_companies FROM used) < (SELECT company_limit FROM owner_plan)`
+	  AND (
+	        (SELECT company_limit FROM effective) IS NULL
+	        OR (SELECT active_companies FROM used) < (SELECT company_limit FROM effective)
+	      )`
 
 	res, err := r.db.ExecContext(ctx, query, companyID)
 	if err != nil {

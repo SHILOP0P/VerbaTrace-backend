@@ -145,28 +145,41 @@ type DecideDepartmentTransferRequest struct {
 }
 
 type CompanyOwnershipTransferResponse struct {
-	ID          string  `json:"id"`
-	CompanyUUID string  `json:"company_uuid"`
-	FromUser    string  `json:"from_user_uuid"`
-	ToUser      string  `json:"to_user_uuid"`
-	Status      string  `json:"status"`
-	Reason      *string `json:"reason,omitempty"`
-	CreatedAt   string  `json:"created_at"`
-	ExpiresAt   string  `json:"expires_at"`
+	ID string `json:"id"`
+	// Scope is "company" for a single company and "all" when every company under
+	// the owner's plan moves together.
+	Scope string `json:"scope"`
+	// CompanyUUID is set only for a single-company transfer.
+	CompanyUUID *string `json:"company_uuid"`
+	// CompanyUUIDs is what the offer actually covers.
+	CompanyUUIDs []string `json:"company_uuids"`
+	// StayCompanyUUIDs are the companies the previous owner stays in as a member.
+	StayCompanyUUIDs []string `json:"stay_company_uuids"`
+	FromUser         string   `json:"from_user_uuid"`
+	ToUser           string   `json:"to_user_uuid"`
+	Status           string   `json:"status"`
+	Reason           *string  `json:"reason,omitempty"`
+	CreatedAt        string   `json:"created_at"`
+	ExpiresAt        string   `json:"expires_at"`
 }
 
 type CreateOwnershipTransferRequest struct {
 	UserUUID string `json:"user_uuid"`
 	Reason   string `json:"reason"`
+	// Scope is "company" or "all"; the company route defaults to "company" and
+	// the owner-wide route to "all".
+	Scope string `json:"scope"`
+	// StayCompanyUUIDs are the companies the previous owner wants to remain in
+	// as an ordinary member after handing them over.
+	StayCompanyUUIDs []string `json:"stay_company_uuids"`
 }
 
 type CreateInvitationRequest struct {
 	UserUUID string `json:"user_uuid"`
 	Username string `json:"username"`
-	Role     string `json:"role"`
-	// AcknowledgeCurrentMembership is the answer to the alert that warns the
-	// inviter that this person already works somewhere else.
-	AcknowledgeCurrentMembership bool `json:"acknowledge_current_membership"`
+	// Role is the department role for a department invitation, and the company
+	// seat for a company one: "employee" or "company_deputy".
+	Role string `json:"role"`
 }
 
 type InvitationResponse struct {

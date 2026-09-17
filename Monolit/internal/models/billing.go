@@ -17,6 +17,10 @@ const (
 )
 
 const (
+	// PlanCodeFree is what "no subscription" is written as. Its limits are
+	// explicit zeros, because an empty limit means "no cap" everywhere else and
+	// one value cannot mean two opposite things.
+	PlanCodeFree          PlanCode = "free"
 	PlanCodePersonalStart PlanCode = "personal_start"
 	PlanCodePersonalPlus  PlanCode = "personal_plus"
 	PlanCodePersonalPro   PlanCode = "personal_pro"
@@ -24,6 +28,41 @@ const (
 	PlanCodeBusinessPlus  PlanCode = "business_plus"
 	PlanCodeBusinessPro   PlanCode = "business_pro"
 )
+
+// planTiers ranks the plans so two of them can be compared. A business plan
+// carries a personal plan of the same tier, and when the person already holds
+// one the stronger of the two is what they keep.
+var planTiers = map[PlanCode]int{
+	PlanCodeFree:          0,
+	PlanCodePersonalStart: 1,
+	PlanCodeBusinessStart: 1,
+	PlanCodePersonalPlus:  2,
+	PlanCodeBusinessPlus:  2,
+	PlanCodePersonalPro:   3,
+	PlanCodeBusinessPro:   3,
+}
+
+// Tier is how strong the plan is. An unknown code ranks lowest so that it never
+// wins a comparison by accident.
+func (c PlanCode) Tier() int {
+	return planTiers[c]
+}
+
+// BundledPersonalPlan is the personal plan that comes with a business plan. The
+// two are sold as one package, so the owner of a business plan always holds a
+// personal plan of the same tier.
+func (c PlanCode) BundledPersonalPlan() (PlanCode, bool) {
+	switch c {
+	case PlanCodeBusinessStart:
+		return PlanCodePersonalStart, true
+	case PlanCodeBusinessPlus:
+		return PlanCodePersonalPlus, true
+	case PlanCodeBusinessPro:
+		return PlanCodePersonalPro, true
+	default:
+		return "", false
+	}
+}
 
 const (
 	SubscriptionStatusActive   SubscriptionStatus = "active"

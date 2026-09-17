@@ -148,6 +148,7 @@ type CompanyAPI interface {
 	UpdateCompanyMemberRole(w http.ResponseWriter, r *http.Request)
 	RemoveCompanyMember(w http.ResponseWriter, r *http.Request)
 	OfferOwnership(w http.ResponseWriter, r *http.Request)
+	OfferAllOwnership(w http.ResponseWriter, r *http.Request)
 	AcceptOwnership(w http.ResponseWriter, r *http.Request)
 	DeclineOwnership(w http.ResponseWriter, r *http.Request)
 	CancelOwnershipOffer(w http.ResponseWriter, r *http.Request)

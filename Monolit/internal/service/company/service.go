@@ -23,6 +23,10 @@ type jobTitleRepository interface {
 type BillingLimiter interface {
 	CanUseCompany(ctx context.Context, companyID uuid.UUID) error
 	CanAddCompanyMember(ctx context.Context, companyID uuid.UUID) error
+	// CanCreateCompany answers whether the owner's plan covers one more company.
+	// A company over the limit is not created at all, rather than created and
+	// quietly given the same plan as the ones that are paid for.
+	CanCreateCompany(ctx context.Context, ownerID uuid.UUID) error
 }
 
 type NotificationService interface {

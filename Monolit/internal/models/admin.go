@@ -245,8 +245,29 @@ type GrantAdminSubscriptionInput struct {
 	PlanCode      PlanCode
 	StartsAt      time.Time
 	EndsAt        time.Time
-	Metadata      AdminMutationMetadata
+	// ActiveCompanyUUIDs is the answer to "which companies keep working" when a
+	// business plan no longer covers all of them. The choice is made before the
+	// plan changes, so nobody finds their companies frozen without being asked.
+	ActiveCompanyUUIDs []uuid.UUID
+	Metadata           AdminMutationMetadata
 }
+
+// CompanySelectionRequired carries what the interface needs to ask which
+// companies stay active: the owner's companies and how many the new plan covers.
+type CompanySelectionRequired struct {
+	OwnerUserUUID uuid.UUID
+	CompanyUUIDs  []uuid.UUID
+	CompanyLimit  int
+}
+
+func (e *CompanySelectionRequired) Error() string {
+	return ErrCompanySelectionRequired.Error()
+}
+
+func (e *CompanySelectionRequired) Unwrap() error {
+	return ErrCompanySelectionRequired
+}
+
 type CancelAdminSubscriptionInput struct {
 	ActorUserUUID uuid.UUID
 	UserUUID      uuid.UUID

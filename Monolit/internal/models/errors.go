@@ -66,7 +66,6 @@ var ErrInvalidCompanyInput = errors.New("invalid company input")
 var ErrCompanyTagAlreadyExists = errors.New("company tag already exists")
 var ErrUserAlreadyManagesCompany = errors.New("user already manages company")
 var ErrLastCompanyManager = errors.New("last company manager cannot be removed")
-var ErrCompanyMembershipConflict = errors.New("user already belongs to another company")
 var ErrCompanyNotEmpty = errors.New("company still has members")
 
 // ErrCompanyPurgePending means the company is not ready to be removed yet: its
@@ -83,11 +82,25 @@ var ErrCompanyDeputyNotAssigned = errors.New("company has no deputy")
 var ErrOwnerOnlyAction = errors.New("action is available to the company owner only")
 var ErrCompanyOwnershipTransferNotFound = errors.New("company ownership transfer not found")
 var ErrCompanyOwnershipTransferPending = errors.New("company ownership transfer is already pending")
+
+// ErrOwnershipRecipientBusy means the person offered the company already runs
+// one of their own or already pays for a business plan. One person holds one
+// business plan, so there would be no way to merge the two.
+var ErrOwnershipRecipientBusy = errors.New("recipient already owns a company or holds a business plan")
+
+// ErrOwnershipScopeMismatch means the owner tried to give away one company out
+// of several covered by the same plan, or to give away "all" when there is only
+// one. The plan cannot be split, so the two operations are not interchangeable.
+var ErrOwnershipScopeMismatch = errors.New("ownership transfer scope does not match the companies under the plan")
+
+// ErrCompanySelectionRequired means the new plan covers fewer companies than the
+// owner has, and nobody has said which ones keep working. The choice comes
+// first; only then does the plan change and the rest freeze.
+var ErrCompanySelectionRequired = errors.New("choose which companies stay active under the new plan")
 var ErrDepartmentTransferNotFound = errors.New("department transfer request not found")
 var ErrDepartmentTransferPending = errors.New("department transfer request is already pending")
 var ErrMembershipRestricted = errors.New("membership is restricted and needs approval")
 var ErrInvitationsMuted = errors.New("user does not accept invitations")
-var ErrTargetAlreadyEngaged = errors.New("user already belongs to a company or department")
 var ErrDepartmentTransferRequired = errors.New("moving this person between departments requires a transfer request")
 
 // DepartmentTransferRequired tells the interface which colleague a leader has to
@@ -102,22 +115,6 @@ func (e *DepartmentTransferRequired) Error() string {
 
 func (e *DepartmentTransferRequired) Unwrap() error {
 	return ErrDepartmentTransferRequired
-}
-
-// CompanyMembershipConflict carries the company a user is about to leave, so the
-// interface can name it in the confirmation alert instead of showing a bare
-// error.
-type CompanyMembershipConflict struct {
-	CurrentCompanyUUID uuid.UUID
-	CurrentCompanyName string
-}
-
-func (e *CompanyMembershipConflict) Error() string {
-	return ErrCompanyMembershipConflict.Error()
-}
-
-func (e *CompanyMembershipConflict) Unwrap() error {
-	return ErrCompanyMembershipConflict
 }
 
 var ErrInvitationApprovalRequired = errors.New("invitation needs approval")

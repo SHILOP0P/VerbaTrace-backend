@@ -103,7 +103,6 @@ type CompanyRepository interface {
 	RevokeCompanyDeputy(ctx context.Context, companyID uuid.UUID) (models.CompanyMember, error)
 	RemoveCompanyMember(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, now time.Time) (models.CompanyMember, error)
 	CountActiveCompanyMembersExcept(ctx context.Context, companyID uuid.UUID, exceptUserID uuid.UUID) (int, error)
-	ActiveEmployerCompany(ctx context.Context, userID uuid.UUID) (models.Company, error)
 	UpsertMembershipRestriction(ctx context.Context, restriction models.CompanyMembershipRestriction) error
 	HasActiveMembershipRestriction(ctx context.Context, companyID uuid.UUID, userID uuid.UUID, now time.Time) (bool, error)
 	DeleteExpiredMembershipRestrictions(ctx context.Context, now time.Time) (int64, error)

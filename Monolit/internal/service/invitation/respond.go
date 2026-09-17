@@ -33,6 +33,8 @@ func (s *Service) AcceptInvitation(ctx context.Context, input models.AcceptInvit
 		return models.MembershipInvitation{}, models.ErrInvitationApprovalRequired
 	}
 	if !invitation.ExpiresAt.After(s.now()) {
+		// Accepting an expired invitation is refused, but the call still goes
+		// through so the row stops looking actionable.
 		_, err = s.invitationRepository.AcceptInvitation(ctx, models.AcceptInvitationCommand{InvitationUUID: input.InvitationUUID, Now: s.now()})
 		if errors.Is(err, models.ErrInvitationExpired) {
 			return models.MembershipInvitation{}, err
@@ -40,45 +42,29 @@ func (s *Service) AcceptInvitation(ctx context.Context, input models.AcceptInvit
 		return models.MembershipInvitation{}, models.ErrInvitationExpired
 	}
 
-	if !invitation.DepartmentUUID.Valid {
-		active, err := s.isActiveCompanyMember(ctx, invitation.CompanyUUID, invitation.InvitedUserUUID)
-		if err != nil {
+	// The seat limit is checked here rather than when the invitation was sent, so
+	// a pending invitation never holds a seat. A department invitation brings the
+	// person into the company too when they are not a member yet, so it answers
+	// to the same limit.
+	active, err := s.isActiveCompanyMember(ctx, invitation.CompanyUUID, invitation.InvitedUserUUID)
+	if err != nil {
+		return models.MembershipInvitation{}, err
+	}
+	if !active && s.billingLimiter != nil {
+		if err := s.billingLimiter.CanAddCompanyMember(ctx, invitation.CompanyUUID); err != nil {
 			return models.MembershipInvitation{}, err
-		}
-		if !active && s.billingLimiter != nil {
-			if err := s.billingLimiter.CanAddCompanyMember(ctx, invitation.CompanyUUID); err != nil {
-				return models.MembershipInvitation{}, err
-			}
 		}
 	}
 
 	accepted, err := s.invitationRepository.AcceptInvitation(ctx, models.AcceptInvitationCommand{
-		InvitationUUID:  input.InvitationUUID,
-		ConfirmTransfer: input.ConfirmTransfer,
-		Now:             s.now(),
+		InvitationUUID: input.InvitationUUID,
+		Now:            s.now(),
 	})
 	if err != nil {
-		// The user must see which company they are about to leave before the
-		// move happens, so the conflict carries that company with it.
-		if errors.Is(err, models.ErrCompanyMembershipConflict) {
-			return models.MembershipInvitation{}, s.describeMembershipConflict(ctx, invitation.InvitedUserUUID)
-		}
 		return models.MembershipInvitation{}, err
 	}
 
 	return accepted, nil
-}
-
-func (s *Service) describeMembershipConflict(ctx context.Context, userID uuid.UUID) error {
-	company, err := s.companyRepository.ActiveEmployerCompany(ctx, userID)
-	if err != nil {
-		return models.ErrCompanyMembershipConflict
-	}
-
-	return &models.CompanyMembershipConflict{
-		CurrentCompanyUUID: company.ID,
-		CurrentCompanyName: company.Name,
-	}
 }
 
 func (s *Service) DeclineInvitation(ctx context.Context, input models.DeclineInvitationInput) (models.MembershipInvitation, error) {

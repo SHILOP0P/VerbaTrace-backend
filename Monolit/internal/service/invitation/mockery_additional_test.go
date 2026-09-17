@@ -245,8 +245,6 @@ func TestCreateInvitationsFullPathsWithMockery(t *testing.T) {
 		billing.EXPECT().CanUseCompany(mock.Anything, companyID).Return(nil).Once()
 		companyRepo.EXPECT().GetCompanyMember(mock.Anything, companyID, targetID).
 			Return(models.CompanyMember{}, models.ErrCompanyNotFound).Once()
-		companyRepo.EXPECT().ActiveEmployerCompany(mock.Anything, targetID).
-			Return(models.Company{}, models.ErrCompanyNotFound).Once()
 		invitationRepo.EXPECT().CreateInvitation(mock.Anything, mock.MatchedBy(func(value models.MembershipInvitation) bool {
 			return value.CompanyUUID == companyID && value.InvitedUserUUID == targetID &&
 				value.Status == models.InvitationStatusPending

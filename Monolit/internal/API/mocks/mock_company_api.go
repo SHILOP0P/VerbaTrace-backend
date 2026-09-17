@@ -497,6 +497,40 @@ func (_c *CompanyAPI_ListIncomingOwnership_Call) RunAndReturn(run func(http.Resp
 	return _c
 }
 
+// OfferAllOwnership provides a mock function with given fields: w, r
+func (_m *CompanyAPI) OfferAllOwnership(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_OfferAllOwnership_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OfferAllOwnership'
+type CompanyAPI_OfferAllOwnership_Call struct {
+	*mock.Call
+}
+
+// OfferAllOwnership is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) OfferAllOwnership(w interface{}, r interface{}) *CompanyAPI_OfferAllOwnership_Call {
+	return &CompanyAPI_OfferAllOwnership_Call{Call: _e.mock.On("OfferAllOwnership", w, r)}
+}
+
+func (_c *CompanyAPI_OfferAllOwnership_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_OfferAllOwnership_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_OfferAllOwnership_Call) Return() *CompanyAPI_OfferAllOwnership_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_OfferAllOwnership_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_OfferAllOwnership_Call {
+	_c.Run(run)
+	return _c
+}
+
 // OfferOwnership provides a mock function with given fields: w, r
 func (_m *CompanyAPI) OfferOwnership(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)

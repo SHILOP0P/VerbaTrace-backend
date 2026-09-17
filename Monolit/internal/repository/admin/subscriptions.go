@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/planbundle"
 
 	"github.com/google/uuid"
 )
@@ -144,9 +145,24 @@ func (r *Repository) GrantAdminSubscription(ctx context.Context, in models.Grant
 	if models.PlanType(planType) != subscriptionType {
 		return models.AdminSubscription{}, models.ErrInvalidBillingInput
 	}
+	// Lowering a business plan below the number of companies the owner runs is
+	// not something to discover afterwards. The companies that keep working are
+	// chosen first, the rest are frozen in the same transaction, and only then
+	// does the plan change.
+	if subscriptionType == models.PlanTypeBusiness {
+		if err := applyCompanySelection(ctx, tx, ownerUser, planID, in.ActiveCompanyUUIDs); err != nil {
+			return models.AdminSubscription{}, err
+		}
+	}
+
 	old, oldErr := getAdminSubscriptionByPlan(ctx, tx, ownerUser, planID)
 	if oldErr == nil {
 		if _, err = tx.ExecContext(ctx, "UPDATE subscriptions SET ends_at=$2,updated_at=now() WHERE subscription_uuid=$1", old.ID, in.EndsAt); err != nil {
+			return models.AdminSubscription{}, err
+		}
+		// A business plan is sold together with a personal one, so extending it
+		// extends the package rather than half of it.
+		if err = planbundle.Ensure(ctx, tx, ownerUser, in.PlanCode, &in.EndsAt, time.Now().UTC()); err != nil {
 			return models.AdminSubscription{}, err
 		}
 		old.EndsAt = &in.EndsAt
@@ -167,6 +183,12 @@ func (r *Repository) GrantAdminSubscription(ctx context.Context, in models.Grant
 	}
 	id := mustUUIDv7()
 	if _, err = tx.ExecContext(ctx, `INSERT INTO subscriptions(subscription_uuid,plan_uuid,type,user_uuid,company_uuid,status,starts_at,ends_at) VALUES($1,$2,$3,$4,NULL,'active',$5,$6)`, id, planID, subscriptionType, ownerUser, in.StartsAt, in.EndsAt); err != nil {
+		return models.AdminSubscription{}, err
+	}
+	// The personal plan that comes with a business one is granted in the same
+	// transaction; granting half a package would leave the owner unable to use
+	// the product outside their own companies.
+	if err = planbundle.Ensure(ctx, tx, ownerUser, in.PlanCode, &in.EndsAt, in.StartsAt); err != nil {
 		return models.AdminSubscription{}, err
 	}
 	after, _ := json.Marshal(map[string]string{"plan_code": string(in.PlanCode), "status": "active"})
@@ -221,6 +243,97 @@ func (r *Repository) CancelAdminSubscription(ctx context.Context, in models.Canc
 	sub.EndsAt = &now
 	return sub, nil
 }
+
+// applyCompanySelection makes the owner's companies fit the plan they are about
+// to be on. It does nothing while the plan still covers everything they have.
+func applyCompanySelection(ctx context.Context, tx *sql.Tx, ownerUser, planID uuid.UUID, chosen []uuid.UUID) error {
+	var limit sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `SELECT company_limit FROM plans WHERE plan_uuid=$1`, planID).Scan(&limit); err != nil {
+		return err
+	}
+	if !limit.Valid {
+		// No cap, so nothing to choose between.
+		return nil
+	}
+
+	rows, err := tx.QueryContext(ctx, `
+		SELECT company_uuid FROM companies
+		WHERE manager_user_uuid=$1 AND deleted_at IS NULL
+		ORDER BY created_at
+	`, ownerUser)
+	if err != nil {
+		return err
+	}
+	owned := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if scanErr := rows.Scan(&id); scanErr != nil {
+			_ = rows.Close()
+			return scanErr
+		}
+		owned = append(owned, id)
+	}
+	_ = rows.Close()
+	if err = rows.Err(); err != nil {
+		return err
+	}
+
+	allowed := int(limit.Int64)
+	if len(owned) <= allowed {
+		return nil
+	}
+
+	if len(chosen) == 0 {
+		return &models.CompanySelectionRequired{OwnerUserUUID: ownerUser, CompanyUUIDs: owned, CompanyLimit: allowed}
+	}
+	if len(chosen) > allowed {
+		return models.ErrCompanyLimitExceeded
+	}
+
+	ownedSet := map[uuid.UUID]bool{}
+	for _, id := range owned {
+		ownedSet[id] = true
+	}
+	keep := map[uuid.UUID]bool{}
+	for _, id := range chosen {
+		if !ownedSet[id] || keep[id] {
+			return models.ErrInvalidAdminInput
+		}
+		keep[id] = true
+	}
+
+	now := time.Now().UTC()
+	for _, id := range owned {
+		if keep[id] {
+			if _, err = tx.ExecContext(ctx, `
+				UPDATE companies
+				SET lifecycle_state='active', frozen_at=NULL, soft_deleted_at=NULL, purge_after=NULL, freeze_reason=NULL
+				WHERE company_uuid=$1 AND lifecycle_state='frozen' AND freeze_reason IS DISTINCT FROM 'deletion'
+			`, id); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err = tx.ExecContext(ctx, `
+			UPDATE companies
+			SET lifecycle_state='frozen', frozen_at=$2, purge_after=$3, soft_deleted_at=NULL, freeze_reason='downgrade'
+			WHERE company_uuid=$1 AND lifecycle_state='active'
+		`, id, now, now.Add(models.CompanyFreezeGrace)); err != nil {
+			return err
+		}
+		// A company that cannot take anybody on must not keep an open invitation.
+		if _, err = tx.ExecContext(ctx, `
+			UPDATE membership_invitations
+			SET status='canceled', responded_at=COALESCE(responded_at,$2), updated_at=$2
+			WHERE company_uuid=$1 AND status='pending'
+		`, id, now); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func auditForSubscription(actor models.AdminUser, targetType string, targetID uuid.UUID, action string, after json.RawMessage, metadata models.AdminMutationMetadata) models.AdminAuditLog {
 	return models.AdminAuditLog{ID: mustUUIDv7(), ActorUserUUID: actor.ID, ActorRole: actor.Role, Action: action, TargetType: targetType, TargetUUID: uuid.NullUUID{UUID: targetID, Valid: true}, AfterData: after, Reason: &metadata.Reason, RequestID: metadata.RequestID, IPAddress: metadata.IPAddress, UserAgent: metadata.UserAgent, CreatedAt: time.Now().UTC()}
 }

@@ -27,8 +27,10 @@ func TestGrantedBusinessSubscriptionIsVisibleToTheProduct(t *testing.T) {
 	admins := adminRepo.NewRepository(db)
 	billing := billingRepo.NewRepository(db)
 
-	superAdminID := repositorytest.CreateUser(t, db)
-	_, err := db.ExecContext(ctx, `UPDATE users SET role='superadmin' WHERE user_uuid=$1`, superAdminID)
+	// An administrator is enough here, and only one superadmin may exist at a
+	// time, so using that role would make the tests of this package collide.
+	adminID := repositorytest.CreateUser(t, db)
+	_, err := db.ExecContext(ctx, `UPDATE users SET role='admin' WHERE user_uuid=$1`, adminID)
 	require.NoError(t, err)
 
 	ownerID := repositorytest.CreateUser(t, db)
@@ -40,7 +42,7 @@ func TestGrantedBusinessSubscriptionIsVisibleToTheProduct(t *testing.T) {
 	repositorytest.InsertCompanyMember(t, db, companyID, ownerID, "company_manager", "active")
 
 	granted, err := admins.GrantAdminSubscription(ctx, models.GrantAdminSubscriptionInput{
-		ActorUserUUID: superAdminID,
+		ActorUserUUID: adminID,
 		CompanyUUID:   companyID,
 		PlanCode:      models.PlanCodeBusinessPlus,
 		StartsAt:      time.Now().UTC().Add(-time.Hour),
@@ -61,7 +63,7 @@ func TestGrantedBusinessSubscriptionIsVisibleToTheProduct(t *testing.T) {
 	require.Equal(t, granted.ID, shown.ID)
 
 	canceled, err := admins.CancelAdminSubscription(ctx, models.CancelAdminSubscriptionInput{
-		ActorUserUUID: superAdminID,
+		ActorUserUUID: adminID,
 		CompanyUUID:   companyID,
 		Metadata:      models.AdminMutationMetadata{Reason: "integration test"},
 	})

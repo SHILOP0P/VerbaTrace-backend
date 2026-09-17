@@ -84,63 +84,6 @@ func (_c *CompanyRepository_AcceptOwnershipTransfer_Call) RunAndReturn(run func(
 	return _c
 }
 
-// ActiveEmployerCompany provides a mock function with given fields: ctx, userID
-func (_m *CompanyRepository) ActiveEmployerCompany(ctx context.Context, userID uuid.UUID) (models.Company, error) {
-	ret := _m.Called(ctx, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ActiveEmployerCompany")
-	}
-
-	var r0 models.Company
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (models.Company, error)); ok {
-		return rf(ctx, userID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) models.Company); ok {
-		r0 = rf(ctx, userID)
-	} else {
-		r0 = ret.Get(0).(models.Company)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
-		r1 = rf(ctx, userID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// CompanyRepository_ActiveEmployerCompany_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ActiveEmployerCompany'
-type CompanyRepository_ActiveEmployerCompany_Call struct {
-	*mock.Call
-}
-
-// ActiveEmployerCompany is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID uuid.UUID
-func (_e *CompanyRepository_Expecter) ActiveEmployerCompany(ctx interface{}, userID interface{}) *CompanyRepository_ActiveEmployerCompany_Call {
-	return &CompanyRepository_ActiveEmployerCompany_Call{Call: _e.mock.On("ActiveEmployerCompany", ctx, userID)}
-}
-
-func (_c *CompanyRepository_ActiveEmployerCompany_Call) Run(run func(ctx context.Context, userID uuid.UUID)) *CompanyRepository_ActiveEmployerCompany_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID))
-	})
-	return _c
-}
-
-func (_c *CompanyRepository_ActiveEmployerCompany_Call) Return(_a0 models.Company, _a1 error) *CompanyRepository_ActiveEmployerCompany_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *CompanyRepository_ActiveEmployerCompany_Call) RunAndReturn(run func(context.Context, uuid.UUID) (models.Company, error)) *CompanyRepository_ActiveEmployerCompany_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // ArchiveCompany provides a mock function with given fields: ctx, companyID
 func (_m *CompanyRepository) ArchiveCompany(ctx context.Context, companyID uuid.UUID) error {
 	ret := _m.Called(ctx, companyID)
