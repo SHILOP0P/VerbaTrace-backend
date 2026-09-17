@@ -213,6 +213,13 @@ type AdminCompany struct {
 	Tag             string
 	ManagerUserUUID uuid.UUID
 	CreatedAt       time.Time
+	// LifecycleState, FreezeReason and RestoreUsed say which actions on the card
+	// still mean anything: a restore applies to a company being deleted and to no
+	// other, and it applies once. Without them the panel offered every action for
+	// every company and let an administrator press one that could only fail.
+	LifecycleState string
+	FreezeReason   string
+	RestoreUsed    bool
 }
 type ListAdminCompaniesInput struct {
 	Query               string

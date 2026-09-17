@@ -56,6 +56,11 @@ type AdminCompanyResponse struct {
 	Tag             string `json:"tag"`
 	ManagerUserUUID string `json:"manager_user_uuid"`
 	CreatedAt       string `json:"created_at"`
+	// The panel decides from these which actions on the card are still worth
+	// offering: a restore applies to a company being deleted, once.
+	LifecycleState string `json:"lifecycle_state"`
+	FreezeReason   string `json:"freeze_reason,omitempty"`
+	RestoreUsed    bool   `json:"restore_used"`
 }
 
 // UpdateAdminCompanyTagRequest is an administrator changing a customer's company

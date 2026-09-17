@@ -246,11 +246,18 @@ func adminCompanyID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	return id, true
 }
 func adminCompanyResponse(c models.AdminCompany) dto.AdminCompanyResponse {
-	tag := c.Tag
-	if tag == "" {
-		tag = "@" + c.ID.String()
+	// An untagged company stays untagged. The old fallback put the company's uuid
+	// in the tag, and the panel then printed an identifier where a tag belongs.
+	return dto.AdminCompanyResponse{
+		ID:              c.ID.String(),
+		Name:            c.Name,
+		Tag:             c.Tag,
+		ManagerUserUUID: c.ManagerUserUUID.String(),
+		CreatedAt:       c.CreatedAt.Format(time.RFC3339),
+		LifecycleState:  c.LifecycleState,
+		FreezeReason:    c.FreezeReason,
+		RestoreUsed:     c.RestoreUsed,
 	}
-	return dto.AdminCompanyResponse{ID: c.ID.String(), Name: c.Name, Tag: tag, ManagerUserUUID: c.ManagerUserUUID.String(), CreatedAt: c.CreatedAt.Format(time.RFC3339)}
 }
 func adminSubscriptionResponse(s models.AdminSubscription) dto.AdminSubscriptionResponse {
 	var user, company, ends *string

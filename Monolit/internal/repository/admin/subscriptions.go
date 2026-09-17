@@ -27,7 +27,7 @@ func (r *Repository) ListAdminCompanies(ctx context.Context, input models.ListAd
 		where += fmt.Sprintf(" AND LOWER(name) LIKE $%d", len(args))
 	}
 	args = append(args, input.Limit, input.Offset)
-	rows, err := r.db.QueryContext(ctx, fmt.Sprintf("SELECT company_uuid,name,tag,manager_user_uuid,created_at,COUNT(*) OVER() FROM companies WHERE %s ORDER BY created_at DESC LIMIT $%d OFFSET $%d", where, len(args)-1, len(args)), args...)
+	rows, err := r.db.QueryContext(ctx, fmt.Sprintf("SELECT %s,COUNT(*) OVER() FROM companies WHERE %s ORDER BY created_at DESC LIMIT $%d OFFSET $%d", adminCompanyColumns, where, len(args)-1, len(args)), args...)
 	if err != nil {
 		return models.ListAdminCompaniesResult{}, err
 	}
@@ -35,29 +35,35 @@ func (r *Repository) ListAdminCompanies(ctx context.Context, input models.ListAd
 	res := models.ListAdminCompaniesResult{Companies: []models.AdminCompany{}, Limit: input.Limit, Offset: input.Offset}
 	for rows.Next() {
 		var c models.AdminCompany
+		var freezeReason sql.NullString
 		var total int
-		if err := rows.Scan(&c.ID, &c.Name, &c.Tag, &c.ManagerUserUUID, &c.CreatedAt, &total); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Tag, &c.ManagerUserUUID, &c.CreatedAt, &c.LifecycleState, &freezeReason, &c.RestoreUsed, &total); err != nil {
 			return res, err
 		}
+		c.FreezeReason = freezeReason.String
 		res.Companies = append(res.Companies, c)
 		res.Total = total
 	}
 	return res, rows.Err()
 }
+
+// adminCompanyColumns keeps the three readers of a company row in step. The
+// lifecycle columns are part of it because the panel decides from them which
+// actions are still worth offering.
+const adminCompanyColumns = "company_uuid,name,tag,manager_user_uuid,created_at,lifecycle_state,freeze_reason,restore_used"
+
 func (r *Repository) GetAdminCompanyByUUID(ctx context.Context, id uuid.UUID) (models.AdminCompany, error) {
-	var c models.AdminCompany
-	err := r.db.QueryRowContext(ctx, "SELECT company_uuid,name,tag,manager_user_uuid,created_at FROM companies WHERE company_uuid=$1 AND deleted_at IS NULL", id).Scan(&c.ID, &c.Name, &c.Tag, &c.ManagerUserUUID, &c.CreatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return c, models.ErrCompanyNotFound
-	}
-	return c, err
+	return getAdminCompany(ctx, r.db, id)
 }
 func getAdminCompany(ctx context.Context, q queryRower, id uuid.UUID) (models.AdminCompany, error) {
 	var c models.AdminCompany
-	err := q.QueryRowContext(ctx, "SELECT company_uuid,name,tag,manager_user_uuid,created_at FROM companies WHERE company_uuid=$1 AND deleted_at IS NULL", id).Scan(&c.ID, &c.Name, &c.Tag, &c.ManagerUserUUID, &c.CreatedAt)
+	var freezeReason sql.NullString
+	err := q.QueryRowContext(ctx, "SELECT "+adminCompanyColumns+" FROM companies WHERE company_uuid=$1 AND deleted_at IS NULL", id).
+		Scan(&c.ID, &c.Name, &c.Tag, &c.ManagerUserUUID, &c.CreatedAt, &c.LifecycleState, &freezeReason, &c.RestoreUsed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, models.ErrCompanyNotFound
 	}
+	c.FreezeReason = freezeReason.String
 	return c, err
 }
 func (r *Repository) GetAdminPersonalSubscription(ctx context.Context, id uuid.UUID) (models.AdminSubscription, error) {
