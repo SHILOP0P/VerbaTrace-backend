@@ -5,6 +5,9 @@ import "time"
 type HTTPConfig interface {
 	Address() string
 	ReadTimeout() time.Duration
+	// IsTrustedProxy says whether an address belongs to the deployment's own
+	// front layer and may therefore speak for the real client.
+	IsTrustedProxy(address string) bool
 }
 
 type PostgresConfig interface {

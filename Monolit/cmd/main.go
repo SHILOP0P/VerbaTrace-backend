@@ -279,6 +279,7 @@ func main() {
 	adminSvc := adminService.NewService(adminRepository)
 	adminSvc.SetCallReader(callRepository)
 	adminSvc.SetAudioStorage(audioStorage)
+	adminSvc.SetMediaPrivacyGuard(privacySvc)
 	companySvc := companyService.NewService(companyRepository, appLogger)
 	departmentSvc := departmentService.NewService(companyRepository, departmentRepository, appLogger)
 	invitationSvc := invitationService.NewService(invitationRepository, userRepository, companyRepository, departmentRepository, appLogger)

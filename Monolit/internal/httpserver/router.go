@@ -102,6 +102,16 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				r.Use(authGuard)
 				r.Use(authMiddleware.RequirePermission(models.AdminPermissionPanelAccess))
 				r.Get("/capabilities", adminAPI.GetCapabilities)
+				// The append-only trails the system has always written and never
+				// shown. Reading them needs panel access and nothing more; they
+				// name no customer content.
+				if auditAPI, ok := adminAPI.(interface {
+					ListAuditTrails(http.ResponseWriter, *http.Request)
+					GetAuditTrail(http.ResponseWriter, *http.Request)
+				}); ok {
+					r.Get("/audit-trails", auditAPI.ListAuditTrails)
+					r.Get("/audit-trails/{trail}", auditAPI.GetAuditTrail)
+				}
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionUsersRead)).Get("/users", adminAPI.ListUsers)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionUsersRead)).Get("/users/{user_uuid}", adminAPI.GetUser)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCallsRead)).Get("/users/{user_uuid}/calls", adminAPI.ListUserCalls)

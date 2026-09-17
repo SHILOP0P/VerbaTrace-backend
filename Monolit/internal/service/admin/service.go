@@ -216,7 +216,17 @@ type Service struct {
 		ListFiltered(context.Context, models.ListCallsInput) (models.ListCallsResult, error)
 	}
 	audioStorage storage.AudioStorage
+	mediaPrivacy MediaPrivacyGuard
 }
+
+// MediaPrivacyGuard says which copy of a recording support may listen to. It is
+// the privacy service; the interface keeps the admin service from depending on
+// it directly.
+type MediaPrivacyGuard interface {
+	SupportMediaVariant(ctx context.Context, call models.Call) (string, bool, error)
+}
+
+func (s *Service) SetMediaPrivacyGuard(guard MediaPrivacyGuard) { s.mediaPrivacy = guard }
 
 func (s *Service) SetCallReader(reader interface {
 	GetByUUIDForProcessing(context.Context, uuid.UUID) (models.Call, error)
@@ -237,6 +247,11 @@ func (s *Service) ListUserCalls(ctx context.Context, userID uuid.UUID, limit int
 	}
 	return s.callReader.ListFiltered(ctx, models.ListCallsInput{UserID: userID, UploadedByUserUUID: uuid.NullUUID{UUID: userID, Valid: true}, Limit: limit, Offset: offset})
 }
+
+// GetCallAudio serves a recording to support. The customer's masking policy
+// applies here too: where it is on, support hears the redacted copy, not the
+// original. Opening the original file directly was the one path that ignored the
+// policy entirely.
 func (s *Service) GetCallAudio(ctx context.Context, id uuid.UUID) (models.File, error) {
 	call, err := s.GetCall(ctx, id)
 	if err != nil {
@@ -245,11 +260,26 @@ func (s *Service) GetCallAudio(ctx context.Context, id uuid.UUID) (models.File, 
 	if s.audioStorage == nil {
 		return models.File{}, errAuditRepositoryNotConfigured
 	}
-	content, err := s.audioStorage.OpenReadSeeker(ctx, call.AudioPath)
+
+	path, redacted := call.AudioPath, false
+	if s.mediaPrivacy != nil {
+		path, redacted, err = s.mediaPrivacy.SupportMediaVariant(ctx, call)
+		if err != nil {
+			return models.File{}, err
+		}
+	}
+
+	content, err := s.audioStorage.OpenReadSeeker(ctx, path)
 	if err != nil {
 		return models.File{}, err
 	}
-	return models.File{Content: content, ReadSeeker: content, Path: call.AudioPath, OriginalFilename: call.OriginalFilename, MimeType: call.MimeType, SizeBytes: call.SizeBytes}, nil
+
+	name := call.OriginalFilename
+	if redacted {
+		name = "redacted-" + name
+	}
+
+	return models.File{Content: content, ReadSeeker: content, Path: path, OriginalFilename: name, MimeType: call.MimeType, SizeBytes: call.SizeBytes}, nil
 }
 
 func NewService(auditRepository AuditRepository) *Service {

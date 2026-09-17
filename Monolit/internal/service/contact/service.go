@@ -2,7 +2,6 @@ package contact
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"verbatrace/monolit/internal/models"
@@ -95,24 +94,26 @@ func (s *Service) RemoveFavoriteCall(ctx context.Context, input models.FavoriteC
 	return s.contacts.RemoveFavoriteCall(ctx, input.UserID, input.CallID)
 }
 
+// maxFavoriteCalls caps what one list returns. Favourites used to be read one
+// call at a time with no limit at all, so a person with a thousand of them
+// issued a thousand queries inside a single request.
+const maxFavoriteCalls = 200
+
 func (s *Service) ListFavoriteCalls(ctx context.Context, userID uuid.UUID) (models.FavoriteCallList, error) {
 	if userID == uuid.Nil {
 		return models.FavoriteCallList{}, models.ErrInvalidContactInput
 	}
-	ids, err := s.contacts.ListFavoriteCallIDs(ctx, userID)
+
+	// The calls list applies the same visibility rule the per-call read did, so
+	// asking it once is both cheaper and exactly as safe.
+	calls, err := s.calls.ListFiltered(ctx, models.ListCallsInput{
+		UserID:       userID,
+		FavoriteOnly: true,
+		Limit:        maxFavoriteCalls,
+	})
 	if err != nil {
 		return models.FavoriteCallList{}, err
 	}
-	result := models.FavoriteCallList{Calls: make([]models.Call, 0, len(ids))}
-	for _, id := range ids {
-		call, err := s.calls.GetByUUID(ctx, id, userID)
-		if errors.Is(err, models.ErrCallNotFound) {
-			continue
-		}
-		if err != nil {
-			return models.FavoriteCallList{}, err
-		}
-		result.Calls = append(result.Calls, call)
-	}
-	return result, nil
+
+	return models.FavoriteCallList{Calls: calls.Items}, nil
 }

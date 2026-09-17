@@ -108,6 +108,38 @@ func (s *Service) GetSanitizedMedia(ctx context.Context, callID uuid.UUID) (mode
 	return item, nil
 }
 
+// SupportMediaVariant answers what a support engineer with temporary access may
+// hear. The customer's masking policy applies to them as it does to everybody
+// else: where the policy is on and a redacted copy is ready, that copy is what
+// they get. The admin path used to open the original file directly, which walked
+// straight past the policy.
+//
+// It returns the storage path to serve and whether it is the redacted variant.
+func (s *Service) SupportMediaVariant(ctx context.Context, call models.Call) (string, bool, error) {
+	state, err := s.EnsureCallState(ctx, call)
+	if err != nil {
+		return "", false, err
+	}
+	if !state.PolicySnapshot.Enabled {
+		return call.AudioPath, false, nil
+	}
+
+	variant, err := s.GetSanitizedMedia(ctx, call.ID)
+	if err != nil {
+		if errors.Is(err, ErrMediaVariantNotFound) {
+			// The policy asks for masking and there is nothing masked to serve, so
+			// there is nothing support may listen to.
+			return "", false, ErrRedactedMediaNotReady
+		}
+		return "", false, err
+	}
+	if variant.Status != "ready" {
+		return "", false, ErrRedactedMediaNotReady
+	}
+
+	return variant.StoragePath, true, nil
+}
+
 func (s *Service) OpenSanitizedMedia(ctx context.Context, call models.Call, userID uuid.UUID) (MediaFile, error) {
 	capabilities, err := s.Capabilities(ctx, call, userID)
 	if err != nil {
