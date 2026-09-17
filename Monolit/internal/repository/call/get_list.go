@@ -272,13 +272,10 @@ func (r *Repository) GetFilterOptions(ctx context.Context, input model.CallFilte
 	}
 
 	return model.CallFilterOptions{
-		Statuses: []model.CallStatus{
-			model.CallStatusNew,
-			model.CallStatusProcessing,
-			model.CallStatusTranscribed,
-			model.CallStatusAnalyzed,
-			model.CallStatusFailed,
-		},
+		// Waiting for credits and a cancelled run are states a person filters by
+		// just as often as the rest; leaving them out hid whole groups of calls
+		// from the filter, so the list comes from one place now.
+		Statuses: model.CallStatuses(),
 		Scopes: []model.CallVisibilityScope{
 			model.CallVisibilityScopePersonal,
 			model.CallVisibilityScopeCompany,

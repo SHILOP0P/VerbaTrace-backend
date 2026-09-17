@@ -64,6 +64,13 @@ recording URL, participants and bounded metadata. Upload ingest is multipart wit
 payload returns 409. The accepted response contains a status URL; processing is
 asynchronous.
 
+An accepted call whose owner has no credits left is not rejected: it is parked
+with status `awaiting_credits` and starts on its own once the limit renews. The
+depth of that queue comes from the plan, so an upload can still be refused with
+`409 pending_credit_queue_full` when too many calls are already waiting. A call
+whose processing was stopped on purpose reports `cancelled`; clients polling a
+status URL must treat both as ordinary states rather than failures.
+
 Version 2 returns a stable `source_ref` for each accepted source call. It is namespaced
 by the server-side connection identity, so equal external IDs from different users,
 companies or providers cannot collide. Clients should persist `source_ref` and use it

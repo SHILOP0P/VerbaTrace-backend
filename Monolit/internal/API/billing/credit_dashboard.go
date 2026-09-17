@@ -122,5 +122,5 @@ func dashboardResponse(value models.CreditDashboard) map[string]any {
 	for _, item := range value.WalletEntries {
 		entries = append(entries, map[string]any{"transaction_uuid": item.TransactionUUID, "type": item.Type, "credits": item.Credits, "reason": item.Reason, "created_at": item.CreatedAt})
 	}
-	return map[string]any{"allowance_credits": value.AllowanceCredits, "allowance_remaining": value.AllowanceRemaining, "allowance_remaining_percent": value.RemainingPercent, "days_until_reset": value.DaysUntilReset, "resets_at": value.ResetsAt, "allowance_exhausted": value.AllowanceExhausted, "wallet_credits": value.WalletCredits, "activity": activity, "wallet_entries": entries, "visible_to_members": value.VisibleToMembers, "can_manage_visibility": value.CanManageVisibility}
+	return map[string]any{"allowance_credits": value.AllowanceCredits, "allowance_remaining": value.AllowanceRemaining, "allowance_remaining_percent": value.RemainingPercent, "days_until_reset": value.DaysUntilReset, "resets_at": value.ResetsAt, "allowance_exhausted": value.AllowanceExhausted, "wallet_credits": value.WalletCredits, "activity": activity, "wallet_entries": entries, "visible_to_members": value.VisibleToMembers, "can_manage_visibility": value.CanManageVisibility, "calls_awaiting_credits": value.CallsAwaitingCredits, "pending_credit_calls_limit": value.PendingCreditCallsLimit}
 }

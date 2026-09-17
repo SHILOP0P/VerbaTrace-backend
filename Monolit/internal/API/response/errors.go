@@ -60,6 +60,7 @@ const (
 	CodeInvalidCallTitle                 = "invalid_call_title"
 	CodeInvalidCallPlacement             = "invalid_call_placement"
 	CodeInvalidCallFilter                = "invalid_call_filter"
+	CodeInvalidCallStatus                = "invalid_call_status"
 	CodeCallNotFound                     = "call_not_found"
 	CodeFailedToFindCall                 = "failed_to_find_call"
 	CodeFailedToConvertCall              = "failed_to_convert_call"

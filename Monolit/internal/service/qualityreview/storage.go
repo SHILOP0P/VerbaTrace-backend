@@ -54,7 +54,9 @@ func loadReviewTx(ctx context.Context, tx *sql.Tx, id uuid.UUID, lock bool) (mod
 }
 
 func loadReview(ctx context.Context, q queryer, id uuid.UUID, lock bool) (models.QualityReview, []byte, error) {
-	query := `SELECT r.review_uuid,r.call_uuid,r.analysis_uuid,r.analysis_attempt_uuid,r.transcription_revision,r.company_uuid,r.department_uuid,r.reviewed_subject_user_uuid,r.assignee_user_uuid,r.status,r.active_revision_uuid,r.lock_version,r.due_at,r.created_by_user_uuid,r.created_at,r.updated_at,r.published_at,a.result_json FROM call_quality_reviews r JOIN call_analyses a ON a.analysis_uuid=r.analysis_uuid WHERE r.review_uuid=$1`
+	// The bin flag travels with the review so the interface can freeze the page
+	// instead of letting somebody fill in a form that will be refused on save.
+	query := `SELECT r.review_uuid,r.call_uuid,r.analysis_uuid,r.analysis_attempt_uuid,r.transcription_revision,r.company_uuid,r.department_uuid,r.reviewed_subject_user_uuid,r.assignee_user_uuid,r.status,r.active_revision_uuid,r.lock_version,r.due_at,r.created_by_user_uuid,r.created_at,r.updated_at,r.published_at,c.deleted_at IS NOT NULL,a.result_json FROM call_quality_reviews r JOIN call_analyses a ON a.analysis_uuid=r.analysis_uuid JOIN calls c ON c.call_uuid=r.call_uuid WHERE r.review_uuid=$1`
 	if lock {
 		query += " FOR UPDATE OF r"
 	}
@@ -74,7 +76,9 @@ func scanReviewWithAnalysis(row rowScanner, analysis *[]byte) (models.QualityRev
 	var due, published sql.NullTime
 	fields := []any{&q.ID, &q.CallUUID, &q.AnalysisUUID, &q.AnalysisAttemptUUID, &q.TranscriptionRevision, &q.CompanyUUID, &q.DepartmentUUID, &q.SubjectUserUUID, &q.AssigneeUserUUID, &q.Status, &q.ActiveRevisionUUID, &q.LockVersion, &due, &q.CreatedByUserUUID, &q.CreatedAt, &q.UpdatedAt, &published}
 	if analysis != nil {
-		fields = append(fields, analysis)
+		// Only the single-review read carries the bin flag; the list query does
+		// not join calls.
+		fields = append(fields, &q.CallInBin, analysis)
 	}
 	if err := row.Scan(fields...); err != nil {
 		return q, err

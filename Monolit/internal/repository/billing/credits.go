@@ -51,8 +51,12 @@ func (r *Repository) ensureCurrentCreditUsageOnce(ctx context.Context, subscript
 		return models.CreditUsage{}, fmt.Errorf("lock billing account: %w", err)
 	}
 
-	start := monthStart(now)
-	end := start.AddDate(0, 1, 0)
+	// The allowance renews 30 days after the plan was bought, not on the first of
+	// the month. Any other window would reset the credits on a different day from
+	// the limits that cap them, and a person would see a limit refuse spending
+	// out of an allowance that had just been topped up.
+	period := models.CreditPeriodFor(subscription.StartsAt, now)
+	start, end := period.Start, period.End
 	if _, err = tx.ExecContext(ctx, `
 		UPDATE allowance_epochs SET status='closed',closed_at=$2
 		WHERE subscription_uuid=$1 AND status='open' AND ends_at <= $2

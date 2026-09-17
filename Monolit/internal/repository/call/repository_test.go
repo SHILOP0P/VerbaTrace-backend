@@ -425,7 +425,9 @@ func (s *RepositorySuite) TestGetFilterOptionsReturnsVisibleUploaders() {
 		CompanyUUID: uuid.NullUUID{UUID: company.ID, Valid: true},
 	})
 	s.Require().NoError(err)
-	s.Require().Len(managerOptions.Statuses, 5)
+	// The filter offers every status a call can be in, so it grew with
+	// awaiting_credits and cancelled.
+	s.Require().Equal(models.CallStatuses(), managerOptions.Statuses)
 	s.Require().Len(managerOptions.Scopes, 3)
 	s.Require().Len(managerOptions.Managers, 2)
 	s.Require().Equal([]models.CallFilterConnection{{ID: connectionID, Name: "Bitrix24 sales", Provider: "bitrix24"}}, managerOptions.Connections)

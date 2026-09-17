@@ -14,7 +14,7 @@ import (
 // statusRevertWindow is how long a status change can be taken back.
 const statusRevertWindow = time.Hour
 
-const actionSelect = `SELECT a.action_uuid,a.company_uuid,COALESCE(c.name,''),COALESCE(c.tag,''),CASE WHEN a.company_uuid IS NULL THEN 'personal' ELSE 'company' END,CASE WHEN a.company_uuid IS NULL THEN p.username ELSE COALESCE(NULLIF(c.tag,''),a.company_uuid::text) END,a.source_department_uuid,COALESCE(sd.name,''),a.target_department_uuid,COALESCE(td.name,''),a.call_uuid,a.analysis_uuid,a.transcription_revision,a.title,a.description,a.status,a.assignment_state,a.assignee_user_uuid,p.username,a.due_at,a.grace_expires_at,a.lock_version,a.created_by_user_uuid,a.created_at,a.updated_at,a.completed_at,a.cancelled_at,a.cancel_reason FROM call_actions a JOIN user_profiles p ON p.user_uuid=a.assignee_user_uuid LEFT JOIN companies c ON c.company_uuid=a.company_uuid LEFT JOIN departments sd ON sd.department_uuid=a.source_department_uuid LEFT JOIN departments td ON td.department_uuid=a.target_department_uuid`
+const actionSelect = `SELECT a.action_uuid,a.company_uuid,COALESCE(c.name,''),COALESCE(c.tag,''),CASE WHEN a.company_uuid IS NULL THEN 'personal' ELSE 'company' END,CASE WHEN a.company_uuid IS NULL THEN p.username ELSE COALESCE(NULLIF(c.tag,''),a.company_uuid::text) END,a.source_department_uuid,COALESCE(sd.name,''),a.target_department_uuid,COALESCE(td.name,''),a.call_uuid,a.analysis_uuid,a.transcription_revision,a.title,a.description,a.status,a.assignment_state,a.assignee_user_uuid,p.username,a.due_at,a.grace_expires_at,a.lock_version,a.created_by_user_uuid,a.created_at,a.updated_at,a.completed_at,a.cancelled_at,a.cancel_reason,COALESCE(call.deleted_at IS NOT NULL,false) FROM call_actions a JOIN user_profiles p ON p.user_uuid=a.assignee_user_uuid LEFT JOIN calls call ON call.call_uuid=a.call_uuid LEFT JOIN companies c ON c.company_uuid=a.company_uuid LEFT JOIN departments sd ON sd.department_uuid=a.source_department_uuid LEFT JOIN departments td ON td.department_uuid=a.target_department_uuid`
 
 func (s *Service) Get(ctx context.Context, id, actor uuid.UUID, admin bool) (Item, error) {
 	row := s.db.QueryRowContext(ctx, actionSelect+` WHERE a.action_uuid=$1`, id)
@@ -44,7 +44,7 @@ func scanItem(row scanner) (Item, error) {
 	var completed, cancelled sql.NullTime
 	var reason sql.NullString
 	var company, source, target uuid.NullUUID
-	err := row.Scan(&x.ID, &company, &x.CompanyName, &x.CompanyTag, &x.ScopeType, &x.ScopeTag, &source, &x.SourceDepartmentName, &target, &x.TargetDepartmentName, &x.CallUUID, &x.AnalysisUUID, &x.TranscriptionRevision, &x.Title, &x.Description, &x.Status, &x.AssignmentState, &x.AssigneeUserUUID, &x.AssigneeUsername, &x.DueAt, &x.GraceExpiresAt, &x.LockVersion, &x.CreatedByUserUUID, &x.CreatedAt, &x.UpdatedAt, &completed, &cancelled, &reason)
+	err := row.Scan(&x.ID, &company, &x.CompanyName, &x.CompanyTag, &x.ScopeType, &x.ScopeTag, &source, &x.SourceDepartmentName, &target, &x.TargetDepartmentName, &x.CallUUID, &x.AnalysisUUID, &x.TranscriptionRevision, &x.Title, &x.Description, &x.Status, &x.AssignmentState, &x.AssigneeUserUUID, &x.AssigneeUsername, &x.DueAt, &x.GraceExpiresAt, &x.LockVersion, &x.CreatedByUserUUID, &x.CreatedAt, &x.UpdatedAt, &completed, &cancelled, &reason, &x.CallInBin)
 	x.CompanyUUID, x.SourceDepartmentUUID, x.TargetDepartmentUUID = nullableUUID(company), nullableUUID(source), nullableUUID(target)
 	x.CompletedAt = ptrTime(completed)
 	x.CancelledAt = ptrTime(cancelled)
@@ -234,7 +234,7 @@ func (s *Service) List(ctx context.Context, in ListInput) (ListResult, error) {
 	if in.Mine {
 		where = append(where, "a.assignee_user_uuid=$1")
 	}
-	base := ` FROM call_actions a JOIN user_profiles p ON p.user_uuid=a.assignee_user_uuid LEFT JOIN companies c ON c.company_uuid=a.company_uuid LEFT JOIN departments sd ON sd.department_uuid=a.source_department_uuid LEFT JOIN departments td ON td.department_uuid=a.target_department_uuid WHERE ` + strings.Join(where, " AND ")
+	base := ` FROM call_actions a JOIN user_profiles p ON p.user_uuid=a.assignee_user_uuid LEFT JOIN calls call ON call.call_uuid=a.call_uuid LEFT JOIN companies c ON c.company_uuid=a.company_uuid LEFT JOIN departments sd ON sd.department_uuid=a.source_department_uuid LEFT JOIN departments td ON td.department_uuid=a.target_department_uuid WHERE ` + strings.Join(where, " AND ")
 	var total int
 	if err := s.db.QueryRowContext(ctx, `SELECT count(*)`+base, args...).Scan(&total); err != nil {
 		return ListResult{}, err

@@ -46,10 +46,21 @@ func (t AdminAuditTrail) Valid() bool {
 // AdminAuditTrailEntry is one record, reduced to what every trail can answer:
 // when it happened, who did it if anybody, what it was, and the rest as details.
 type AdminAuditTrailEntry struct {
-	OccurredAt    time.Time
+	OccurredAt time.Time
+	// EntryUUID identifies the record where that means something. Only billing
+	// alerts can be acted on, and only they carry one.
+	EntryUUID     uuid.NullUUID
 	ActorUserUUID uuid.NullUUID
 	Action        string
 	Details       json.RawMessage
+}
+
+// ResolveBillingAlertInput closes one alert. Alerts are the only trail with a
+// state of its own: every other record is history and cannot change.
+type ResolveBillingAlertInput struct {
+	AlertUUID   uuid.UUID
+	RequestUser uuid.UUID
+	Reason      string
 }
 
 type ListAdminAuditTrailInput struct {

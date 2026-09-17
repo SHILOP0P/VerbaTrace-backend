@@ -18,6 +18,7 @@ func PlanModelToAPI(plan models.Plan) (dto.PlanResponse, error) {
 		MarketingHoursHint:             plan.MarketingHoursHint,
 		MonthlyMinutesLimit:            plan.MonthlyMinutesLimit,
 		MonthlyCreditAllowance:         plan.MonthlyCreditAllowance,
+		PendingCreditCallsLimit:        plan.PendingCreditCallsLimit,
 		ActiveInstructionLimit:         plan.ActiveInstructionLimit,
 		CompanyLimit:                   plan.CompanyLimit,
 		DepartmentsPerCompanyLimit:     plan.DepartmentsPerCompanyLimit,

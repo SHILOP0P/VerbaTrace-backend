@@ -60,6 +60,17 @@ reconciliation failure, stale provider-running operation, webhook retry exhausti
 KMS/decryption failure, ingest lease age above the worker threshold, or queue growth
 for three consecutive polling windows.
 
+Alerts land in `billing_alerts` and are read from the admin panel: **Журналы →
+Алерты биллинга**. The same screen closes one, with a reason that goes into
+`admin_audit_logs` (`POST /api/v1/admin/billing-alerts/{alert_uuid}/resolve`).
+Closing an alert changes nothing about the operation behind it — settle or
+release that first, then close the alert. Reconciliation reopens an alert whose
+deduplication key matches, so a premature close is visible rather than lost.
+
+The other append-only trails are on the same screen: admin actions, credit
+reconciliation runs, retention, transcript edits and comment revisions. Before
+this they could only be read by opening the database by hand.
+
 ## Incident procedures
 
 ### Credit reservation is stuck

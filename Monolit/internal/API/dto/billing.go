@@ -1,15 +1,18 @@
 package dto
 
 type PlanResponse struct {
-	ID                             string `json:"id"`
-	Code                           string `json:"code"`
-	Type                           string `json:"type"`
-	Name                           string `json:"name"`
-	MonthlyPriceMinor              int64  `json:"monthly_price_minor"`
-	Currency                       string `json:"currency"`
-	MarketingHoursHint             int    `json:"marketing_hours_hint"`
-	MonthlyMinutesLimit            int    `json:"monthly_minutes_limit"`
-	MonthlyCreditAllowance         int64  `json:"monthly_credit_allowance"`
+	ID                     string `json:"id"`
+	Code                   string `json:"code"`
+	Type                   string `json:"type"`
+	Name                   string `json:"name"`
+	MonthlyPriceMinor      int64  `json:"monthly_price_minor"`
+	Currency               string `json:"currency"`
+	MarketingHoursHint     int    `json:"marketing_hours_hint"`
+	MonthlyMinutesLimit    int    `json:"monthly_minutes_limit"`
+	MonthlyCreditAllowance int64  `json:"monthly_credit_allowance"`
+	// PendingCreditCallsLimit is how many calls may wait for credits at once.
+	// Null means no cap; zero means an upload is refused once the budget is out.
+	PendingCreditCallsLimit        *int   `json:"pending_credit_calls_limit"`
 	ActiveInstructionLimit         int    `json:"active_instruction_limit"`
 	CompanyLimit                   *int   `json:"company_limit"`
 	DepartmentsPerCompanyLimit     *int   `json:"departments_per_company_limit"`

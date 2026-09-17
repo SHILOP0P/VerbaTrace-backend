@@ -197,18 +197,22 @@ func (s *RepositorySuite) TestAddUsageMinutesAccumulatesCurrentPeriod() {
 	s.Require().Equal(7, usedMinutes)
 }
 
-func (s *RepositorySuite) TestEnsureCurrentCreditUsageCreatesBalancedMonthlyAllowanceOnce() {
+func (s *RepositorySuite) TestEnsureCurrentCreditUsageCreatesBalancedPeriodAllowanceOnce() {
 	userID := s.createUser("credit-allowance@example.com")
 	subscription, err := s.repository.GetActivePersonalSubscription(s.ctx, userID)
 	s.Require().NoError(err)
 	s.Require().Equal(int64(250_000), subscription.Plan.MonthlyCreditAllowance)
 
-	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	// The allowance follows the subscription's own 30-day window, not the
+	// calendar, so the expectation is computed the same way the code does it
+	// instead of being pinned to the first of a month.
+	now := subscription.StartsAt.UTC().Add(8 * 24 * time.Hour)
+	period := models.CreditPeriodFor(subscription.StartsAt, now)
 	first, err := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now)
 	s.Require().NoError(err)
 	s.Require().Equal(subscription.Plan.MonthlyCreditAllowance, first.AllowanceCredits)
 	s.Require().Equal(subscription.Plan.MonthlyCreditAllowance, first.AllowanceRemaining)
-	s.Require().Equal(time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), first.ResetsAt)
+	s.Require().WithinDuration(period.End, first.ResetsAt, time.Second)
 
 	second, err := s.repository.EnsureCurrentCreditUsage(s.ctx, subscription, now.Add(time.Hour))
 	s.Require().NoError(err)

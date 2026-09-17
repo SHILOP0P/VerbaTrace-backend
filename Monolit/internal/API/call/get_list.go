@@ -447,16 +447,7 @@ func parseOffset(value string) (int, error) {
 }
 
 func isValidCallStatus(status models.CallStatus) bool {
-	switch status {
-	case models.CallStatusNew,
-		models.CallStatusProcessing,
-		models.CallStatusTranscribed,
-		models.CallStatusAnalyzed,
-		models.CallStatusFailed:
-		return true
-	default:
-		return false
-	}
+	return status.Valid()
 }
 
 func isValidCallVisibilityScope(scope models.CallVisibilityScope) bool {

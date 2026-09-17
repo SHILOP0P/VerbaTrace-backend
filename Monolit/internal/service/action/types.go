@@ -78,6 +78,10 @@ type Item struct {
 	CancelReason          *string      `json:"cancel_reason,omitempty"`
 	Evidence              []Evidence   `json:"evidence"`
 	Capabilities          Capabilities `json:"capabilities"`
+	// CallInBin means the call this action came from is waiting in the bin. The
+	// action keeps its history and stays readable, but nothing about it moves
+	// until the call is restored.
+	CallInBin bool `json:"call_in_bin"`
 }
 
 type Capabilities struct {

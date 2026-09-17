@@ -32,38 +32,42 @@ const (
 )
 
 type QualityReview struct {
-	ID                    uuid.UUID                 `json:"review_uuid"`
-	CallUUID              uuid.UUID                 `json:"call_uuid"`
-	AnalysisUUID          uuid.UUID                 `json:"analysis_uuid"`
-	AnalysisAttemptUUID   uuid.NullUUID             `json:"-"`
-	AnalysisAttemptID     *uuid.UUID                `json:"analysis_attempt_uuid,omitempty"`
-	TranscriptionRevision int                       `json:"transcription_revision"`
-	CompanyUUID           uuid.NullUUID             `json:"-"`
-	CompanyID             *uuid.UUID                `json:"company_uuid"`
-	DepartmentUUID        uuid.NullUUID             `json:"-"`
-	DepartmentID          *uuid.UUID                `json:"department_uuid,omitempty"`
-	SubjectUserUUID       uuid.NullUUID             `json:"-"`
-	SubjectUserID         *uuid.UUID                `json:"reviewed_subject_user_uuid,omitempty"`
-	AssigneeUserUUID      uuid.NullUUID             `json:"-"`
-	AssigneeUserID        *uuid.UUID                `json:"assignee_user_uuid,omitempty"`
-	Status                QualityReviewStatus       `json:"status"`
-	ActiveRevisionUUID    uuid.NullUUID             `json:"-"`
-	ActiveRevisionID      *uuid.UUID                `json:"active_revision_uuid,omitempty"`
-	LockVersion           int64                     `json:"lock_version"`
-	DueAt                 *time.Time                `json:"due_at,omitempty"`
-	CreatedByUserUUID     uuid.UUID                 `json:"created_by_user_uuid"`
-	CreatedAt             time.Time                 `json:"created_at"`
-	UpdatedAt             time.Time                 `json:"updated_at"`
-	PublishedAt           *time.Time                `json:"published_at,omitempty"`
-	SourceOutdated        bool                      `json:"source_outdated"`
-	Capabilities          QualityReviewCapabilities `json:"capabilities"`
-	Analysis              json.RawMessage           `json:"analysis"`
-	Draft                 *QualityReviewRevision    `json:"draft,omitempty"`
-	PublishedRevision     *QualityReviewRevision    `json:"published_revision,omitempty"`
-	Revisions             []QualityReviewRevision   `json:"revisions"`
-	Appeals               []QualityReviewAppeal     `json:"appeals"`
-	Challenge             *QualityReviewChallenge   `json:"challenge,omitempty"`
-	EffectiveAnalysis     *EffectiveAnalysis        `json:"effective_analysis,omitempty"`
+	ID                    uuid.UUID           `json:"review_uuid"`
+	CallUUID              uuid.UUID           `json:"call_uuid"`
+	AnalysisUUID          uuid.UUID           `json:"analysis_uuid"`
+	AnalysisAttemptUUID   uuid.NullUUID       `json:"-"`
+	AnalysisAttemptID     *uuid.UUID          `json:"analysis_attempt_uuid,omitempty"`
+	TranscriptionRevision int                 `json:"transcription_revision"`
+	CompanyUUID           uuid.NullUUID       `json:"-"`
+	CompanyID             *uuid.UUID          `json:"company_uuid"`
+	DepartmentUUID        uuid.NullUUID       `json:"-"`
+	DepartmentID          *uuid.UUID          `json:"department_uuid,omitempty"`
+	SubjectUserUUID       uuid.NullUUID       `json:"-"`
+	SubjectUserID         *uuid.UUID          `json:"reviewed_subject_user_uuid,omitempty"`
+	AssigneeUserUUID      uuid.NullUUID       `json:"-"`
+	AssigneeUserID        *uuid.UUID          `json:"assignee_user_uuid,omitempty"`
+	Status                QualityReviewStatus `json:"status"`
+	ActiveRevisionUUID    uuid.NullUUID       `json:"-"`
+	ActiveRevisionID      *uuid.UUID          `json:"active_revision_uuid,omitempty"`
+	LockVersion           int64               `json:"lock_version"`
+	DueAt                 *time.Time          `json:"due_at,omitempty"`
+	CreatedByUserUUID     uuid.UUID           `json:"created_by_user_uuid"`
+	CreatedAt             time.Time           `json:"created_at"`
+	UpdatedAt             time.Time           `json:"updated_at"`
+	PublishedAt           *time.Time          `json:"published_at,omitempty"`
+	SourceOutdated        bool                `json:"source_outdated"`
+	// CallInBin means the call this review belongs to is waiting in the bin. The
+	// review keeps its whole history and stays readable; it simply cannot be
+	// changed until the call comes back.
+	CallInBin         bool                      `json:"call_in_bin"`
+	Capabilities      QualityReviewCapabilities `json:"capabilities"`
+	Analysis          json.RawMessage           `json:"analysis"`
+	Draft             *QualityReviewRevision    `json:"draft,omitempty"`
+	PublishedRevision *QualityReviewRevision    `json:"published_revision,omitempty"`
+	Revisions         []QualityReviewRevision   `json:"revisions"`
+	Appeals           []QualityReviewAppeal     `json:"appeals"`
+	Challenge         *QualityReviewChallenge   `json:"challenge,omitempty"`
+	EffectiveAnalysis *EffectiveAnalysis        `json:"effective_analysis,omitempty"`
 }
 
 type QualityReviewChallenge struct {

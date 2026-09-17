@@ -26,7 +26,7 @@ func (s *Service) GetPersonalCreditDashboard(ctx context.Context, userID uuid.UU
 	if err != nil {
 		return models.CreditDashboard{}, err
 	}
-	return s.creditDashboard(ctx, subscription, from, to)
+	return s.creditDashboard(ctx, subscription, from, to, uuid.NullUUID{}, userID)
 }
 
 func (s *Service) GetCompanyCreditDashboard(ctx context.Context, companyID, userID uuid.UUID, from, to time.Time) (models.CreditDashboard, error) {
@@ -53,7 +53,7 @@ func (s *Service) GetCompanyCreditDashboard(ctx context.Context, companyID, user
 	if err != nil {
 		return models.CreditDashboard{}, err
 	}
-	dashboard, err := s.creditDashboard(ctx, subscription, from, to)
+	dashboard, err := s.creditDashboard(ctx, subscription, from, to, uuid.NullUUID{UUID: companyID, Valid: true}, userID)
 	if err != nil {
 		return models.CreditDashboard{}, err
 	}
@@ -79,11 +79,26 @@ func (s *Service) UpdateCompanyCreditVisibility(ctx context.Context, input model
 	return models.CreditDashboard{VisibleToMembers: input.Visible, CanManageVisibility: true}, nil
 }
 
-func (s *Service) creditDashboard(ctx context.Context, subscription models.Subscription, from, to time.Time) (models.CreditDashboard, error) {
+func (s *Service) creditDashboard(ctx context.Context, subscription models.Subscription, from, to time.Time, companyID uuid.NullUUID, userID uuid.UUID) (models.CreditDashboard, error) {
 	if s.creditDashboardRepo == nil {
 		return models.CreditDashboard{}, models.ErrInvalidBillingInput
 	}
-	return s.creditDashboardRepo.GetCreditDashboard(ctx, subscription, from, to)
+	dashboard, err := s.creditDashboardRepo.GetCreditDashboard(ctx, subscription, from, to)
+	if err != nil {
+		return models.CreditDashboard{}, err
+	}
+	// A depleted limit does not stop uploads, it parks them. Showing how deep
+	// that queue already is turns an invisible wait into a number.
+	dashboard.PendingCreditCallsLimit = subscription.Plan.PendingCreditCallsLimit
+	if s.pendingQueue != nil {
+		waiting, countErr := s.pendingQueue.CountCallsAwaitingCredits(ctx, companyID, uuid.NullUUID{}, userID)
+		if countErr != nil {
+			return models.CreditDashboard{}, countErr
+		}
+		dashboard.CallsAwaitingCredits = waiting
+	}
+
+	return dashboard, nil
 }
 
 func validActivityRange(from, to time.Time) bool {

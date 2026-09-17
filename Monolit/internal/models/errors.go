@@ -56,6 +56,10 @@ var ErrCannotChangeOwnRole = errors.New("cannot change own role")
 var ErrUserRoleChanged = errors.New("user role changed")
 var ErrAdminSessionManagementForbidden = errors.New("admin session management is forbidden")
 
+// ErrAdminRecordNotFound is an audit record the panel asked to act on that is
+// gone or already dealt with.
+var ErrAdminRecordNotFound = errors.New("admin record not found")
+
 // COMPANY
 var ErrCompanyNotFound = errors.New("company not found")
 var ErrInvalidCompanyInput = errors.New("invalid company input")

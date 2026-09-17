@@ -152,6 +152,11 @@ type CreditDashboard struct {
 	WalletEntries       []CreditWalletEntry
 	VisibleToMembers    bool
 	CanManageVisibility bool
+	// CallsAwaitingCredits and PendingCreditCallsLimit answer the question an
+	// exhausted limit raises: how many calls are parked and how many more fit.
+	// A nil limit means the queue has no cap.
+	CallsAwaitingCredits    int
+	PendingCreditCallsLimit *int
 }
 
 type UpdateCompanyCreditVisibilityInput struct {

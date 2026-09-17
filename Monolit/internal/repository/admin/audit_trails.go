@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"verbatrace/monolit/internal/models"
+
+	"github.com/google/uuid"
 )
 
 // auditTrailSources is every append-only record the application keeps. Each was
@@ -17,27 +19,27 @@ import (
 // The columns differ between them, so each source says how to present itself as
 // the same four fields: when, who, what, and the details.
 var auditTrailSources = map[models.AdminAuditTrail]string{
-	models.AdminAuditTrailAdminActions: `SELECT created_at AS occurred_at, actor_user_uuid, action,
+	models.AdminAuditTrailAdminActions: `SELECT created_at AS occurred_at, NULL::uuid AS entry_uuid, actor_user_uuid, action,
 		jsonb_build_object('actor_role', actor_role, 'target_type', target_type, 'target_uuid', target_uuid, 'reason', reason, 'ip_address', ip_address) AS details
 		FROM admin_audit_logs`,
 
-	models.AdminAuditTrailBillingAlerts: `SELECT created_at AS occurred_at, NULL::uuid AS actor_user_uuid, alert_type AS action,
+	models.AdminAuditTrailBillingAlerts: `SELECT created_at AS occurred_at, billing_alert_uuid AS entry_uuid, NULL::uuid AS actor_user_uuid, alert_type AS action,
 		jsonb_build_object('severity', severity, 'status', status, 'billing_account_uuid', billing_account_uuid, 'usage_operation_uuid', usage_operation_uuid, 'details', details, 'resolved_at', resolved_at) AS details
 		FROM billing_alerts`,
 
-	models.AdminAuditTrailCreditReconciliation: `SELECT created_at AS occurred_at, NULL::uuid AS actor_user_uuid, status AS action,
+	models.AdminAuditTrailCreditReconciliation: `SELECT created_at AS occurred_at, NULL::uuid AS entry_uuid, NULL::uuid AS actor_user_uuid, status AS action,
 		jsonb_build_object('provider', provider, 'period_start', period_start, 'period_end', period_end, 'checked', checked_operations, 'mismatched', mismatched_operations, 'completed_at', completed_at, 'details', details) AS details
 		FROM billing_reconciliation_runs`,
 
-	models.AdminAuditTrailRetention: `SELECT created_at AS occurred_at, NULL::uuid AS actor_user_uuid, event_type AS action,
+	models.AdminAuditTrailRetention: `SELECT created_at AS occurred_at, NULL::uuid AS entry_uuid, NULL::uuid AS actor_user_uuid, event_type AS action,
 		jsonb_build_object('entity_type', entity_type, 'entity_uuid', entity_uuid, 'item_count', item_count, 'byte_count', byte_count, 'metadata', metadata_safe) AS details
 		FROM retention_audit_events`,
 
-	models.AdminAuditTrailTranscriptEdits: `SELECT created_at AS occurred_at, actor_user_uuid, operation AS action,
+	models.AdminAuditTrailTranscriptEdits: `SELECT created_at AS occurred_at, NULL::uuid AS entry_uuid, actor_user_uuid, operation AS action,
 		jsonb_build_object('transcription_uuid', transcription_uuid, 'revision', revision, 'reason', reason) AS details
 		FROM call_transcription_edit_audit`,
 
-	models.AdminAuditTrailCommentRevisions: `SELECT created_at AS occurred_at, editor_user_uuid AS actor_user_uuid, 'comment_revised' AS action,
+	models.AdminAuditTrailCommentRevisions: `SELECT created_at AS occurred_at, NULL::uuid AS entry_uuid, editor_user_uuid AS actor_user_uuid, 'comment_revised' AS action,
 		jsonb_build_object('comment_uuid', comment_uuid, 'revision_uuid', revision_uuid) AS details
 		FROM call_analysis_comment_revisions`,
 }
@@ -70,7 +72,7 @@ func (r *Repository) ListAuditTrail(ctx context.Context, input models.ListAdminA
 	args = append(args, input.Limit, input.Offset)
 
 	query := fmt.Sprintf(`
-		SELECT source.occurred_at, source.actor_user_uuid, source.action, source.details, COUNT(*) OVER() AS total
+		SELECT source.occurred_at, source.entry_uuid, source.actor_user_uuid, source.action, source.details, COUNT(*) OVER() AS total
 		FROM (%s) source
 		WHERE %s
 		ORDER BY source.occurred_at DESC
@@ -88,7 +90,7 @@ func (r *Repository) ListAuditTrail(ctx context.Context, input models.ListAdminA
 		var entry models.AdminAuditTrailEntry
 		var details []byte
 		var total int
-		if err = rows.Scan(&entry.OccurredAt, &entry.ActorUserUUID, &entry.Action, &details, &total); err != nil {
+		if err = rows.Scan(&entry.OccurredAt, &entry.EntryUUID, &entry.ActorUserUUID, &entry.Action, &details, &total); err != nil {
 			return models.ListAdminAuditTrailResult{}, fmt.Errorf("scan audit trail %s: %w", input.Trail, err)
 		}
 		entry.Details = json.RawMessage(details)
@@ -97,4 +99,24 @@ func (r *Repository) ListAuditTrail(ctx context.Context, input models.ListAdminA
 	}
 
 	return result, rows.Err()
+}
+
+// ResolveBillingAlert closes an alert an administrator has dealt with. Only
+// alerts have a state: they are a to-do list the system writes for itself, and
+// without a way to close one the list grows until nobody reads it.
+func (r *Repository) ResolveBillingAlert(ctx context.Context, id uuid.UUID) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE billing_alerts SET status='resolved', resolved_at=now() WHERE billing_alert_uuid=$1 AND status<>'resolved'`, id)
+	if err != nil {
+		return fmt.Errorf("resolve billing alert: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("resolve billing alert: %w", err)
+	}
+	if affected == 0 {
+		return models.ErrAdminRecordNotFound
+	}
+
+	return nil
 }

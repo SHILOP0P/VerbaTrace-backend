@@ -112,6 +112,13 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 					r.Get("/audit-trails", auditAPI.ListAuditTrails)
 					r.Get("/audit-trails/{trail}", auditAPI.GetAuditTrail)
 				}
+				// Alerts are the only trail with a state of its own, so they are
+				// the only one an administrator can act on.
+				if alertAPI, ok := adminAPI.(interface {
+					ResolveBillingAlert(http.ResponseWriter, *http.Request)
+				}); ok {
+					r.Post("/billing-alerts/{alert_uuid}/resolve", alertAPI.ResolveBillingAlert)
+				}
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionUsersRead)).Get("/users", adminAPI.ListUsers)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionUsersRead)).Get("/users/{user_uuid}", adminAPI.GetUser)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCallsRead)).Get("/users/{user_uuid}/calls", adminAPI.ListUserCalls)
@@ -279,6 +286,13 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				CancelProcessing(http.ResponseWriter, *http.Request)
 			}); ok {
 				r.With(authGuard).Post("/calls/{uuid}/cancel-processing", cancelAPI.CancelProcessing)
+			}
+			// A cancelled call is a pause, not a verdict: it can start again, in
+			// the same mode or in the cheaper one.
+			if restartAPI, ok := callAPI.(interface {
+				RestartProcessing(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Post("/calls/{uuid}/restart-processing", restartAPI.RestartProcessing)
 			}
 
 			//CALL FOLDERS

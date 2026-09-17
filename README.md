@@ -204,6 +204,8 @@ flowchart LR
 
 - `new` - звонок сохранён и ожидает обработки.
 - `processing` - обработчик забрал звонок в работу.
+- `awaiting_credits` - лимит кредитов исчерпан; звонок принят и ждёт в очереди, обработка начнётся сама, когда лимит обновится. Это не ошибка.
+- `cancelled` - обработку остановили намеренно. Запись на месте, звонок можно запустить заново, скачать или удалить в корзину.
 - `transcribed` - аудио переведено в текст.
 - `analyzed` - по транскрипту построен анализ.
 - `failed` - обработка завершилась ошибкой.
@@ -538,6 +540,8 @@ Calls:
 | DELETE | `/api/v1/calls/{uuid}` | Да | Переместить звонок в корзину на 30 дней |
 | GET | `/api/v1/calls-bin` | Да | Получить звонки в корзине (`limit`, `offset`) |
 | POST | `/api/v1/calls/{uuid}/restore` | Да | Вернуть звонок из корзины |
+| POST | `/api/v1/calls/{uuid}/cancel-processing` | Да | Остановить обработку звонка и оставить запись |
+| POST | `/api/v1/calls/{uuid}/restart-processing` | Да | Запустить обработку отменённого звонка заново |
 
 Удаление звонка мягкое: строка и файлы остаются 30 дней (`deleted_at`, `purge_after`),
 звонок исчезает из всех списков, поиска, ассистента и очереди обработки, но его
@@ -546,6 +550,21 @@ Calls:
 отвечает за звонок: автор личного звонка, лидер его отдела, заместитель и
 владелец компании. Им же виден список корзины; обычный сотрудник корзину не
 видит и чужой звонок удалить не может.
+
+Звонок в обработке (`new`, `processing`, `awaiting_credits`) удалить нельзя:
+`DELETE` возвращает `409 call_processing_in_progress`. Сначала его останавливают
+через `POST /api/v1/calls/{uuid}/cancel-processing` — задачи снимаются с очереди,
+незавершённые транскрипция и анализ помечаются отменёнными, резерв кредитов
+возвращается, звонок переходит в статус `cancelled`. Запись при этом остаётся, и
+TTL у неё обычный.
+
+Из состояния `cancelled` звонок можно запустить заново:
+`POST /api/v1/calls/{uuid}/restart-processing` с телом
+`{"processing_mode":"analyze"|"transcribe"}`. Обработка ставится в очередь снова
+и подчиняется тому же лимиту ожидания, что и загрузка. Если транскрипт уже готов,
+`transcribe` просто переключает звонок в режим «только транскрибация»: ничего не
+отправляется провайдеру и повторной оплаты нет. Права на отмену и перезапуск — те
+же, что на удаление.
 
 `POST /api/v1/calls` принимает multipart-поле `processing_mode`: `transcribe`
 завершает обработку после транскрипции, `analyze` запускает последующий анализ.
@@ -624,7 +643,7 @@ transcription_locked_by_review` — проверяющий должен виде
 | Параметр | Значение |
 | --- | --- |
 | `q` | Поиск по `title` и `original_filename` |
-| `status` | `new`, `processing`, `transcribed`, `analyzed`, `failed`; можно несколько значений |
+| `status` | `new`, `processing`, `awaiting_credits`, `cancelled`, `transcribed`, `analyzed`, `failed`; можно несколько значений |
 | `scope` | `personal`, `company`, `department`; можно несколько значений |
 | `company_uuid` | UUID компании |
 | `department_uuid` | UUID отдела; можно несколько значений |
@@ -653,7 +672,7 @@ transcription_locked_by_review` — проверяющий должен виде
 
 ```json
 {
-  "statuses": ["new", "processing", "transcribed", "analyzed", "failed"],
+  "statuses": ["new", "processing", "awaiting_credits", "cancelled", "transcribed", "analyzed", "failed"],
   "scopes": ["personal", "company", "department"],
   "managers": [
     {
@@ -1103,6 +1122,9 @@ Frontend в соседнем репозитории отображает MD ка
 | Method | Path | Роль | Описание |
 | --- | --- | --- | --- |
 | GET | `/api/v1/admin/capabilities` | helper+ | Роль и capabilities |
+| GET | `/api/v1/admin/audit-trails` | helper+ | Список доступных журналов |
+| GET | `/api/v1/admin/audit-trails/{trail}` | helper+ | Записи журнала (`from`, `to`, `limit`, `offset`) |
+| POST | `/api/v1/admin/billing-alerts/{alert_uuid}/resolve` | helper+ | Закрыть алерт биллинга с обязательным `reason` |
 | GET | `/api/v1/admin/users` | helper+ | Пользователи с фильтрами и пагинацией |
 | GET | `/api/v1/admin/users/{user_uuid}` | helper+ | Карточка пользователя |
 | PATCH | `/api/v1/admin/users/{user_uuid}/profile` | admin+ | Изменить профиль пользователя |
@@ -1127,6 +1149,8 @@ Frontend в соседнем репозитории отображает MD ка
 
 Для выдачи подписки передаются `plan_code`, `ends_at` в RFC3339 и обязательный `reason`; `starts_at` необязателен, но не может быть позже текущего момента более чем на минуту, а `ends_at` должен быть позже `starts_at`. Публичные mutation endpoints самостоятельной активации подписки отсутствуют.
 
+Журналы (`/admin/audit-trails`) — единственное место, где видно то, что система всегда писала и никто не читал: `admin_actions`, `billing_alerts`, `credit_reconciliation`, `retention`, `transcript_edits`, `comment_revisions`. Все они append-only и приводятся к одной форме «когда, кто, что, подробности», поэтому читаются одной ручкой с фильтром по периоду. Клиентских данных они не называют, так что хватает доступа к панели и support-доступ не нужен. Единственный журнал с собственным состоянием — алерты биллинга: их закрывают `POST /admin/billing-alerts/{alert_uuid}/resolve` с обязательным `reason`, и само закрытие попадает в `admin_audit_logs`.
+
 Support-доступ запрашивается и управляется через `POST /api/v1/support-access-requests`, `GET /api/v1/support-access-requests/{request_uuid}`, `POST .../{request_uuid}/approve|deny` и `POST /api/v1/support-access-grants/{grant_uuid}/revoke`. Доступ ограничен allowlist ресурсов и команд, сроком действия и аудитом.
 
 Billing:
@@ -1141,6 +1165,7 @@ Billing:
 | GET | `/api/v1/credits/dashboard` | Да | Персональный dashboard кредитов |
 | GET | `/api/v1/companies/{uuid}/credits/dashboard` | Да | Dashboard кредитов компании |
 | PATCH | `/api/v1/companies/{uuid}/credits/visibility` | Да | Показывать ли расход кредитов участникам компании |
+| POST | `/api/v1/companies/{uuid}/subscription/cancel` | Да | Владелец отменяет бизнес-подписку |
 | PUT | `/api/v1/companies/{uuid}/credit-limit` | Да | Лимит кредитов компании; задаёт только владелец |
 | PUT | `/api/v1/companies/{uuid}/departments/{department_uuid}/credit-limit` | Да | Лимит кредитов отдела; задают владелец и заместитель |
 | GET | `/api/v1/companies/{uuid}/credit-forecast` | Да | Расход и прогноз за период: владелец и заместитель видят компанию с разбивкой по отделам, лидер — свой отдел |
@@ -1148,9 +1173,11 @@ Billing:
 | POST | `/api/v1/companies/{uuid}/activate` | Да | Вернуть компанию в работу, если тариф её покрывает |
 | GET | `/api/v1/companies/{uuid}/lifecycle` | Да | Состояние компании и сроки заморозки или удаления |
 
-Тарифы: `personal_start`, `personal_plus`, `personal_pro`, `business_start`, `business_plus`, `business_pro`. Тариф определяет лимиты и режим транскрибации: `personal_start` — `standard`; `personal_plus` и `business_start` — `diarized`; `personal_pro`, `business_plus` и `business_pro` — `identified`.
+Тарифы: `personal_start`, `personal_plus`, `personal_pro`, `business_start`, `business_plus`, `business_pro`. Отдельно есть служебный тариф `free` («Без подписки») — им выражается отсутствие подписки явными нулями, потому что пустой лимит везде означает безлимит. В публичном списке `GET /api/v1/plans` он не показывается. Глубина очереди ожидания кредитов по тарифам: `free` и `personal_start` — 0, `personal_plus` — 5, `personal_pro` — 10, `business_start` — 20, `business_plus` — 40, `business_pro` — 80. Тариф определяет лимиты и режим транскрибации: `personal_start` — `standard`; `personal_plus` и `business_start` — `diarized`; `personal_pro`, `business_plus` и `business_pro` — `identified`.
 
-Бизнес-подписку покупает владелец, а не компания. Одна подписка покрывает его компании: `company_limit` тарифа — одна на младших, три на `business_pro`. Кредиты общие на все компании владельца, поэтому расход удерживают лимиты: владелец задаёт лимит компании, заместитель делит его между отделами. Пустой лимит означает безлимит в рамках компании, ноль запрещает расход; при исчерпании операция с кредитами отклоняется с `company_credit_limit_exceeded` или `department_credit_limit_exceeded`. Период — календарный месяц UTC, прогноз считается по темпу уже прошедшей части периода.
+Бизнес-подписку покупает владелец, а не компания. Одна подписка покрывает его компании: `company_limit` тарифа — одна на младших, три на `business_pro`. Кредиты общие на все компании владельца, поэтому расход удерживают лимиты: владелец задаёт лимит компании, заместитель делит его между отделами. Пустой лимит означает безлимит в рамках компании, ноль запрещает расход; при исчерпании операция с кредитами отклоняется с `company_credit_limit_exceeded` или `department_credit_limit_exceeded`. Период — 30 дней от начала подписки, а не календарный месяц; прогноз считается по темпу уже прошедшей части периода и не строится, пока не прошли первые сутки.
+
+Исчерпанный лимит не теряет загрузку: звонок принимают и ставят в статус `awaiting_credits`, обработка начинается сама, когда лимит обновится. Глубину этой очереди задаёт поле тарифа `pending_credit_calls_limit`: пусто — без ограничений, ноль — загрузку отклоняют сразу, как только бюджет кончился. Когда очередь заполнена, загрузка и перезапуск отвечают `409 pending_credit_queue_full`. Очередь считается по отделу, если у отдела есть собственный лимит кредитов, и по компании в остальных случаях. Dashboard кредитов возвращает `calls_awaiting_credits` и `pending_credit_calls_limit`.
 
 Компания живёт в одном из состояний: `active`, `frozen`, `soft_deleted`. Замороженная компания читается как активная, но не покрыта подпиской: всё, что меняет бизнес-данные или тратит кредиты, останавливается. Удаление компании начинает этот путь: 30 дней заморозки, затем 30 дней мягкого удаления, затем полная очистка с откреплением сотрудников. Суперадмин может один раз вернуть компанию из мягкого удаления обратно в заморозку.
 
@@ -1751,7 +1778,7 @@ workflow, `CI Gate` и pre-commit build.
 
 | Группа | Переменные |
 | --- | --- |
-| HTTP | `HTTP_HOST`, `HTTP_PORT`, `HTTP_READ_TIMEOUT` — обязательно |
+| HTTP | `HTTP_HOST`, `HTTP_PORT`, `HTTP_READ_TIMEOUT` — обязательно; `TRUSTED_PROXY_CIDRS` — список CIDR через запятую, чьим `X-Forwarded-For` и `X-Real-IP` можно верить при записи IP в аудит и сессии. Пусто означает, что заголовкам не верят и берут адрес соединения |
 | PostgreSQL | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_SSL_MODE`, `MIGRATION_DIRECTORY` — обязательно; `POSTGRES_TEST_DB` — база для integration-тестов |
 | Файлы и медиа | `UPLOAD_PATH` — обязательно; `FFMPEG_PATH` (`ffmpeg`), `FFPROBE_PATH` (`ffprobe`) |
 | Логи | `LOG_LEVEL` (`info`), `LOG_AS_JSON` (`false`) |

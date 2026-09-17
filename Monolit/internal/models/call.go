@@ -60,6 +60,33 @@ const (
 	CallStatusFailed      CallStatus = "failed"
 )
 
+// CallStatuses lists every state a call can be in, in the order the work moves
+// through them. The filter and the API's allow-list both read it, so a new
+// status cannot be added to one and forgotten in the other.
+func CallStatuses() []CallStatus {
+	return []CallStatus{
+		CallStatusNew,
+		CallStatusProcessing,
+		CallStatusAwaitingCredits,
+		CallStatusCancelled,
+		CallStatusTranscribed,
+		CallStatusAnalyzed,
+		CallStatusFailed,
+	}
+}
+
+// Valid answers whether a status came from the list above. A filter that names
+// an unknown status is a client mistake, not an empty result.
+func (s CallStatus) Valid() bool {
+	for _, known := range CallStatuses() {
+		if s == known {
+			return true
+		}
+	}
+
+	return false
+}
+
 const (
 	CallVisibilityScopePersonal   CallVisibilityScope = "personal"
 	CallVisibilityScopeCompany    CallVisibilityScope = "company"
