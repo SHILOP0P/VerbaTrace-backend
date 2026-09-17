@@ -71,9 +71,12 @@ func (r *Repository) ListAuditTrail(ctx context.Context, input models.ListAdminA
 	}
 	args = append(args, input.Limit, input.Offset)
 
+	// The actor's handle is joined in rather than left to the reader: the screen
+	// has to name who acted, and the uuid the trail stores is not a name.
 	query := fmt.Sprintf(`
-		SELECT source.occurred_at, source.entry_uuid, source.actor_user_uuid, source.action, source.details, COUNT(*) OVER() AS total
+		SELECT source.occurred_at, source.entry_uuid, source.actor_user_uuid, actor.username, source.action, source.details, COUNT(*) OVER() AS total
 		FROM (%s) source
+		LEFT JOIN user_profiles actor ON actor.user_uuid = source.actor_user_uuid
 		WHERE %s
 		ORDER BY source.occurred_at DESC
 		LIMIT $%d OFFSET $%d`,
@@ -90,7 +93,7 @@ func (r *Repository) ListAuditTrail(ctx context.Context, input models.ListAdminA
 		var entry models.AdminAuditTrailEntry
 		var details []byte
 		var total int
-		if err = rows.Scan(&entry.OccurredAt, &entry.EntryUUID, &entry.ActorUserUUID, &entry.Action, &details, &total); err != nil {
+		if err = rows.Scan(&entry.OccurredAt, &entry.EntryUUID, &entry.ActorUserUUID, &entry.ActorUsername, &entry.Action, &details, &total); err != nil {
 			return models.ListAdminAuditTrailResult{}, fmt.Errorf("scan audit trail %s: %w", input.Trail, err)
 		}
 		entry.Details = json.RawMessage(details)

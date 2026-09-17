@@ -53,7 +53,7 @@ func (r *Repository) FreezeCompany(ctx context.Context, companyID uuid.UUID, rea
 	if _, err = tx.ExecContext(ctx, `
 		UPDATE integration_connections
 		SET status='paused', paused_by_freeze=true, last_error_code='company_frozen',
-		    lock_version=lock_version+1, updated_at=$2
+		    freeze_notice_sent_at=NULL, lock_version=lock_version+1, updated_at=$2
 		WHERE company_uuid=$1 AND status IN ('active','degraded','testing')`, companyID, now); err != nil {
 		return fmt.Errorf("pause integrations of frozen company: %w", err)
 	}
@@ -65,10 +65,12 @@ func (r *Repository) FreezeCompany(ctx context.Context, companyID uuid.UUID, rea
 func resumeFrozenIntegrations(ctx context.Context, q interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }, companyID uuid.UUID, now time.Time) error {
+	// The notice stamp is cleared with the pause: a company frozen a second time
+	// has to tell its portal a second time.
 	if _, err := q.ExecContext(ctx, `
 		UPDATE integration_connections
 		SET status='active', paused_by_freeze=false, last_error_code=NULL,
-		    lock_version=lock_version+1, updated_at=$2
+		    freeze_notice_sent_at=NULL, lock_version=lock_version+1, updated_at=$2
 		WHERE company_uuid=$1 AND paused_by_freeze AND status='paused'`, companyID, now); err != nil {
 		return fmt.Errorf("resume integrations of the company: %w", err)
 	}

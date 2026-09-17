@@ -22,6 +22,9 @@ type auditTrailEntryResponse struct {
 	// means a billing alert waiting to be closed.
 	EntryUUID     string `json:"entry_uuid,omitempty"`
 	ActorUserUUID string `json:"actor_user_uuid,omitempty"`
+	// ActorUsername is what the panel shows. The uuid above stays in the payload
+	// for correlation with the raw tables, but it is not what a reader needs.
+	ActorUsername string `json:"actor_username,omitempty"`
 	Action        string `json:"action"`
 	Details       any    `json:"details,omitempty"`
 }
@@ -96,6 +99,9 @@ func (h *Handler) GetAuditTrail(w http.ResponseWriter, r *http.Request) {
 		}
 		if entry.ActorUserUUID.Valid {
 			item.ActorUserUUID = entry.ActorUserUUID.UUID.String()
+		}
+		if entry.ActorUsername.Valid {
+			item.ActorUsername = entry.ActorUsername.String
 		}
 		if len(entry.Details) > 0 {
 			item.Details = entry.Details

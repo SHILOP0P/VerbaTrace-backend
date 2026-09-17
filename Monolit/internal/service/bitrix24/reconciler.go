@@ -33,6 +33,9 @@ func (s *Service) RunReconciler(ctx context.Context, ingestor Ingestor) <-chan s
 			case <-ticker.C:
 				s.reconcileActiveConnections(ctx, ingestor)
 				s.processRecoverableCandidate(ctx, ingestor)
+				// A portal whose company was frozen by somebody other than its
+				// own owner — an administrator lowering the plan — is told here.
+				_ = s.NotifyFrozenCompanies(ctx)
 			}
 		}
 	}()

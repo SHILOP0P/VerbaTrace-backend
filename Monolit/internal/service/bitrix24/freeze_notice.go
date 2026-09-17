@@ -30,6 +30,7 @@ func (s *Service) NotifyCompanyFrozen(ctx context.Context, companyID uuid.UUID, 
 		SELECT connection_uuid
 		FROM integration_connections
 		WHERE company_uuid = $1 AND provider = 'bitrix24' AND status <> 'revoked'
+		  AND freeze_notice_sent_at IS NULL
 	`, companyID)
 	if err != nil {
 		return fmt.Errorf("list bitrix24 connections of a frozen company: %w", err)
@@ -49,12 +50,83 @@ func (s *Service) NotifyCompanyFrozen(ctx context.Context, companyID uuid.UUID, 
 
 	var failures error
 	for _, connectionID := range connections {
-		if err := s.postFrozenTask(ctx, connectionID, reason); err != nil {
+		if err := s.tellPortalAboutFreeze(ctx, connectionID, reason); err != nil {
 			failures = errors.Join(failures, fmt.Errorf("connection %s: %w", connectionID, err))
 		}
 	}
 
 	return failures
+}
+
+// NotifyFrozenCompanies is the same notice for every freeze the application did
+// not perform itself through the company service — an administrator lowering a
+// plan freezes companies inside the transaction that changes it, and the portal
+// can only be told once that has committed.
+//
+// It is also what makes the notice survive a restart: the freeze pauses the
+// connection, and the pause is what this looks for, so a process that died
+// between the two still tells the portal on its next tick.
+func (s *Service) NotifyFrozenCompanies(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT c.connection_uuid, COALESCE(company.freeze_reason, 'downgrade')
+		FROM integration_connections c
+		JOIN companies company ON company.company_uuid = c.company_uuid
+		WHERE c.provider = 'bitrix24'
+		  AND c.paused_by_freeze
+		  AND c.freeze_notice_sent_at IS NULL
+		  AND company.lifecycle_state = 'frozen'
+		ORDER BY c.updated_at
+		LIMIT 20
+	`)
+	if err != nil {
+		return fmt.Errorf("list portals to tell about a freeze: %w", err)
+	}
+
+	type pending struct {
+		connection uuid.UUID
+		reason     string
+	}
+	items := []pending{}
+	for rows.Next() {
+		var item pending
+		if rows.Scan(&item.connection, &item.reason) == nil {
+			items = append(items, item)
+		}
+	}
+	_ = rows.Close()
+	if err = rows.Err(); err != nil {
+		return err
+	}
+
+	var failures error
+	for _, item := range items {
+		if ctx.Err() != nil {
+			return failures
+		}
+		if err := s.tellPortalAboutFreeze(ctx, item.connection, item.reason); err != nil {
+			failures = errors.Join(failures, fmt.Errorf("connection %s: %w", item.connection, err))
+		}
+	}
+
+	return failures
+}
+
+// tellPortalAboutFreeze posts the task and remembers that it did. The stamp is
+// written only on success, so an unreachable portal is retried rather than
+// silently skipped, and it is cleared again when the freeze is lifted.
+func (s *Service) tellPortalAboutFreeze(ctx context.Context, connectionID uuid.UUID, reason string) error {
+	if err := s.postFrozenTask(ctx, connectionID, reason); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE integration_connections
+		SET freeze_notice_sent_at = $2
+		WHERE connection_uuid = $1
+	`, connectionID, s.now().UTC()); err != nil {
+		return fmt.Errorf("record the freeze notice: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Service) postFrozenTask(ctx context.Context, connectionID uuid.UUID, reason string) error {

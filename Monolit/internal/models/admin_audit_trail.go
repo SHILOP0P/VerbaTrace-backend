@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -51,6 +52,10 @@ type AdminAuditTrailEntry struct {
 	// alerts can be acted on, and only they carry one.
 	EntryUUID     uuid.NullUUID
 	ActorUserUUID uuid.NullUUID
+	// ActorUsername is who the actor is, rather than which row they are. The
+	// screen shows this; a uuid is not an answer to "who did it". It is empty
+	// when the trail records no actor, or when that person has no profile left.
+	ActorUsername sql.NullString
 	Action        string
 	Details       json.RawMessage
 }

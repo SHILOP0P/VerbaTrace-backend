@@ -36,6 +36,43 @@ func TestEveryAuditTrailCanBeRead(t *testing.T) {
 	require.ErrorIs(t, err, models.ErrInvalidAdminInput)
 }
 
+// The panel has to be able to name who acted. It used to print the actor's uuid
+// because that is all the trail stores, so the handle is joined in here.
+func TestAuditTrailNamesTheActorRatherThanTheirUUID(t *testing.T) {
+	db := repositorytest.OpenTestDB(t)
+	repositorytest.RunMigrations(t, db)
+	ctx := context.Background()
+
+	admins := adminRepo.NewRepository(db)
+
+	actorID := repositorytest.CreateUser(t, db)
+	_, err := db.ExecContext(ctx, `UPDATE users SET role='admin' WHERE user_uuid=$1`, actorID)
+	require.NoError(t, err)
+
+	var username string
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT username FROM user_profiles WHERE user_uuid=$1`, actorID).Scan(&username))
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO admin_audit_logs (audit_uuid, actor_user_uuid, actor_role, action, target_type, target_uuid, reason)
+		VALUES ($1, $2, 'admin', 'company.frozen', 'company', $3, 'integration test')`,
+		uuid.New(), actorID, uuid.New())
+	require.NoError(t, err)
+
+	result, err := admins.ListAuditTrail(ctx, models.ListAdminAuditTrailInput{Trail: models.AdminAuditTrailAdminActions, Limit: 10})
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Items)
+
+	found := false
+	for _, entry := range result.Items {
+		if entry.ActorUserUUID.Valid && entry.ActorUserUUID.UUID == actorID {
+			found = true
+			require.True(t, entry.ActorUsername.Valid, "the actor's handle has to come back with the row")
+			require.Equal(t, username, entry.ActorUsername.String)
+		}
+	}
+	require.True(t, found, "the row just written is not in the trail")
+}
+
 // Alerts are the one trail with a state. Closing one has to work, and closing
 // the same one twice has to say so rather than pretend it did something.
 func TestBillingAlertsCanBeResolvedOnce(t *testing.T) {

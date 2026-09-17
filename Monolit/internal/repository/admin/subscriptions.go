@@ -150,7 +150,7 @@ func (r *Repository) GrantAdminSubscription(ctx context.Context, in models.Grant
 	// chosen first, the rest are frozen in the same transaction, and only then
 	// does the plan change.
 	if subscriptionType == models.PlanTypeBusiness {
-		if err := applyCompanySelection(ctx, tx, ownerUser, planID, in.ActiveCompanyUUIDs); err != nil {
+		if _, err := applyCompanySelection(ctx, tx, actor, ownerUser, planID, in.ActiveCompanyUUIDs, in.Metadata); err != nil {
 			return models.AdminSubscription{}, err
 		}
 	}
@@ -246,14 +246,17 @@ func (r *Repository) CancelAdminSubscription(ctx context.Context, in models.Canc
 
 // applyCompanySelection makes the owner's companies fit the plan they are about
 // to be on. It does nothing while the plan still covers everything they have.
-func applyCompanySelection(ctx context.Context, tx *sql.Tx, ownerUser, planID uuid.UUID, chosen []uuid.UUID) error {
+// The companies it stopped are returned so the caller can tell their portals,
+// which cannot be done inside the transaction.
+func applyCompanySelection(ctx context.Context, tx *sql.Tx, actor models.AdminUser, ownerUser, planID uuid.UUID, chosen []uuid.UUID, metadata models.AdminMutationMetadata) ([]uuid.UUID, error) {
+	frozen := []uuid.UUID{}
 	var limit sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `SELECT company_limit FROM plans WHERE plan_uuid=$1`, planID).Scan(&limit); err != nil {
-		return err
+		return nil, err
 	}
 	if !limit.Valid {
 		// No cap, so nothing to choose between.
-		return nil
+		return frozen, nil
 	}
 
 	rows, err := tx.QueryContext(ctx, `
@@ -262,32 +265,32 @@ func applyCompanySelection(ctx context.Context, tx *sql.Tx, ownerUser, planID uu
 		ORDER BY created_at
 	`, ownerUser)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	owned := []uuid.UUID{}
 	for rows.Next() {
 		var id uuid.UUID
 		if scanErr := rows.Scan(&id); scanErr != nil {
 			_ = rows.Close()
-			return scanErr
+			return nil, scanErr
 		}
 		owned = append(owned, id)
 	}
 	_ = rows.Close()
 	if err = rows.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
 	allowed := int(limit.Int64)
 	if len(owned) <= allowed {
-		return nil
+		return frozen, nil
 	}
 
 	if len(chosen) == 0 {
-		return &models.CompanySelectionRequired{OwnerUserUUID: ownerUser, CompanyUUIDs: owned, CompanyLimit: allowed}
+		return nil, &models.CompanySelectionRequired{OwnerUserUUID: ownerUser, CompanyUUIDs: owned, CompanyLimit: allowed}
 	}
 	if len(chosen) > allowed {
-		return models.ErrCompanyLimitExceeded
+		return nil, models.ErrCompanyLimitExceeded
 	}
 
 	ownedSet := map[uuid.UUID]bool{}
@@ -297,7 +300,7 @@ func applyCompanySelection(ctx context.Context, tx *sql.Tx, ownerUser, planID uu
 	keep := map[uuid.UUID]bool{}
 	for _, id := range chosen {
 		if !ownedSet[id] || keep[id] {
-			return models.ErrInvalidAdminInput
+			return nil, models.ErrInvalidAdminInput
 		}
 		keep[id] = true
 	}
@@ -305,21 +308,42 @@ func applyCompanySelection(ctx context.Context, tx *sql.Tx, ownerUser, planID uu
 	now := time.Now().UTC()
 	for _, id := range owned {
 		if keep[id] {
-			if _, err = tx.ExecContext(ctx, `
+			result, activateErr := tx.ExecContext(ctx, `
 				UPDATE companies
 				SET lifecycle_state='active', frozen_at=NULL, soft_deleted_at=NULL, purge_after=NULL, freeze_reason=NULL
 				WHERE company_uuid=$1 AND lifecycle_state='frozen' AND freeze_reason IS DISTINCT FROM 'deletion'
-			`, id); err != nil {
-				return err
+			`, id)
+			if activateErr != nil {
+				return nil, activateErr
+			}
+			if affected, _ := result.RowsAffected(); affected == 0 {
+				continue
+			}
+			// Exactly the connections a freeze paused come back, and only those:
+			// a pause the owner made themselves is theirs to undo.
+			if _, err = tx.ExecContext(ctx, `
+				UPDATE integration_connections
+				SET status='active', paused_by_freeze=false, last_error_code=NULL,
+				    freeze_notice_sent_at=NULL, lock_version=lock_version+1, updated_at=$2
+				WHERE company_uuid=$1 AND paused_by_freeze AND status='paused'
+			`, id, now); err != nil {
+				return nil, err
+			}
+			if err = insertAudit(ctx, tx, companyLifecycleAudit(actor, id, "company.unfrozen", metadata, now)); err != nil {
+				return nil, err
 			}
 			continue
 		}
-		if _, err = tx.ExecContext(ctx, `
+		result, freezeErr := tx.ExecContext(ctx, `
 			UPDATE companies
 			SET lifecycle_state='frozen', frozen_at=$2, purge_after=$3, soft_deleted_at=NULL, freeze_reason='downgrade'
 			WHERE company_uuid=$1 AND lifecycle_state='active'
-		`, id, now, now.Add(models.CompanyFreezeGrace)); err != nil {
-			return err
+		`, id, now, now.Add(models.CompanyFreezeGrace))
+		if freezeErr != nil {
+			return nil, freezeErr
+		}
+		if affected, _ := result.RowsAffected(); affected == 0 {
+			continue
 		}
 		// A company that cannot take anybody on must not keep an open invitation.
 		if _, err = tx.ExecContext(ctx, `
@@ -327,11 +351,51 @@ func applyCompanySelection(ctx context.Context, tx *sql.Tx, ownerUser, planID uu
 			SET status='canceled', responded_at=COALESCE(responded_at,$2), updated_at=$2
 			WHERE company_uuid=$1 AND status='pending'
 		`, id, now); err != nil {
-			return err
+			return nil, err
 		}
+		// The same thing the owner's own freeze does. Importing calls into a
+		// company that cannot process them would pile up work nobody can pay
+		// for, and a freeze an administrator performs is still a freeze. The
+		// portal is told by the integration worker, which looks for exactly this
+		// pause — it cannot be told from inside the transaction.
+		if _, err = tx.ExecContext(ctx, `
+			UPDATE integration_connections
+			SET status='paused', paused_by_freeze=true, last_error_code='company_frozen',
+			    freeze_notice_sent_at=NULL, lock_version=lock_version+1, updated_at=$2
+			WHERE company_uuid=$1 AND status IN ('active','degraded','testing')
+		`, id, now); err != nil {
+			return nil, err
+		}
+		// Each company gets its own audit row: the subscription record alone says
+		// that a plan changed, not whose company stopped working because of it.
+		if err = insertAudit(ctx, tx, companyLifecycleAudit(actor, id, "company.frozen", metadata, now)); err != nil {
+			return nil, err
+		}
+		frozen = append(frozen, id)
 	}
 
-	return nil
+	return frozen, nil
+}
+
+// companyLifecycleAudit records what a plan change did to one company. The
+// reason is the administrator's own, carried over from the mutation that caused
+// the freeze.
+func companyLifecycleAudit(actor models.AdminUser, companyID uuid.UUID, action string, metadata models.AdminMutationMetadata, now time.Time) models.AdminAuditLog {
+	after, _ := json.Marshal(map[string]string{"lifecycle_state": strings.TrimPrefix(action, "company."), "freeze_reason": "downgrade"})
+	return models.AdminAuditLog{
+		ID:            mustUUIDv7(),
+		ActorUserUUID: actor.ID,
+		ActorRole:     actor.Role,
+		Action:        action,
+		TargetType:    "company",
+		TargetUUID:    uuid.NullUUID{UUID: companyID, Valid: true},
+		AfterData:     after,
+		Reason:        &metadata.Reason,
+		RequestID:     metadata.RequestID,
+		IPAddress:     metadata.IPAddress,
+		UserAgent:     metadata.UserAgent,
+		CreatedAt:     now,
+	}
 }
 
 func auditForSubscription(actor models.AdminUser, targetType string, targetID uuid.UUID, action string, after json.RawMessage, metadata models.AdminMutationMetadata) models.AdminAuditLog {
