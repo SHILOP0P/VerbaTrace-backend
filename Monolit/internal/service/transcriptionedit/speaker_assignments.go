@@ -46,6 +46,9 @@ func (s *Service) ReplaceSpeakerAssignments(ctx context.Context, callID, userID 
 	if _, err := s.callRepository.GetByUUID(ctx, callID, userID); err != nil {
 		return nil, err
 	}
+	if err := s.ensureCompanyActive(ctx, callID); err != nil {
+		return nil, err
+	}
 	if err := s.ensureNotUnderReview(ctx, callID); err != nil {
 		return nil, err
 	}

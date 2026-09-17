@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/companystate"
+
 	"github.com/google/uuid"
 )
 
@@ -16,6 +18,17 @@ type Service struct {
 }
 
 func NewService(db *sql.DB) *Service { return &Service{db: db, now: time.Now} }
+
+// ensureCompanyActive refuses to change anything inside a frozen company. A
+// frozen company is fully readable, so actions stay visible and their history
+// stays intact; only changing them is off.
+func (s *Service) ensureCompanyActive(ctx context.Context, companyID *uuid.UUID) error {
+	if companyID == nil {
+		return nil
+	}
+
+	return companystate.EnsureActive(ctx, s.db, *companyID)
+}
 
 func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 	in.Title, in.Description = strings.TrimSpace(in.Title), strings.TrimSpace(in.Description)
@@ -47,6 +60,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 		in.AssigneeUserUUID = uploadedBy
 	}
 	if company.Valid {
+		if err = companystate.EnsureActive(ctx, tx, company.UUID); err != nil {
+			return Item{}, err
+		}
 		if ok, err := canCreate(ctx, tx, in.ActorUserUUID, company.UUID, in.CallUUID); err != nil {
 			return Item{}, err
 		} else if !ok {
@@ -124,6 +140,9 @@ func (s *Service) SetNoActionRequired(ctx context.Context, actor, callID, analys
 		return ErrNotFound
 	}
 	if err != nil {
+		return err
+	}
+	if err = companystate.EnsureActive(ctx, tx, company); err != nil {
 		return err
 	}
 	// Saying an analysis needs no action is the same decision as creating one.

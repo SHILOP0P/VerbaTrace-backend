@@ -13,13 +13,14 @@ import (
 
 // lifecycleRepository is implemented by the company repository.
 type lifecycleRepository interface {
-	FreezeCompany(context.Context, uuid.UUID, time.Time) error
+	FreezeCompany(context.Context, uuid.UUID, models.CompanyFreezeReason, time.Time) error
 	ActivateCompany(context.Context, uuid.UUID, time.Time) error
 	GetCompanyLifecycle(context.Context, uuid.UUID) (models.CompanyLifecycle, error)
 	SoftDeleteExpiredFrozenCompanies(context.Context, time.Time) (int64, error)
 	ClaimCompaniesForPurge(context.Context, time.Time, int) ([]uuid.UUID, error)
 	PurgeCompany(context.Context, uuid.UUID, time.Time) error
 	RestoreSoftDeletedCompany(context.Context, uuid.UUID, time.Time) error
+	CancelCompanyDeletion(context.Context, uuid.UUID, time.Time) error
 }
 
 // FreezeCompany stops a company on the owner's own decision — usually because
@@ -33,7 +34,7 @@ func (s *Service) FreezeCompany(ctx context.Context, companyID uuid.UUID, reques
 		return err
 	}
 
-	return lifecycle.FreezeCompany(ctx, companyID, time.Now().UTC())
+	return lifecycle.FreezeCompany(ctx, companyID, models.CompanyFreezeReasonDowngrade, time.Now().UTC())
 }
 
 // ActivateCompany is the other half of the choice: which companies keep working
@@ -48,6 +49,21 @@ func (s *Service) ActivateCompany(ctx context.Context, companyID uuid.UUID, requ
 	}
 
 	return lifecycle.ActivateCompany(ctx, companyID, time.Now().UTC())
+}
+
+// CancelCompanyDeletion calls off a deletion the owner has started. The company
+// stays frozen afterwards: switching it back on is a separate step, and it only
+// works while the plan still covers one more company.
+func (s *Service) CancelCompanyDeletion(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error {
+	lifecycle, ok := s.companyRepository.(lifecycleRepository)
+	if !ok || companyID == uuid.Nil || requestUser == uuid.Nil {
+		return models.ErrInvalidCompanyInput
+	}
+	if err := s.requireCompanyOwner(ctx, companyID, requestUser); err != nil {
+		return err
+	}
+
+	return lifecycle.CancelCompanyDeletion(ctx, companyID, time.Now().UTC())
 }
 
 // GetCompanyLifecycle tells the interface what state a company is in and how

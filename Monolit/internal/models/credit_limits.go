@@ -20,11 +20,23 @@ const (
 // deleted, and a soft deleted company before it is purged.
 const CompanyFreezeGrace = 30 * 24 * time.Hour
 
+// CompanyFreezeReason says why a company stopped. Both reasons lead to the same
+// state, but they are undone differently: a company frozen by a downgrade is
+// switched back on, whereas one that was deleted has to have its deletion
+// explicitly called off.
+type CompanyFreezeReason string
+
+const (
+	CompanyFreezeReasonDowngrade CompanyFreezeReason = "downgrade"
+	CompanyFreezeReasonDeletion  CompanyFreezeReason = "deletion"
+)
+
 // CompanyLifecycle is where a company stands: working, waiting out a freeze, or
 // waiting out a soft deletion before it is purged.
 type CompanyLifecycle struct {
 	CompanyUUID   uuid.UUID
 	State         CompanyLifecycleState
+	FreezeReason  CompanyFreezeReason
 	FrozenAt      *time.Time
 	SoftDeletedAt *time.Time
 	PurgeAfter    *time.Time

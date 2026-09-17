@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/companystate"
 	"verbatrace/monolit/internal/models"
 	repo "verbatrace/monolit/internal/repository"
 
@@ -80,6 +81,9 @@ func (s *Service) Restore(ctx context.Context, callID, userID uuid.UUID, expecte
 	// Everybody who may read the call may correct its transcript; the read
 	// itself is the permission check.
 	if _, err := s.callRepository.GetByUUID(ctx, callID, userID); err != nil {
+		return models.Transcription{}, Revision{}, err
+	}
+	if err := s.ensureCompanyActive(ctx, callID); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
 	if err := s.ensureNotUnderReview(ctx, callID); err != nil {
@@ -193,6 +197,23 @@ func (s *Service) ensureNotUnderReview(ctx context.Context, callID uuid.UUID) er
 	return nil
 }
 
+// ensureCompanyActive keeps the transcript of a frozen company readable but
+// unchangeable, like everything else inside it.
+func (s *Service) ensureCompanyActive(ctx context.Context, callID uuid.UUID) error {
+	if s.db == nil {
+		return nil
+	}
+	var companyID uuid.NullUUID
+	if err := s.db.QueryRowContext(ctx, `SELECT company_uuid FROM calls WHERE call_uuid=$1`, callID).Scan(&companyID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.ErrCallNotFound
+		}
+		return err
+	}
+
+	return companystate.EnsureActiveNullable(ctx, s.db, companyID)
+}
+
 // markAnalysisStale is called when the words themselves changed: the analysis
 // was built on the old text and must be re-run before anyone trusts it again.
 // Renaming a speaker leaves the text intact, so it does not invalidate anything.
@@ -228,6 +249,9 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 		return models.Transcription{}, Revision{}, err
 	}
 	if _, err := s.callRepository.GetByUUID(ctx, input.CallUUID, input.UserUUID); err != nil {
+		return models.Transcription{}, Revision{}, err
+	}
+	if err := s.ensureCompanyActive(ctx, input.CallUUID); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
 	if err := s.ensureNotUnderReview(ctx, input.CallUUID); err != nil {

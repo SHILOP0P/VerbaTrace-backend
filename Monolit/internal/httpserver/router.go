@@ -414,6 +414,7 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Get("/companies/{uuid}/credit-forecast", billingAPI.GetCompanyCreditForecast)
 			r.With(authGuard).Post("/companies/{uuid}/freeze", companyAPI.FreezeCompany)
 			r.With(authGuard).Post("/companies/{uuid}/activate", companyAPI.ActivateCompany)
+			r.With(authGuard).Post("/companies/{uuid}/cancel-deletion", companyAPI.CancelCompanyDeletion)
 			r.With(authGuard).Get("/companies/{uuid}/lifecycle", companyAPI.GetCompanyLifecycle)
 			if dashboardAPI, ok := billingAPI.(interface {
 				GetPersonalCreditDashboard(http.ResponseWriter, *http.Request)

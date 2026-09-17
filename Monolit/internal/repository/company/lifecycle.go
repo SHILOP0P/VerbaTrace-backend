@@ -13,13 +13,25 @@ import (
 )
 
 // FreezeCompany stops a company without destroying it: the owner may pay again
-// or change their mind, and everything stays readable meanwhile.
-func (r *Repository) FreezeCompany(ctx context.Context, companyID uuid.UUID, now time.Time) error {
-	res, err := r.db.ExecContext(ctx, `
+// or change their mind, and everything stays readable meanwhile. The reason is
+// recorded because a freeze caused by a downgrade and a freeze that is really a
+// deletion are undone differently.
+//
+// Pending invitations are cancelled in the same transaction. A company that
+// cannot take anybody on must not keep an open invitation that fails the moment
+// it is accepted.
+func (r *Repository) FreezeCompany(ctx context.Context, companyID uuid.UUID, reason models.CompanyFreezeReason, now time.Time) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("freeze company: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.ExecContext(ctx, `
 		UPDATE companies
-		SET lifecycle_state='frozen', frozen_at=$2, purge_after=$3, soft_deleted_at=NULL
+		SET lifecycle_state='frozen', frozen_at=$2, purge_after=$3, soft_deleted_at=NULL, freeze_reason=$4
 		WHERE company_uuid=$1 AND deleted_at IS NULL AND lifecycle_state <> 'soft_deleted'`,
-		companyID, now, now.Add(models.CompanyFreezeGrace))
+		companyID, now, now.Add(models.CompanyFreezeGrace), string(reason))
 	if err != nil {
 		return fmt.Errorf("freeze company: %w", err)
 	}
@@ -27,7 +39,14 @@ func (r *Repository) FreezeCompany(ctx context.Context, companyID uuid.UUID, now
 		return models.ErrCompanyNotFound
 	}
 
-	return nil
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE membership_invitations
+		SET status='canceled', responded_at=COALESCE(responded_at,$2), updated_at=$2
+		WHERE company_uuid=$1 AND status='pending'`, companyID, now); err != nil {
+		return fmt.Errorf("cancel invitations of frozen company: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 // ActivateCompany brings a frozen company back, but only while the owner's plan
@@ -51,10 +70,11 @@ func (r *Repository) ActivateCompany(ctx context.Context, companyID uuid.UUID, n
 	    WHERE c.deleted_at IS NULL AND c.lifecycle_state='active' AND c.company_uuid <> $1
 	)
 	UPDATE companies
-	SET lifecycle_state='active', frozen_at=NULL, soft_deleted_at=NULL, purge_after=NULL
+	SET lifecycle_state='active', frozen_at=NULL, soft_deleted_at=NULL, purge_after=NULL, freeze_reason=NULL
 	WHERE company_uuid=$1
 	  AND deleted_at IS NULL
 	  AND lifecycle_state='frozen'
+	  AND freeze_reason IS DISTINCT FROM 'deletion'
 	  AND (SELECT active_companies FROM used) < (SELECT company_limit FROM owner_plan)`
 
 	res, err := r.db.ExecContext(ctx, query, companyID)
@@ -62,7 +82,33 @@ func (r *Repository) ActivateCompany(ctx context.Context, companyID uuid.UUID, n
 		return fmt.Errorf("activate company: %w", err)
 	}
 	if affected, _ := res.RowsAffected(); affected == 0 {
+		// A deleted company is not switched back on by accident: undoing a
+		// deletion is its own decision and has its own operation.
+		var reason sql.NullString
+		if scanErr := r.db.QueryRowContext(ctx, `SELECT freeze_reason FROM companies WHERE company_uuid=$1 AND deleted_at IS NULL`, companyID).Scan(&reason); scanErr == nil &&
+			reason.Valid && models.CompanyFreezeReason(reason.String) == models.CompanyFreezeReasonDeletion {
+			return models.ErrCompanyDeletionInProgress
+		}
 		return models.ErrCompanyLimitExceeded
+	}
+
+	return nil
+}
+
+// CancelCompanyDeletion calls off a deletion while the company is still frozen.
+// It leaves the company frozen rather than switching it on: whether the plan
+// still covers it is a separate question, answered by ActivateCompany.
+func (r *Repository) CancelCompanyDeletion(ctx context.Context, companyID uuid.UUID, now time.Time) error {
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE companies
+		SET freeze_reason='downgrade', purge_after=$2
+		WHERE company_uuid=$1 AND deleted_at IS NULL AND lifecycle_state='frozen' AND freeze_reason='deletion'`,
+		companyID, now.Add(models.CompanyFreezeGrace))
+	if err != nil {
+		return fmt.Errorf("cancel company deletion: %w", err)
+	}
+	if affected, _ := res.RowsAffected(); affected == 0 {
+		return models.ErrCompanyNotFound
 	}
 
 	return nil
@@ -72,16 +118,18 @@ func (r *Repository) ActivateCompany(ctx context.Context, companyID uuid.UUID, n
 func (r *Repository) GetCompanyLifecycle(ctx context.Context, companyID uuid.UUID) (models.CompanyLifecycle, error) {
 	var lifecycle models.CompanyLifecycle
 	var frozenAt, softDeletedAt, purgeAfter sql.NullTime
+	var freezeReason sql.NullString
 	err := r.db.QueryRowContext(ctx, `
-		SELECT company_uuid, lifecycle_state, frozen_at, soft_deleted_at, purge_after, restore_used
+		SELECT company_uuid, lifecycle_state, freeze_reason, frozen_at, soft_deleted_at, purge_after, restore_used
 		FROM companies WHERE company_uuid=$1`, companyID).
-		Scan(&lifecycle.CompanyUUID, &lifecycle.State, &frozenAt, &softDeletedAt, &purgeAfter, &lifecycle.RestoreUsed)
+		Scan(&lifecycle.CompanyUUID, &lifecycle.State, &freezeReason, &frozenAt, &softDeletedAt, &purgeAfter, &lifecycle.RestoreUsed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.CompanyLifecycle{}, models.ErrCompanyNotFound
 	}
 	if err != nil {
 		return models.CompanyLifecycle{}, fmt.Errorf("get company lifecycle: %w", err)
 	}
+	lifecycle.FreezeReason = models.CompanyFreezeReason(freezeReason.String)
 	lifecycle.FrozenAt = nullableTime(frozenAt)
 	lifecycle.SoftDeletedAt = nullableTime(softDeletedAt)
 	lifecycle.PurgeAfter = nullableTime(purgeAfter)

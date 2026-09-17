@@ -18,7 +18,7 @@ func (s *RepositorySuite) TestCompanyLifecycleFreezeSoftDeleteAndPurge() {
 	s.addMember(company.ID, employee.ID, models.CompanyMemberRoleEmployee, models.MembershipStatusActive)
 
 	now := time.Now().UTC()
-	s.Require().NoError(s.repository.FreezeCompany(s.ctx, company.ID, now))
+	s.Require().NoError(s.repository.FreezeCompany(s.ctx, company.ID, models.CompanyFreezeReasonDowngrade, now))
 
 	lifecycle, err := s.repository.GetCompanyLifecycle(s.ctx, company.ID)
 	s.Require().NoError(err)

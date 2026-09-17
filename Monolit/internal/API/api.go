@@ -158,6 +158,7 @@ type CompanyAPI interface {
 	GetByUUID(w http.ResponseWriter, r *http.Request)
 	GetCompanyMembersOverview(w http.ResponseWriter, r *http.Request)
 	FreezeCompany(w http.ResponseWriter, r *http.Request)
+	CancelCompanyDeletion(w http.ResponseWriter, r *http.Request)
 	ActivateCompany(w http.ResponseWriter, r *http.Request)
 	GetCompanyLifecycle(w http.ResponseWriter, r *http.Request)
 }

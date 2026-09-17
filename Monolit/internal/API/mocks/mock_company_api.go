@@ -89,6 +89,40 @@ func (_c *CompanyAPI_ActivateCompany_Call) RunAndReturn(run func(http.ResponseWr
 	return _c
 }
 
+// CancelCompanyDeletion provides a mock function with given fields: w, r
+func (_m *CompanyAPI) CancelCompanyDeletion(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_CancelCompanyDeletion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelCompanyDeletion'
+type CompanyAPI_CancelCompanyDeletion_Call struct {
+	*mock.Call
+}
+
+// CancelCompanyDeletion is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) CancelCompanyDeletion(w interface{}, r interface{}) *CompanyAPI_CancelCompanyDeletion_Call {
+	return &CompanyAPI_CancelCompanyDeletion_Call{Call: _e.mock.On("CancelCompanyDeletion", w, r)}
+}
+
+func (_c *CompanyAPI_CancelCompanyDeletion_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_CancelCompanyDeletion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_CancelCompanyDeletion_Call) Return() *CompanyAPI_CancelCompanyDeletion_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_CancelCompanyDeletion_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_CancelCompanyDeletion_Call {
+	_c.Run(run)
+	return _c
+}
+
 // CancelOwnershipOffer provides a mock function with given fields: w, r
 func (_m *CompanyAPI) CancelOwnershipOffer(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)

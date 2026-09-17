@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/companystate"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
@@ -33,8 +34,20 @@ func loadChallenge(ctx context.Context, q queryer, reviewID uuid.UUID) (*models.
 	return &item, err
 }
 
+// loadReviewTx is how every mutation picks up the review it is about to change.
+// Taking the row lock is the moment that says "I intend to write", so the frozen
+// company check belongs here rather than repeated in each caller: a review in a
+// frozen company stays readable and keeps its history, but nothing moves.
 func loadReviewTx(ctx context.Context, tx *sql.Tx, id uuid.UUID, lock bool) (models.QualityReview, []byte, error) {
-	return loadReview(ctx, tx, id, lock)
+	review, analysis, err := loadReview(ctx, tx, id, lock)
+	if err != nil || !lock {
+		return review, analysis, err
+	}
+	if err = companystate.EnsureActiveNullable(ctx, tx, review.CompanyUUID); err != nil {
+		return review, analysis, err
+	}
+
+	return review, analysis, nil
 }
 
 func loadReview(ctx context.Context, q queryer, id uuid.UUID, lock bool) (models.QualityReview, []byte, error) {

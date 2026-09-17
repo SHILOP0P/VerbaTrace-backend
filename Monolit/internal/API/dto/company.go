@@ -187,6 +187,7 @@ type InvitationResponse struct {
 type CompanyLifecycleResponse struct {
 	CompanyUUID   string  `json:"company_uuid"`
 	State         string  `json:"state"`
+	FreezeReason  *string `json:"freeze_reason,omitempty"`
 	FrozenAt      *string `json:"frozen_at,omitempty"`
 	SoftDeletedAt *string `json:"soft_deleted_at,omitempty"`
 	PurgeAfter    *string `json:"purge_after,omitempty"`

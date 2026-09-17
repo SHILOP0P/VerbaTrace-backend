@@ -115,6 +115,7 @@ type AdminService interface {
 
 type CompanyService interface {
 	FreezeCompany(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error
+	CancelCompanyDeletion(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error
 	ActivateCompany(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error
 	GetCompanyLifecycle(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) (models.CompanyLifecycle, error)
 	CreateCompany(ctx context.Context, input models.CreateCompanyInput) (models.Company, error)

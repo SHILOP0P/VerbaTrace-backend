@@ -72,6 +72,54 @@ func (_c *CompanyService_ActivateCompany_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// CancelCompanyDeletion provides a mock function with given fields: ctx, companyID, requestUser
+func (_m *CompanyService) CancelCompanyDeletion(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error {
+	ret := _m.Called(ctx, companyID, requestUser)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CancelCompanyDeletion")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, companyID, requestUser)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// CompanyService_CancelCompanyDeletion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelCompanyDeletion'
+type CompanyService_CancelCompanyDeletion_Call struct {
+	*mock.Call
+}
+
+// CancelCompanyDeletion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - companyID uuid.UUID
+//   - requestUser uuid.UUID
+func (_e *CompanyService_Expecter) CancelCompanyDeletion(ctx interface{}, companyID interface{}, requestUser interface{}) *CompanyService_CancelCompanyDeletion_Call {
+	return &CompanyService_CancelCompanyDeletion_Call{Call: _e.mock.On("CancelCompanyDeletion", ctx, companyID, requestUser)}
+}
+
+func (_c *CompanyService_CancelCompanyDeletion_Call) Run(run func(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID)) *CompanyService_CancelCompanyDeletion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *CompanyService_CancelCompanyDeletion_Call) Return(_a0 error) *CompanyService_CancelCompanyDeletion_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *CompanyService_CancelCompanyDeletion_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) error) *CompanyService_CancelCompanyDeletion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CancelOwnershipOffer provides a mock function with given fields: ctx, transferID, requestUser
 func (_m *CompanyService) CancelOwnershipOffer(ctx context.Context, transferID uuid.UUID, requestUser uuid.UUID) (models.CompanyOwnershipTransfer, error) {
 	ret := _m.Called(ctx, transferID, requestUser)

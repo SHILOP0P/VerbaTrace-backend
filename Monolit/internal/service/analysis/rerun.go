@@ -67,6 +67,9 @@ func (s *Service) RequestRerun(ctx context.Context, input models.CreateAnalysisR
 		// Nobody has to approve a re-run of your own personal call.
 		return models.AnalysisRerunRequest{}, models.ErrInvalidAnalysisInput
 	}
+	if err = s.ensureCompanyActive(ctx, call.CompanyUUID); err != nil {
+		return models.AnalysisRerunRequest{}, err
+	}
 
 	now := time.Now().UTC()
 	request, err := requests.CreateRerunRequest(ctx, models.AnalysisRerunRequest{
@@ -106,6 +109,9 @@ func (s *Service) DecideRerun(ctx context.Context, input models.DecideAnalysisRe
 
 	call, err := s.callRepository.GetByUUID(ctx, request.CallUUID, input.UserUUID)
 	if err != nil {
+		return models.AnalysisRerunRequest{}, err
+	}
+	if err = s.ensureCompanyActive(ctx, call.CompanyUUID); err != nil {
 		return models.AnalysisRerunRequest{}, err
 	}
 	allowed, err := s.canRerun(ctx, call, input.UserUUID)
@@ -178,6 +184,29 @@ func (s *Service) ListRerunRequests(ctx context.Context, input models.ListAnalys
 	}
 
 	return visible, nil
+}
+
+// ensureCompanyActive keeps a frozen company readable but unchangeable: running
+// an analysis again both changes data and spends credits.
+func (s *Service) ensureCompanyActive(ctx context.Context, companyID uuid.NullUUID) error {
+	if !companyID.Valid || s.companyRepository == nil {
+		return nil
+	}
+	lifecycle, ok := s.companyRepository.(interface {
+		GetCompanyLifecycle(context.Context, uuid.UUID) (models.CompanyLifecycle, error)
+	})
+	if !ok {
+		return nil
+	}
+	state, err := lifecycle.GetCompanyLifecycle(ctx, companyID.UUID)
+	if err != nil {
+		return err
+	}
+	if state.State != models.CompanyLifecycleActive {
+		return models.ErrCompanyFrozen
+	}
+
+	return nil
 }
 
 // rerunApprovers is the leader of the call's department, and the deputy or the

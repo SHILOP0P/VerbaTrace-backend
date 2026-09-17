@@ -145,6 +145,8 @@ const (
 	CodeMonthlyMinutesLimitExceeded      = "monthly_minutes_limit_exceeded"
 	CodePendingCreditQueueFull           = "pending_credit_queue_full"
 	CodeInstructionLimitExceeded         = "instruction_limit_exceeded"
+	CodeCompanyFrozen                    = "company_frozen"
+	CodeCompanyDeletionInProgress        = "company_deletion_in_progress"
 	CodeCompanyLimitExceeded             = "company_limit_exceeded"
 	CodeCompanyMembershipConflict        = "company_membership_conflict"
 	CodeTargetAlreadyEngaged             = "target_already_engaged"

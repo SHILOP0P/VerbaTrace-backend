@@ -89,7 +89,7 @@ func (s *Service) DeleteCompany(ctx context.Context, input models.DeleteCompanyI
 	// frozen, 30 days soft deleted, and only then gone. Data that somebody
 	// wants to keep has to be moved out before that runs out.
 	if lifecycle, ok := s.companyRepository.(lifecycleRepository); ok {
-		return lifecycle.FreezeCompany(ctx, input.CompanyUUID, time.Now().UTC())
+		return lifecycle.FreezeCompany(ctx, input.CompanyUUID, models.CompanyFreezeReasonDeletion, time.Now().UTC())
 	}
 
 	return s.companyRepository.ArchiveCompany(ctx, input.CompanyUUID)

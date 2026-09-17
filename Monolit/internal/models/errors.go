@@ -58,6 +58,11 @@ var ErrCompanyNotEmpty = errors.New("company still has members")
 // calls are still being deleted with their files. It is a "come back later", not
 // a failure, and the lifecycle worker treats it as such.
 var ErrCompanyPurgePending = errors.New("company still has calls waiting to be deleted")
+
+// ErrCompanyDeletionInProgress means the company is frozen because it is being
+// deleted, not because the plan stopped covering it. Switching it back on is
+// refused: undoing a deletion is a separate, deliberate operation.
+var ErrCompanyDeletionInProgress = errors.New("company is being deleted")
 var ErrCompanyDeputyAlreadyAssigned = errors.New("company already has a deputy")
 var ErrCompanyDeputyNotAssigned = errors.New("company has no deputy")
 var ErrOwnerOnlyAction = errors.New("action is available to the company owner only")

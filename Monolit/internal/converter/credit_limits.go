@@ -41,11 +41,22 @@ func CompanyLifecycleModelToAPI(lifecycle models.CompanyLifecycle) dto.CompanyLi
 	return dto.CompanyLifecycleResponse{
 		CompanyUUID:   lifecycle.CompanyUUID.String(),
 		State:         string(lifecycle.State),
+		FreezeReason:  optionalFreezeReason(lifecycle.FreezeReason),
 		FrozenAt:      optionalTimestamp(lifecycle.FrozenAt),
 		SoftDeletedAt: optionalTimestamp(lifecycle.SoftDeletedAt),
 		PurgeAfter:    optionalTimestamp(lifecycle.PurgeAfter),
 		RestoreUsed:   lifecycle.RestoreUsed,
 	}
+}
+
+// optionalFreezeReason tells the interface whether a frozen company is waiting
+// for its plan or on its way out; the two look the same otherwise.
+func optionalFreezeReason(value models.CompanyFreezeReason) *string {
+	if value == "" {
+		return nil
+	}
+	formatted := string(value)
+	return &formatted
 }
 
 func optionalTimestamp(value *time.Time) *string {

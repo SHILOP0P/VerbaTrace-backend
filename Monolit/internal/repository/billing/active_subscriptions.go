@@ -31,6 +31,21 @@ func (r *Repository) GetActiveBusinessSubscription(ctx context.Context, companyI
 	return r.getSubscription(ctx, query, companyID)
 }
 
+// GetPlanForCompany answers which plan a company is on, whether or not it is
+// frozen. Reading in a frozen company works exactly as it does in an active one,
+// so anything that only asks "what is this company allowed to see" — reports,
+// analytics — has to look the plan up without the lifecycle condition.
+func (r *Repository) GetPlanForCompany(ctx context.Context, companyID uuid.UUID) (models.Subscription, error) {
+	query := activeSubscriptionQuery(`s.type = 'business'
+	  AND s.user_uuid IN (
+	      SELECT manager_user_uuid
+	      FROM companies
+	      WHERE company_uuid = $1
+	        AND deleted_at IS NULL
+	  )`)
+	return r.getSubscription(ctx, query, companyID)
+}
+
 func (r *Repository) GetBestActiveBusinessSubscriptionForManager(ctx context.Context, managerID uuid.UUID) (models.Subscription, error) {
 	query := activeSubscriptionQuery("s.type = 'business' AND s.user_uuid = $1")
 	return r.getSubscription(ctx, query, managerID)

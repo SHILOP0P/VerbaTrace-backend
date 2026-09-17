@@ -26,6 +26,15 @@ func (h *Handler) ActivateCompany(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// CancelCompanyDeletion calls off a deletion the owner started. It is separate
+// from activation on purpose: a deleted company must not come back with the same
+// click that undoes an ordinary freeze.
+func (h *Handler) CancelCompanyDeletion(w http.ResponseWriter, r *http.Request) {
+	h.changeLifecycle(w, r, func(companyID, userID uuid.UUID) error {
+		return h.service.CancelCompanyDeletion(r.Context(), companyID, userID)
+	})
+}
+
 // GetCompanyLifecycle tells how long a frozen or deleted company has left.
 func (h *Handler) GetCompanyLifecycle(w http.ResponseWriter, r *http.Request) {
 	userID, ok := userIDFromRequest(r)
@@ -69,6 +78,10 @@ func (h *Handler) changeLifecycle(w http.ResponseWriter, r *http.Request, action
 
 func writeLifecycleError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, models.ErrCompanyDeletionInProgress):
+		response.WriteError(w, http.StatusConflict, response.CodeCompanyDeletionInProgress, "Компания удаляется. Сначала отмените удаление")
+	case errors.Is(err, models.ErrCompanyFrozen):
+		response.WriteError(w, http.StatusConflict, response.CodeCompanyFrozen, "Компания заморожена: данные доступны для чтения, изменения запрещены")
 	case errors.Is(err, models.ErrCompanyLimitExceeded):
 		response.WriteError(w, http.StatusConflict, response.CodeCompanyLimitExceeded, "Тариф не покрывает ещё одну активную компанию")
 	case errors.Is(err, models.ErrOwnerOnlyAction):

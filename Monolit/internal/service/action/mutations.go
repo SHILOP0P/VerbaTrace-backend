@@ -28,6 +28,9 @@ func (s *Service) statusMutation(ctx context.Context, in UpdateInput, status, ev
 	if err != nil {
 		return Item{}, err
 	}
+	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+		return Item{}, err
+	}
 	if status == "in_progress" && !item.Capabilities.CanStart || status == "completed" && !item.Capabilities.CanComplete {
 		return Item{}, ErrForbidden
 	}
@@ -78,6 +81,9 @@ func (s *Service) Edit(ctx context.Context, in EditInput) (Item, error) {
 	if err != nil {
 		return Item{}, err
 	}
+	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+		return Item{}, err
+	}
 	if !item.Capabilities.CanEditFields {
 		return Item{}, ErrForbidden
 	}
@@ -111,6 +117,9 @@ func (s *Service) Edit(ctx context.Context, in EditInput) (Item, error) {
 func (s *Service) RevertStatus(ctx context.Context, in UpdateInput) (Item, error) {
 	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
 	if err != nil {
+		return Item{}, err
+	}
+	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
 		return Item{}, err
 	}
 	if !item.Capabilities.CanRevertStatus {
@@ -174,6 +183,9 @@ func (s *Service) Cancel(ctx context.Context, in UpdateInput) (Item, error) {
 	if err != nil {
 		return Item{}, err
 	}
+	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+		return Item{}, err
+	}
 	if !item.Capabilities.CanCancel {
 		return Item{}, ErrForbidden
 	}
@@ -219,6 +231,9 @@ func (s *Service) Reschedule(ctx context.Context, in RescheduleInput) (Item, err
 	if err != nil {
 		return Item{}, err
 	}
+	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
+		return Item{}, err
+	}
 	if !item.Capabilities.CanReschedule {
 		return Item{}, ErrForbidden
 	}
@@ -257,6 +272,9 @@ func (s *Service) Reassign(ctx context.Context, in ReassignInput) (Item, error) 
 	}
 	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, in.Admin)
 	if err != nil {
+		return Item{}, err
+	}
+	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
 		return Item{}, err
 	}
 	if !item.Capabilities.CanReassign {
@@ -309,6 +327,9 @@ func (s *Service) CreateTransfer(ctx context.Context, in TransferInput) (Transfe
 	}
 	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, false)
 	if err != nil {
+		return TransferRequest{}, err
+	}
+	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
 		return TransferRequest{}, err
 	}
 	if !item.Capabilities.CanRequestTransfer {
@@ -401,6 +422,9 @@ func (s *Service) getTransfer(ctx context.Context, id uuid.UUID) (TransferReques
 func (s *Service) ResolveTransfer(ctx context.Context, in ResolveTransferInput) (Item, error) {
 	item, err := s.Get(ctx, in.ActionUUID, in.ActorUserUUID, false)
 	if err != nil {
+		return Item{}, err
+	}
+	if err = s.ensureCompanyActive(ctx, item.CompanyUUID); err != nil {
 		return Item{}, err
 	}
 	if !item.Capabilities.CanResolveTransfer {

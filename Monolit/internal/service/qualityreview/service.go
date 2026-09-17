@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"verbatrace/monolit/internal/companystate"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
@@ -156,6 +157,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (models.QualityRev
 			return models.QualityReview{}, ErrInvalidInput
 		}
 	}
+	if err = companystate.EnsureActiveNullable(ctx, tx, companyID); err != nil {
+		return models.QualityReview{}, err
+	}
 	personal := visibility == string(models.CallVisibilityScopePersonal)
 	if personal && (!uploaderID.Valid || uploaderID.UUID != in.ActorUserUUID) {
 		return models.QualityReview{}, ErrForbidden
@@ -224,7 +228,7 @@ func (s *Service) ChallengeAnalysis(ctx context.Context, in ChallengeInput) (mod
 	var revision sql.NullInt64
 	var analysisStatus string
 	var result []byte
-	err = tx.QueryRowContext(ctx, `SELECT c.uploaded_by_user_uuid,c.company_uuid,c.department_uuid,a.source_attempt_uuid,a.transcription_revision,a.status,a.result_json FROM calls c JOIN call_analyses a ON a.call_uuid=c.call_uuid WHERE c.call_uuid=$1 AND a.analysis_uuid=$2`, in.CallUUID, in.AnalysisUUID).
+	err = tx.QueryRowContext(ctx, `SELECT c.uploaded_by_user_uuid,c.company_uuid,c.department_uuid,a.source_attempt_uuid,a.transcription_revision,a.status,a.result_json FROM calls c JOIN call_analyses a ON a.call_uuid=c.call_uuid WHERE c.call_uuid=$1 AND a.analysis_uuid=$2 AND c.deleted_at IS NULL`, in.CallUUID, in.AnalysisUUID).
 		Scan(&uploader, &companyID, &departmentID, &attemptID, &revision, &analysisStatus, &result)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.QualityReview{}, ErrNotFound
@@ -234,6 +238,9 @@ func (s *Service) ChallengeAnalysis(ctx context.Context, in ChallengeInput) (mod
 	}
 	if !uploader.Valid || uploader.UUID != in.ActorUserUUID || !companyID.Valid {
 		return models.QualityReview{}, ErrForbidden
+	}
+	if err = companystate.EnsureActive(ctx, tx, companyID.UUID); err != nil {
+		return models.QualityReview{}, err
 	}
 	var activeMember bool
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active')`, companyID.UUID, in.ActorUserUUID).Scan(&activeMember); err != nil || !activeMember {
