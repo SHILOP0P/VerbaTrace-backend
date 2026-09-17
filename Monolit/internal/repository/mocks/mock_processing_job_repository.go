@@ -314,6 +314,65 @@ func (_c *ProcessingJobRepository_MarkRetry_Call) RunAndReturn(run func(context.
 	return _c
 }
 
+// MarkWaitingForCredits provides a mock function with given fields: ctx, id, reason, delay
+func (_m *ProcessingJobRepository) MarkWaitingForCredits(ctx context.Context, id uuid.UUID, reason string, delay time.Duration) (models.ProcessingJob, error) {
+	ret := _m.Called(ctx, id, reason, delay)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkWaitingForCredits")
+	}
+
+	var r0 models.ProcessingJob
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, time.Duration) (models.ProcessingJob, error)); ok {
+		return rf(ctx, id, reason, delay)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string, time.Duration) models.ProcessingJob); ok {
+		r0 = rf(ctx, id, reason, delay)
+	} else {
+		r0 = ret.Get(0).(models.ProcessingJob)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, string, time.Duration) error); ok {
+		r1 = rf(ctx, id, reason, delay)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ProcessingJobRepository_MarkWaitingForCredits_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkWaitingForCredits'
+type ProcessingJobRepository_MarkWaitingForCredits_Call struct {
+	*mock.Call
+}
+
+// MarkWaitingForCredits is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - reason string
+//   - delay time.Duration
+func (_e *ProcessingJobRepository_Expecter) MarkWaitingForCredits(ctx interface{}, id interface{}, reason interface{}, delay interface{}) *ProcessingJobRepository_MarkWaitingForCredits_Call {
+	return &ProcessingJobRepository_MarkWaitingForCredits_Call{Call: _e.mock.On("MarkWaitingForCredits", ctx, id, reason, delay)}
+}
+
+func (_c *ProcessingJobRepository_MarkWaitingForCredits_Call) Run(run func(ctx context.Context, id uuid.UUID, reason string, delay time.Duration)) *ProcessingJobRepository_MarkWaitingForCredits_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(string), args[3].(time.Duration))
+	})
+	return _c
+}
+
+func (_c *ProcessingJobRepository_MarkWaitingForCredits_Call) Return(_a0 models.ProcessingJob, _a1 error) *ProcessingJobRepository_MarkWaitingForCredits_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *ProcessingJobRepository_MarkWaitingForCredits_Call) RunAndReturn(run func(context.Context, uuid.UUID, string, time.Duration) (models.ProcessingJob, error)) *ProcessingJobRepository_MarkWaitingForCredits_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // TakeNext provides a mock function with given fields: ctx, workerID, staleAfter
 func (_m *ProcessingJobRepository) TakeNext(ctx context.Context, workerID string, staleAfter time.Duration) (models.ProcessingJob, error) {
 	ret := _m.Called(ctx, workerID, staleAfter)

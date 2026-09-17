@@ -44,11 +44,16 @@ type CallStatus string
 type CallVisibilityScope string
 
 const (
-	CallStatusNew         CallStatus = "new"
-	CallStatusProcessing  CallStatus = "processing"
-	CallStatusTranscribed CallStatus = "transcribed"
-	CallStatusAnalyzed    CallStatus = "analyzed"
-	CallStatusFailed      CallStatus = "failed"
+	CallStatusNew CallStatus = "new"
+	// CallStatusAwaitingCredits is a call that was accepted but cannot be sent to
+	// a provider yet: the credit limit or the wallet is exhausted. It waits in the
+	// queue and starts on its own once there is room again. It is not a failure
+	// and must never be shown as one.
+	CallStatusAwaitingCredits CallStatus = "awaiting_credits"
+	CallStatusProcessing      CallStatus = "processing"
+	CallStatusTranscribed     CallStatus = "transcribed"
+	CallStatusAnalyzed        CallStatus = "analyzed"
+	CallStatusFailed          CallStatus = "failed"
 )
 
 const (

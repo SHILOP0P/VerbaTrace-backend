@@ -176,6 +176,22 @@ var ErrExternalUserNotMapped = errors.New("external user is not mapped to a comp
 var ErrCompanyLimitExceeded = errors.New("company limit exceeded")
 var ErrCompanyCreditLimitExceeded = errors.New("company credit limit exceeded")
 var ErrDepartmentCreditLimitExceeded = errors.New("department credit limit exceeded")
+
+// ErrPendingCreditQueueFull means the subject already has as many calls waiting
+// for credits as its plan allows. Uploading is refused rather than piling more
+// files onto the disk for work that cannot start.
+var ErrPendingCreditQueueFull = errors.New("too many calls are already waiting for credits")
+
+// IsCreditWaitError tells a temporary lack of money from a real failure. A call
+// that runs into it has nothing wrong with it: it waits until the limit resets
+// or the wallet is topped up, and starts by itself. Treating it as a failure is
+// what used to burn the retries and leave a perfectly good call marked failed.
+func IsCreditWaitError(err error) bool {
+	return errors.Is(err, ErrInsufficientCredits) ||
+		errors.Is(err, ErrCompanyCreditLimitExceeded) ||
+		errors.Is(err, ErrDepartmentCreditLimitExceeded)
+}
+
 var ErrCompanyFrozen = errors.New("company is frozen")
 var ErrDepartmentLimitExceeded = errors.New("department limit exceeded")
 var ErrMemberLimitExceeded = errors.New("member limit exceeded")

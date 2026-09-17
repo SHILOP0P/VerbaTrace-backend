@@ -536,6 +536,10 @@ func (r *analysisProcessingJobRepository) MarkRetry(ctx context.Context, id uuid
 	panic("not implemented")
 }
 
+func (r *analysisProcessingJobRepository) MarkWaitingForCredits(ctx context.Context, id uuid.UUID, reason string, delay time.Duration) (models.ProcessingJob, error) {
+	panic("not implemented")
+}
+
 func (r *analysisProcessingJobRepository) MarkFailed(ctx context.Context, id uuid.UUID, lastError string) (models.ProcessingJob, error) {
 	panic("not implemented")
 }

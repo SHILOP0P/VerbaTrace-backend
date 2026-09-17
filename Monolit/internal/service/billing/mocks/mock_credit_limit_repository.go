@@ -26,9 +26,9 @@ func (_m *creditLimitRepository) EXPECT() *creditLimitRepository_Expecter {
 	return &creditLimitRepository_Expecter{mock: &_m.Mock}
 }
 
-// CompanyCreditSpending provides a mock function with given fields: _a0, _a1, _a2
-func (_m *creditLimitRepository) CompanyCreditSpending(_a0 context.Context, _a1 uuid.UUID, _a2 time.Time) (models.CreditSpending, error) {
-	ret := _m.Called(_a0, _a1, _a2)
+// CompanyCreditSpending provides a mock function with given fields: _a0, _a1, _a2, _a3
+func (_m *creditLimitRepository) CompanyCreditSpending(_a0 context.Context, _a1 uuid.UUID, _a2 models.CreditPeriod, _a3 time.Time) (models.CreditSpending, error) {
+	ret := _m.Called(_a0, _a1, _a2, _a3)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CompanyCreditSpending")
@@ -36,17 +36,17 @@ func (_m *creditLimitRepository) CompanyCreditSpending(_a0 context.Context, _a1 
 
 	var r0 models.CreditSpending
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) (models.CreditSpending, error)); ok {
-		return rf(_a0, _a1, _a2)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, models.CreditPeriod, time.Time) (models.CreditSpending, error)); ok {
+		return rf(_a0, _a1, _a2, _a3)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) models.CreditSpending); ok {
-		r0 = rf(_a0, _a1, _a2)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, models.CreditPeriod, time.Time) models.CreditSpending); ok {
+		r0 = rf(_a0, _a1, _a2, _a3)
 	} else {
 		r0 = ret.Get(0).(models.CreditSpending)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, time.Time) error); ok {
-		r1 = rf(_a0, _a1, _a2)
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, models.CreditPeriod, time.Time) error); ok {
+		r1 = rf(_a0, _a1, _a2, _a3)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -62,14 +62,15 @@ type creditLimitRepository_CompanyCreditSpending_Call struct {
 // CompanyCreditSpending is a helper method to define mock.On call
 //   - _a0 context.Context
 //   - _a1 uuid.UUID
-//   - _a2 time.Time
-func (_e *creditLimitRepository_Expecter) CompanyCreditSpending(_a0 interface{}, _a1 interface{}, _a2 interface{}) *creditLimitRepository_CompanyCreditSpending_Call {
-	return &creditLimitRepository_CompanyCreditSpending_Call{Call: _e.mock.On("CompanyCreditSpending", _a0, _a1, _a2)}
+//   - _a2 models.CreditPeriod
+//   - _a3 time.Time
+func (_e *creditLimitRepository_Expecter) CompanyCreditSpending(_a0 interface{}, _a1 interface{}, _a2 interface{}, _a3 interface{}) *creditLimitRepository_CompanyCreditSpending_Call {
+	return &creditLimitRepository_CompanyCreditSpending_Call{Call: _e.mock.On("CompanyCreditSpending", _a0, _a1, _a2, _a3)}
 }
 
-func (_c *creditLimitRepository_CompanyCreditSpending_Call) Run(run func(_a0 context.Context, _a1 uuid.UUID, _a2 time.Time)) *creditLimitRepository_CompanyCreditSpending_Call {
+func (_c *creditLimitRepository_CompanyCreditSpending_Call) Run(run func(_a0 context.Context, _a1 uuid.UUID, _a2 models.CreditPeriod, _a3 time.Time)) *creditLimitRepository_CompanyCreditSpending_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(time.Time))
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(models.CreditPeriod), args[3].(time.Time))
 	})
 	return _c
 }
@@ -79,14 +80,14 @@ func (_c *creditLimitRepository_CompanyCreditSpending_Call) Return(_a0 models.Cr
 	return _c
 }
 
-func (_c *creditLimitRepository_CompanyCreditSpending_Call) RunAndReturn(run func(context.Context, uuid.UUID, time.Time) (models.CreditSpending, error)) *creditLimitRepository_CompanyCreditSpending_Call {
+func (_c *creditLimitRepository_CompanyCreditSpending_Call) RunAndReturn(run func(context.Context, uuid.UUID, models.CreditPeriod, time.Time) (models.CreditSpending, error)) *creditLimitRepository_CompanyCreditSpending_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DepartmentCreditSpending provides a mock function with given fields: _a0, _a1, _a2
-func (_m *creditLimitRepository) DepartmentCreditSpending(_a0 context.Context, _a1 uuid.UUID, _a2 time.Time) ([]models.CreditSpending, error) {
-	ret := _m.Called(_a0, _a1, _a2)
+// DepartmentCreditSpending provides a mock function with given fields: _a0, _a1, _a2, _a3
+func (_m *creditLimitRepository) DepartmentCreditSpending(_a0 context.Context, _a1 uuid.UUID, _a2 models.CreditPeriod, _a3 time.Time) ([]models.CreditSpending, error) {
+	ret := _m.Called(_a0, _a1, _a2, _a3)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DepartmentCreditSpending")
@@ -94,19 +95,19 @@ func (_m *creditLimitRepository) DepartmentCreditSpending(_a0 context.Context, _
 
 	var r0 []models.CreditSpending
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) ([]models.CreditSpending, error)); ok {
-		return rf(_a0, _a1, _a2)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, models.CreditPeriod, time.Time) ([]models.CreditSpending, error)); ok {
+		return rf(_a0, _a1, _a2, _a3)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) []models.CreditSpending); ok {
-		r0 = rf(_a0, _a1, _a2)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, models.CreditPeriod, time.Time) []models.CreditSpending); ok {
+		r0 = rf(_a0, _a1, _a2, _a3)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.CreditSpending)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, time.Time) error); ok {
-		r1 = rf(_a0, _a1, _a2)
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, models.CreditPeriod, time.Time) error); ok {
+		r1 = rf(_a0, _a1, _a2, _a3)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -122,14 +123,15 @@ type creditLimitRepository_DepartmentCreditSpending_Call struct {
 // DepartmentCreditSpending is a helper method to define mock.On call
 //   - _a0 context.Context
 //   - _a1 uuid.UUID
-//   - _a2 time.Time
-func (_e *creditLimitRepository_Expecter) DepartmentCreditSpending(_a0 interface{}, _a1 interface{}, _a2 interface{}) *creditLimitRepository_DepartmentCreditSpending_Call {
-	return &creditLimitRepository_DepartmentCreditSpending_Call{Call: _e.mock.On("DepartmentCreditSpending", _a0, _a1, _a2)}
+//   - _a2 models.CreditPeriod
+//   - _a3 time.Time
+func (_e *creditLimitRepository_Expecter) DepartmentCreditSpending(_a0 interface{}, _a1 interface{}, _a2 interface{}, _a3 interface{}) *creditLimitRepository_DepartmentCreditSpending_Call {
+	return &creditLimitRepository_DepartmentCreditSpending_Call{Call: _e.mock.On("DepartmentCreditSpending", _a0, _a1, _a2, _a3)}
 }
 
-func (_c *creditLimitRepository_DepartmentCreditSpending_Call) Run(run func(_a0 context.Context, _a1 uuid.UUID, _a2 time.Time)) *creditLimitRepository_DepartmentCreditSpending_Call {
+func (_c *creditLimitRepository_DepartmentCreditSpending_Call) Run(run func(_a0 context.Context, _a1 uuid.UUID, _a2 models.CreditPeriod, _a3 time.Time)) *creditLimitRepository_DepartmentCreditSpending_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(time.Time))
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(models.CreditPeriod), args[3].(time.Time))
 	})
 	return _c
 }
@@ -139,7 +141,7 @@ func (_c *creditLimitRepository_DepartmentCreditSpending_Call) Return(_a0 []mode
 	return _c
 }
 
-func (_c *creditLimitRepository_DepartmentCreditSpending_Call) RunAndReturn(run func(context.Context, uuid.UUID, time.Time) ([]models.CreditSpending, error)) *creditLimitRepository_DepartmentCreditSpending_Call {
+func (_c *creditLimitRepository_DepartmentCreditSpending_Call) RunAndReturn(run func(context.Context, uuid.UUID, models.CreditPeriod, time.Time) ([]models.CreditSpending, error)) *creditLimitRepository_DepartmentCreditSpending_Call {
 	_c.Call.Return(run)
 	return _c
 }

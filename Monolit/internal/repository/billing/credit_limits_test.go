@@ -22,7 +22,8 @@ func (s *RepositorySuite) TestCompanyCreditLimitAndForecast() {
 	}))
 
 	now := time.Date(2026, 9, 16, 12, 0, 0, 0, time.UTC)
-	spending, err := s.repository.CompanyCreditSpending(s.ctx, companyID, now)
+	period := models.CreditPeriodFor(now.Add(-24*time.Hour), now)
+	spending, err := s.repository.CompanyCreditSpending(s.ctx, companyID, period, now)
 	s.Require().NoError(err)
 	s.Require().NotNil(spending.LimitCredits)
 	s.Require().Equal(limit, *spending.LimitCredits)
@@ -33,7 +34,7 @@ func (s *RepositorySuite) TestCompanyCreditLimitAndForecast() {
 	s.Require().NoError(s.repository.SetCompanyCreditLimit(s.ctx, models.SetCreditLimitInput{
 		CompanyUUID: companyID, UserUUID: ownerID, LimitCredits: nil,
 	}))
-	spending, err = s.repository.CompanyCreditSpending(s.ctx, companyID, now)
+	spending, err = s.repository.CompanyCreditSpending(s.ctx, companyID, period, now)
 	s.Require().NoError(err)
 	s.Require().Nil(spending.LimitCredits)
 }
@@ -54,7 +55,8 @@ func (s *RepositorySuite) TestDepartmentCreditLimitIsReportedPerDepartment() {
 		LimitCredits:   &forbidden,
 	}))
 
-	departments, err := s.repository.DepartmentCreditSpending(s.ctx, companyID, time.Now().UTC())
+	now := time.Now().UTC()
+	departments, err := s.repository.DepartmentCreditSpending(s.ctx, companyID, models.CreditPeriodFor(now.Add(-24*time.Hour), now), now)
 	s.Require().NoError(err)
 	s.Require().Len(departments, 1)
 	s.Require().Equal(departmentID, departments[0].SubjectUUID)

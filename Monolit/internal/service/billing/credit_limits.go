@@ -2,6 +2,7 @@ package billing
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"verbatrace/monolit/internal/models"
@@ -14,8 +15,8 @@ import (
 type creditLimitRepository interface {
 	SetCompanyCreditLimit(context.Context, models.SetCreditLimitInput) error
 	SetDepartmentCreditLimit(context.Context, models.SetCreditLimitInput) error
-	CompanyCreditSpending(context.Context, uuid.UUID, time.Time) (models.CreditSpending, error)
-	DepartmentCreditSpending(context.Context, uuid.UUID, time.Time) ([]models.CreditSpending, error)
+	CompanyCreditSpending(context.Context, uuid.UUID, models.CreditPeriod, time.Time) (models.CreditSpending, error)
+	DepartmentCreditSpending(context.Context, uuid.UUID, models.CreditPeriod, time.Time) ([]models.CreditSpending, error)
 }
 
 type DepartmentRepository interface {
@@ -82,13 +83,21 @@ func (s *Service) CompanyCreditForecast(ctx context.Context, companyID uuid.UUID
 		return models.CompanyCreditForecast{}, models.ErrForbidden
 	}
 
-	departments, err := limits.DepartmentCreditSpending(ctx, companyID, s.now())
+	// The window follows the owner's subscription, so the cap resets together
+	// with the allowance it caps rather than on the first of the month.
+	now := s.now()
+	period, err := s.creditPeriodForCompany(ctx, companyID, now)
+	if err != nil {
+		return models.CompanyCreditForecast{}, err
+	}
+
+	departments, err := limits.DepartmentCreditSpending(ctx, companyID, period, now)
 	if err != nil {
 		return models.CompanyCreditForecast{}, err
 	}
 
 	if member.Role.ManagesCompany() {
-		company, err := limits.CompanyCreditSpending(ctx, companyID, s.now())
+		company, err := limits.CompanyCreditSpending(ctx, companyID, period, now)
 		if err != nil {
 			return models.CompanyCreditForecast{}, err
 		}
@@ -120,4 +129,20 @@ func (s *Service) CompanyCreditForecast(ctx context.Context, companyID uuid.UUID
 	}
 
 	return models.CompanyCreditForecast{Departments: visible}, nil
+}
+
+// creditPeriodForCompany anchors the window on the plan that covers the company.
+// A frozen company has no covering plan; its numbers are read from a window
+// starting now, which is empty, and that is the honest answer for a company that
+// is not allowed to spend.
+func (s *Service) creditPeriodForCompany(ctx context.Context, companyID uuid.UUID, now time.Time) (models.CreditPeriod, error) {
+	subscription, err := s.repository.GetActiveBusinessSubscription(ctx, companyID)
+	if err != nil {
+		if errors.Is(err, models.ErrSubscriptionNotFound) {
+			return models.CreditPeriodFor(time.Time{}, now), nil
+		}
+		return models.CreditPeriod{}, err
+	}
+
+	return models.CreditPeriodFor(subscription.StartsAt, now), nil
 }

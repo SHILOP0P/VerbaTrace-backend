@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -20,6 +21,10 @@ type indexCandidate struct {
 	hash                    []byte
 	payload                 []byte
 	analysisPayload         []byte
+	// Who pays for embedding this call, and under which cap.
+	ownerID      uuid.UUID
+	companyID    uuid.UUID
+	departmentID uuid.UUID
 }
 type revisionPayload struct {
 	Text     string                        `json:"text"`
@@ -60,17 +65,19 @@ func (s *Service) IndexNext(ctx context.Context, limit int) error {
 	if err != nil {
 		return err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT c.call_uuid,t.transcription_uuid,r.revision,ct.content_sha256,ct.payload,COALESCE(a.result_json,'{}'::jsonb) FROM calls c JOIN call_transcriptions t ON t.call_uuid=c.call_uuid JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid JOIN call_transcription_revisions r ON r.transcription_uuid=t.transcription_uuid AND r.revision=rs.active_revision JOIN call_transcription_contents ct ON ct.transcription_content_uuid=r.transcription_content_uuid LEFT JOIN call_privacy_states ps ON ps.call_uuid=c.call_uuid LEFT JOIN LATERAL (SELECT result_json,updated_at FROM call_analyses WHERE call_uuid=c.call_uuid AND status='done' ORDER BY updated_at DESC LIMIT 1) a ON true WHERE t.status='transcribed' AND c.deleted_at IS NULL AND (ps.call_uuid IS NULL OR ps.status IN ('not_requested','ready')) AND NOT EXISTS(SELECT 1 FROM call_search_documents d WHERE d.call_uuid=c.call_uuid AND d.transcription_revision=r.revision AND d.profile_uuid=$1 AND d.status='ready' AND d.content_sha256=ct.content_sha256 AND (ps.updated_at IS NULL OR d.updated_at>=ps.updated_at) AND (a.updated_at IS NULL OR d.updated_at>=a.updated_at)) ORDER BY GREATEST(t.updated_at,COALESCE(a.updated_at,t.updated_at)) LIMIT $2`, profile, limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT c.call_uuid,t.transcription_uuid,r.revision,ct.content_sha256,ct.payload,COALESCE(a.result_json,'{}'::jsonb),c.uploaded_by_user_uuid,c.company_uuid,c.department_uuid FROM calls c JOIN call_transcriptions t ON t.call_uuid=c.call_uuid JOIN call_transcription_revision_state rs ON rs.transcription_uuid=t.transcription_uuid JOIN call_transcription_revisions r ON r.transcription_uuid=t.transcription_uuid AND r.revision=rs.active_revision JOIN call_transcription_contents ct ON ct.transcription_content_uuid=r.transcription_content_uuid LEFT JOIN call_privacy_states ps ON ps.call_uuid=c.call_uuid LEFT JOIN LATERAL (SELECT result_json,updated_at FROM call_analyses WHERE call_uuid=c.call_uuid AND status='done' ORDER BY updated_at DESC LIMIT 1) a ON true WHERE t.status='transcribed' AND c.deleted_at IS NULL AND (ps.call_uuid IS NULL OR ps.status IN ('not_requested','ready')) AND NOT EXISTS(SELECT 1 FROM call_search_documents d WHERE d.call_uuid=c.call_uuid AND d.transcription_revision=r.revision AND d.profile_uuid=$1 AND d.status='ready' AND d.content_sha256=ct.content_sha256 AND (ps.updated_at IS NULL OR d.updated_at>=ps.updated_at) AND (a.updated_at IS NULL OR d.updated_at>=a.updated_at)) ORDER BY GREATEST(t.updated_at,COALESCE(a.updated_at,t.updated_at)) LIMIT $2`, profile, limit)
 	if err != nil {
 		return err
 	}
 	candidates := []indexCandidate{}
 	for rows.Next() {
 		var x indexCandidate
-		if err = rows.Scan(&x.callID, &x.transcriptionID, &x.revision, &x.hash, &x.payload, &x.analysisPayload); err != nil {
+		var owner, company, department uuid.NullUUID
+		if err = rows.Scan(&x.callID, &x.transcriptionID, &x.revision, &x.hash, &x.payload, &x.analysisPayload, &owner, &company, &department); err != nil {
 			_ = rows.Close()
 			return err
 		}
+		x.ownerID, x.companyID, x.departmentID = owner.UUID, company.UUID, department.UUID
 		candidates = append(candidates, x)
 	}
 	if err = rows.Close(); err != nil {
@@ -127,16 +134,43 @@ func (s *Service) indexCandidate(ctx context.Context, profile uuid.UUID, c index
 	var vectors [][]float32
 	if s.embedder != nil && s.embedder.Enabled() {
 		inputs := make([]string, len(chunks))
+		tokens := int64(0)
 		for i := range chunks {
 			inputs[i] = chunks[i].Text
+			tokens += int64((len([]byte(chunks[i].Text)) + 2) / 3)
+		}
+		// Indexing calls a paid provider, so it books credits like any other AI
+		// operation. The reference keys the operation to this exact revision of
+		// this call, which makes a repeated attempt idempotent rather than a
+		// second charge.
+		provider, model, _ := s.embedder.Profile()
+		reference := fmt.Sprintf("index:%s:%d", c.callID, c.revision)
+		var creditOperation uuid.UUID
+		if s.credits != nil {
+			var reserveErr error
+			creditOperation, reserveErr = s.credits.ReserveEmbedding(ctx, c.ownerID, c.companyID, c.departmentID, reference, tokens, provider, model)
+			if reserveErr != nil {
+				return reserveErr
+			}
 		}
 		var err error
 		vectors, _, err = s.embedder.Embed(ctx, inputs, "search_document")
 		if err != nil {
+			if s.credits != nil && creditOperation != uuid.Nil {
+				_ = s.credits.MarkCreditOperationReconciling(ctx, creditOperation, "embedding provider result unavailable")
+			}
 			return err
 		}
 		if len(vectors) != len(chunks) {
+			if s.credits != nil && creditOperation != uuid.Nil {
+				_ = s.credits.MarkCreditOperationReconciling(ctx, creditOperation, "embedding provider returned unexpected item count")
+			}
 			return errors.New("embedding provider returned unexpected item count")
+		}
+		if s.credits != nil && creditOperation != uuid.Nil {
+			if err = s.credits.SettleEmbedding(ctx, creditOperation, tokens, provider, model); err != nil {
+				return err
+			}
 		}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)

@@ -172,7 +172,15 @@ func (w *Worker) runBatch(ctx context.Context) error {
 	return group.Wait()
 }
 
+// creditWaitDelay is how long a call sits before it looks for room again. Credit
+// limits reset on a period boundary and wallets are topped up by hand, so there
+// is nothing to gain from asking every few seconds.
+const creditWaitDelay = 15 * time.Minute
+
 func (w *Worker) handleJobError(ctx context.Context, job models.ProcessingJob, cause error, duration time.Duration) error {
+	if models.IsCreditWaitError(cause) {
+		return w.handleCreditWait(ctx, job, cause, duration)
+	}
 	if isPermanentProcessingError(cause) {
 		return w.handlePermanentJobError(ctx, job, cause, duration)
 	}
@@ -210,6 +218,36 @@ func (w *Worker) handleJobError(ctx context.Context, job models.ProcessingJob, c
 		ctx,
 		message,
 		fields...,
+	)
+
+	return nil
+}
+
+// handleCreditWait parks a call that has nothing wrong with it beyond an empty
+// budget. The job keeps its attempts and comes back on its own; the call says so
+// instead of pretending to have failed.
+func (w *Worker) handleCreditWait(ctx context.Context, job models.ProcessingJob, cause error, duration time.Duration) error {
+	updatedJob, err := w.service.processingJobRepository.MarkWaitingForCredits(ctx, job.ID, cause.Error(), creditWaitDelay)
+	if err != nil {
+		w.log.Error(
+			ctx,
+			"processing job mark waiting for credits failed",
+			append(processingJobLogFields(job, w.workerID), zap.NamedError("cause", cause), zap.Error(err))...,
+		)
+		return err
+	}
+
+	w.service.MarkJobWaitingForCredits(ctx, job)
+
+	w.log.Info(
+		ctx,
+		"processing job waiting for credits",
+		append(
+			processingJobLogFields(updatedJob, w.workerID),
+			zap.Duration("duration", duration),
+			zap.Duration("retry_delay", creditWaitDelay),
+			zap.NamedError("cause", cause),
+		)...,
 	)
 
 	return nil

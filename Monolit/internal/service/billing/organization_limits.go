@@ -27,8 +27,10 @@ func (s *Service) CanCreateDepartment(ctx context.Context, companyID uuid.UUID) 
 		return err
 	}
 
+	// Empty means no cap and zero means none allowed, the same as everywhere
+	// else. This was the one limit that read an empty value as a refusal.
 	if subscription.Plan.DepartmentsPerCompanyLimit == nil {
-		return models.ErrDepartmentLimitExceeded
+		return nil
 	}
 
 	count, err := s.repository.CountCompanyDepartments(ctx, companyID)

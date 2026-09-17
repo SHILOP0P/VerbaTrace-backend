@@ -143,6 +143,7 @@ const (
 	CodeInvalidBillingInput              = "invalid_billing_input"
 	CodePlanLimitExceeded                = "plan_limit_exceeded"
 	CodeMonthlyMinutesLimitExceeded      = "monthly_minutes_limit_exceeded"
+	CodePendingCreditQueueFull           = "pending_credit_queue_full"
 	CodeInstructionLimitExceeded         = "instruction_limit_exceeded"
 	CodeCompanyLimitExceeded             = "company_limit_exceeded"
 	CodeCompanyMembershipConflict        = "company_membership_conflict"

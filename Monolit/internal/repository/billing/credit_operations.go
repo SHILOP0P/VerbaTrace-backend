@@ -101,7 +101,8 @@ func (r *Repository) ReserveCredits(ctx context.Context, subscription models.Sub
 	}
 
 	if input.Environment == "production" && input.CompanyUUID.Valid {
-		if err = checkCreditLimits(ctx, tx, input, now); err != nil {
+		period := models.CreditPeriodFor(subscription.StartsAt, now)
+		if err = checkCreditLimits(ctx, tx, input, period.Start, period.End); err != nil {
 			return models.CreditOperation{}, err
 		}
 	}

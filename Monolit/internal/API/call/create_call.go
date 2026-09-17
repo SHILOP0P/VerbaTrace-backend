@@ -164,6 +164,9 @@ func (h *CallHandler) Create(w http.ResponseWriter, r *http.Request) {
 		} else if errors.Is(err, model.ErrMonthlyMinutesLimitExceeded) {
 			response.WriteError(w, http.StatusBadRequest, response.CodeMonthlyMinutesLimitExceeded, "monthly minutes limit exceeded")
 			return
+		} else if errors.Is(err, model.ErrPendingCreditQueueFull) {
+			response.WriteError(w, http.StatusConflict, response.CodePendingCreditQueueFull, "too many calls are already waiting for credits")
+			return
 		} else {
 			response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToCreateCall, "failed to create call")
 			return

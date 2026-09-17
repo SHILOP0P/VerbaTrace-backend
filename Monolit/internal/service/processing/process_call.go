@@ -102,7 +102,9 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 		return nil
 	}
 
-	if call.Status == models.CallStatusNew {
+	// A call that was parked waiting for credits comes back here untouched and
+	// starts from the beginning, exactly like a fresh one.
+	if call.Status == models.CallStatusNew || call.Status == models.CallStatusAwaitingCredits {
 		speakerHints := call.SpeakerHints
 		diarizationRoles := call.DiarizationRoles
 		updatedCall, err := s.callRepository.UpdateCallStatus(ctx, call.ID, models.CallStatusProcessing)
@@ -367,6 +369,19 @@ func (s *Service) openAudio(ctx context.Context, call models.Call) (models.File,
 		MimeType:         call.MimeType,
 		SizeBytes:        call.SizeBytes,
 	}, nil
+}
+
+// MarkJobWaitingForCredits reflects a parked job on the call itself, so the
+// interface can say "waiting for credits" rather than leaving the call looking
+// stuck in processing. Only the transcription stage changes the call status:
+// a call whose analysis is waiting has already been transcribed.
+func (s *Service) MarkJobWaitingForCredits(ctx context.Context, job models.ProcessingJob) {
+	if job.Type != models.ProcessingJobTypeTranscribeCall {
+		return
+	}
+	if _, err := s.callRepository.UpdateCallStatus(context.Background(), job.EntityUUID, models.CallStatusAwaitingCredits); err != nil {
+		s.log.Warn(ctx, "failed to mark call as waiting for credits", zap.String("call_id", job.EntityUUID.String()), zap.Error(err))
+	}
 }
 
 func (s *Service) MarkJobFailed(ctx context.Context, job models.ProcessingJob, cause error) {

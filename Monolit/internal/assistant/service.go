@@ -42,8 +42,10 @@ type Service struct {
 }
 
 type CreditMeter interface {
-	ReserveAssistantGeneration(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, int64, int64, string, string) (uuid.UUID, error)
+	ReserveAssistantGeneration(ctx context.Context, userID, companyID, departmentID, runID uuid.UUID, inputTokens, maxOutputTokens int64, provider, model string) (uuid.UUID, error)
 	SettleAssistantGeneration(context.Context, uuid.UUID, *models.ProviderUsage) error
+	ReserveEmbedding(ctx context.Context, userID, companyID, departmentID uuid.UUID, reference string, inputTokens int64, provider, model string) (uuid.UUID, error)
+	SettleEmbedding(ctx context.Context, operationID uuid.UUID, inputTokens int64, provider, model string) error
 	MarkCreditOperationReconciling(context.Context, uuid.UUID, string) error
 }
 
@@ -214,6 +216,42 @@ func optionalCompany(id uuid.UUID) any {
 func managesCompany(role string) bool {
 	return models.CompanyMemberRole(role).ManagesCompany()
 }
+
+// departmentForUser answers which department's credit limit an operation should
+// count against. One person has at most one active department inside a company,
+// so there is nothing to choose between; an owner or deputy without a department
+// spends against the company itself.
+func (s *Service) departmentForUser(ctx context.Context, companyID, userID uuid.UUID) uuid.UUID {
+	if companyID == uuid.Nil || userID == uuid.Nil {
+		return uuid.Nil
+	}
+	var id uuid.UUID
+	err := s.db.QueryRowContext(ctx, `SELECT dm.department_uuid FROM department_members dm JOIN departments d USING(department_uuid)
+		WHERE d.company_uuid=$1 AND d.deleted_at IS NULL AND dm.user_uuid=$2 AND dm.status='active' LIMIT 1`, companyID, userID).Scan(&id)
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
+}
+
+// reserveQueryEmbedding books the cost of vectorising one search query. It
+// reports whether the search may go ahead in vector mode; without a credit meter
+// wired in it simply says yes.
+func (s *Service) reserveQueryEmbedding(ctx context.Context, userID, companyID uuid.UUID, query string) (uuid.UUID, int64, bool) {
+	tokens := int64((len([]byte(query)) + 2) / 3)
+	if s.credits == nil {
+		return uuid.Nil, tokens, true
+	}
+	provider, model, _ := s.embedder.Profile()
+	reference := fmt.Sprintf("search:%s:%s:%x", userID, companyID, sha256.Sum256([]byte(query)))
+	operationID, err := s.credits.ReserveEmbedding(ctx, userID, companyID, s.departmentForUser(ctx, companyID, userID), reference, tokens, provider, model)
+	if err != nil {
+		return uuid.Nil, tokens, false
+	}
+
+	return operationID, tokens, true
+}
+
 func scopeSQL() string {
 	return "c.company_uuid IS NOT DISTINCT FROM NULLIF($2::uuid,'00000000-0000-0000-0000-000000000000'::uuid)"
 }
@@ -246,10 +284,24 @@ func (s *Service) ContentSearch(ctx context.Context, in models.ContentSearchInpu
 		if semanticQuery == "" {
 			semanticQuery = in.Query
 		}
-		vectors, _, embedErr := s.embedder.Embed(ctx, []string{semanticQuery}, "search_query")
-		if embedErr == nil && len(vectors) == 1 {
-			vectorMode = true
-			vector = vectorLiteral(vectors[0])
+		// Turning the question into a vector costs money too. When the credit
+		// limit refuses it the search still answers, lexically: a cap on spending
+		// should degrade the result, not withhold it.
+		if creditOperation, tokens, ok := s.reserveQueryEmbedding(ctx, in.UserUUID, in.CompanyUUID, semanticQuery); ok {
+			vectors, _, embedErr := s.embedder.Embed(ctx, []string{semanticQuery}, "search_query")
+			provider, model, _ := s.embedder.Profile()
+			switch {
+			case embedErr == nil && len(vectors) == 1:
+				vectorMode = true
+				vector = vectorLiteral(vectors[0])
+				if s.credits != nil && creditOperation != uuid.Nil {
+					_ = s.credits.SettleEmbedding(ctx, creditOperation, tokens, provider, model)
+				}
+			default:
+				if s.credits != nil && creditOperation != uuid.Nil {
+					_ = s.credits.MarkCreditOperationReconciling(ctx, creditOperation, "search embedding unavailable")
+				}
+			}
 		}
 	}
 	args := []any{in.UserUUID, in.CompanyUUID, lexicalQuery(in.Query), in.Limit}
@@ -801,7 +853,7 @@ func (s *Service) completeRun(ctx context.Context, run models.AssistantRun, in m
 		var creditOperation uuid.UUID
 		if s.credits != nil {
 			inputTokens := int64((len([]byte(in.Text)) + len(manifest) + 2) / 3)
-			creditOperation, err = s.credits.ReserveAssistantGeneration(ctx, in.UserUUID, in.CompanyUUID, run.ID, inputTokens, int64(maxTokens), provider, model)
+			creditOperation, err = s.credits.ReserveAssistantGeneration(ctx, in.UserUUID, in.CompanyUUID, s.departmentForUser(ctx, in.CompanyUUID, in.UserUUID), run.ID, inputTokens, int64(maxTokens), provider, model)
 			if err != nil {
 				_ = s.failRun(ctx, run.ID, "insufficient_credits")
 				return models.AssistantRun{}, err

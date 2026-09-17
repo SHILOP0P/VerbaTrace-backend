@@ -31,6 +31,35 @@ type CompanyLifecycle struct {
 	RestoreUsed   bool
 }
 
+// CreditPeriodLength is how long a subscription runs before it renews, and with
+// it the window that credit limits are measured over. It is counted from the
+// moment the plan was bought rather than from the first of the month, so that
+// the cap and the allowance it caps reset together.
+const CreditPeriodLength = 30 * 24 * time.Hour
+
+// CreditPeriod is one such window.
+type CreditPeriod struct {
+	Start time.Time
+	End   time.Time
+}
+
+// CreditPeriodFor returns the window that contains now. A subscription that has
+// not started yet, or none at all, falls back to a window ending now: nothing
+// has been spent under it.
+func CreditPeriodFor(subscriptionStart time.Time, now time.Time) CreditPeriod {
+	now = now.UTC()
+	start := subscriptionStart.UTC()
+	if start.IsZero() || now.Before(start) {
+		return CreditPeriod{Start: now, End: now.Add(CreditPeriodLength)}
+	}
+
+	elapsed := now.Sub(start)
+	windows := elapsed / CreditPeriodLength
+	windowStart := start.Add(windows * CreditPeriodLength)
+
+	return CreditPeriod{Start: windowStart, End: windowStart.Add(CreditPeriodLength)}
+}
+
 // CreditLimit is a cap on spending. A nil value means no cap of its own, zero
 // forbids spending entirely.
 type CreditLimit struct {

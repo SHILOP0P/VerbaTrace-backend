@@ -359,6 +359,66 @@ func (_c *creditOperationRepository_MaximumAnalysisCredits_Call) RunAndReturn(ru
 	return _c
 }
 
+// MaximumEmbeddingCredits provides a mock function with given fields: _a0, _a1, _a2, _a3, _a4
+func (_m *creditOperationRepository) MaximumEmbeddingCredits(_a0 context.Context, _a1 int64, _a2 string, _a3 string, _a4 time.Time) (int64, error) {
+	ret := _m.Called(_a0, _a1, _a2, _a3, _a4)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MaximumEmbeddingCredits")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string, string, time.Time) (int64, error)); ok {
+		return rf(_a0, _a1, _a2, _a3, _a4)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string, string, time.Time) int64); ok {
+		r0 = rf(_a0, _a1, _a2, _a3, _a4)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64, string, string, time.Time) error); ok {
+		r1 = rf(_a0, _a1, _a2, _a3, _a4)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// creditOperationRepository_MaximumEmbeddingCredits_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MaximumEmbeddingCredits'
+type creditOperationRepository_MaximumEmbeddingCredits_Call struct {
+	*mock.Call
+}
+
+// MaximumEmbeddingCredits is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 int64
+//   - _a2 string
+//   - _a3 string
+//   - _a4 time.Time
+func (_e *creditOperationRepository_Expecter) MaximumEmbeddingCredits(_a0 interface{}, _a1 interface{}, _a2 interface{}, _a3 interface{}, _a4 interface{}) *creditOperationRepository_MaximumEmbeddingCredits_Call {
+	return &creditOperationRepository_MaximumEmbeddingCredits_Call{Call: _e.mock.On("MaximumEmbeddingCredits", _a0, _a1, _a2, _a3, _a4)}
+}
+
+func (_c *creditOperationRepository_MaximumEmbeddingCredits_Call) Run(run func(_a0 context.Context, _a1 int64, _a2 string, _a3 string, _a4 time.Time)) *creditOperationRepository_MaximumEmbeddingCredits_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(string), args[3].(string), args[4].(time.Time))
+	})
+	return _c
+}
+
+func (_c *creditOperationRepository_MaximumEmbeddingCredits_Call) Return(_a0 int64, _a1 error) *creditOperationRepository_MaximumEmbeddingCredits_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *creditOperationRepository_MaximumEmbeddingCredits_Call) RunAndReturn(run func(context.Context, int64, string, string, time.Time) (int64, error)) *creditOperationRepository_MaximumEmbeddingCredits_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MaximumGenerationCredits provides a mock function with given fields: _a0, _a1, _a2, _a3, _a4, _a5
 func (_m *creditOperationRepository) MaximumGenerationCredits(_a0 context.Context, _a1 int64, _a2 int64, _a3 string, _a4 string, _a5 time.Time) (int64, error) {
 	ret := _m.Called(_a0, _a1, _a2, _a3, _a4, _a5)

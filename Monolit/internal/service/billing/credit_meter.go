@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"verbatrace/monolit/internal/models"
@@ -18,6 +19,7 @@ type creditOperationRepository interface {
 	TranscriptionProviderCostNanoUSD(context.Context, uuid.UUID, int64) (int64, error)
 	MaximumAnalysisCredits(context.Context, int64, int64, time.Time) (int64, error)
 	MaximumGenerationCredits(context.Context, int64, int64, string, string, time.Time) (int64, error)
+	MaximumEmbeddingCredits(context.Context, int64, string, string, time.Time) (int64, error)
 	CreditsForOperationProviderCost(context.Context, uuid.UUID, int64) (int64, error)
 	MarkCreditOperationProviderRunning(context.Context, uuid.UUID) error
 	MarkCreditOperationReconciling(context.Context, uuid.UUID, string) error
@@ -25,17 +27,15 @@ type creditOperationRepository interface {
 	IsSandboxMockCall(context.Context, uuid.UUID) (bool, error)
 }
 
-func (s *Service) ReserveAssistantGeneration(ctx context.Context, userID, companyID, runID uuid.UUID, inputTokens, maxOutputTokens int64, provider, model string) (uuid.UUID, error) {
+// ReserveAssistantGeneration books what an assistant answer may cost. The
+// department matters: a department limit is meant to stop the assistant too, and
+// leaving it out was what made the assistant the one operation no department cap
+// could reach.
+func (s *Service) ReserveAssistantGeneration(ctx context.Context, userID, companyID, departmentID, runID uuid.UUID, inputTokens, maxOutputTokens int64, provider, model string) (uuid.UUID, error) {
 	if runID == uuid.Nil || userID == uuid.Nil || inputTokens < 0 || maxOutputTokens <= 0 || provider == "" || model == "" {
 		return uuid.Nil, models.ErrInvalidBillingInput
 	}
-	var subscription models.Subscription
-	var err error
-	if companyID != uuid.Nil {
-		subscription, err = s.repository.GetActiveBusinessSubscription(ctx, companyID)
-	} else {
-		subscription, err = s.repository.GetActivePersonalSubscription(ctx, userID)
-	}
+	subscription, err := s.subscriptionForScope(ctx, userID, companyID)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -45,13 +45,64 @@ func (s *Service) ReserveAssistantGeneration(ctx context.Context, userID, compan
 	}
 	operationID := uuid.NewSHA1(uuid.NameSpaceOID, []byte("assistant_generation:"+runID.String()))
 	_, err = s.creditOperations.ReserveCredits(ctx, subscription, models.ReserveCreditsInput{
-		OperationUUID: operationID, CompanyUUID: uuid.NullUUID{UUID: companyID, Valid: companyID != uuid.Nil}, OperationType: "assistant_generation", Environment: "production",
+		OperationUUID:  operationID,
+		CompanyUUID:    uuid.NullUUID{UUID: companyID, Valid: companyID != uuid.Nil},
+		DepartmentUUID: uuid.NullUUID{UUID: departmentID, Valid: departmentID != uuid.Nil},
+		OperationType:  "assistant_generation", Environment: "production",
 		Provider: provider, Model: model, Mode: "chat", IdempotencyKey: "assistant_generation:" + runID.String(), MaximumCharge: maximum,
 	}, s.now())
 	if err == nil {
 		err = s.creditOperations.MarkCreditOperationProviderRunning(ctx, operationID)
 	}
 	return operationID, err
+}
+
+// ReserveEmbedding books an embedding call: indexing a call for semantic search,
+// or turning a search query into a vector. Both hit a paid provider.
+func (s *Service) ReserveEmbedding(ctx context.Context, userID, companyID, departmentID uuid.UUID, reference string, inputTokens int64, provider, model string) (uuid.UUID, error) {
+	if strings.TrimSpace(reference) == "" || inputTokens < 0 || provider == "" || model == "" {
+		return uuid.Nil, models.ErrInvalidBillingInput
+	}
+	subscription, err := s.subscriptionForScope(ctx, userID, companyID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	maximum, err := s.creditOperations.MaximumEmbeddingCredits(ctx, inputTokens, provider, model, s.now())
+	if err != nil {
+		return uuid.Nil, err
+	}
+	key := "embedding:" + reference
+	operationID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(key))
+	_, err = s.creditOperations.ReserveCredits(ctx, subscription, models.ReserveCreditsInput{
+		OperationUUID:  operationID,
+		CompanyUUID:    uuid.NullUUID{UUID: companyID, Valid: companyID != uuid.Nil},
+		DepartmentUUID: uuid.NullUUID{UUID: departmentID, Valid: departmentID != uuid.Nil},
+		OperationType:  "embedding", Environment: "production",
+		Provider: provider, Model: model, IdempotencyKey: key, MaximumCharge: maximum,
+	}, s.now())
+	if err == nil {
+		err = s.creditOperations.MarkCreditOperationProviderRunning(ctx, operationID)
+	}
+	return operationID, err
+}
+
+// SettleEmbedding charges what the provider actually cost. Embeddings report no
+// usage breakdown, so the reserved maximum is the charge.
+func (s *Service) SettleEmbedding(ctx context.Context, operationID uuid.UUID, inputTokens int64, provider, model string) error {
+	cost, err := s.creditOperations.MaximumEmbeddingCredits(ctx, inputTokens, provider, model, s.now())
+	if err != nil {
+		return err
+	}
+	usage, _ := json.Marshal(map[string]any{"input_tokens": inputTokens, "model": model})
+	_, err = s.creditOperations.SettleCredits(ctx, models.SettleCreditsInput{OperationUUID: operationID, ActualChargeCredits: cost, ProviderUsageJSON: usage}, s.now())
+	return err
+}
+
+func (s *Service) subscriptionForScope(ctx context.Context, userID, companyID uuid.UUID) (models.Subscription, error) {
+	if companyID != uuid.Nil {
+		return s.repository.GetActiveBusinessSubscription(ctx, companyID)
+	}
+	return s.repository.GetActivePersonalSubscription(ctx, userID)
 }
 
 func (s *Service) SettleAssistantGeneration(ctx context.Context, operationID uuid.UUID, usage *models.ProviderUsage) error {

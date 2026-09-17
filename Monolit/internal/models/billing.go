@@ -53,14 +53,18 @@ type Plan struct {
 	DepartmentsPerCompanyLimit     *int
 	MembersPerCompanyLimit         *int
 	InstructionsPerDepartmentLimit *int
-	AnalysisLevel                  AnalysisLevel
-	HistoryRetentionDays           int
-	ExportEnabled                  bool
-	TeamAnalyticsEnabled           bool
-	APIAccessEnabled               bool
-	WebhooksEnabled                bool
-	CreatedAt                      time.Time
-	UpdatedAt                      time.Time
+	// PendingCreditCallsLimit caps how many calls may wait for credits at once.
+	// Nil means no cap, as everywhere else; zero forbids waiting entirely, so an
+	// upload is refused the moment the budget runs out.
+	PendingCreditCallsLimit *int
+	AnalysisLevel           AnalysisLevel
+	HistoryRetentionDays    int
+	ExportEnabled           bool
+	TeamAnalyticsEnabled    bool
+	APIAccessEnabled        bool
+	WebhooksEnabled         bool
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type Subscription struct {

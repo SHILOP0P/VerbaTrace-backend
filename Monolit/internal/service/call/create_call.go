@@ -21,6 +21,14 @@ func (s *Service) CreateCall(ctx context.Context, input models.CreateCallInput) 
 		s.log.Warn(ctx, "create call failed", zap.String("reason", "upload_forbidden"), zap.String("user_id", input.UploadedByUserUUID.String()), zap.String("visibility_scope", string(input.VisibilityScope)), zap.Error(err))
 		return models.Call{}, err
 	}
+	// A call whose budget has run out is accepted and waits, but not without
+	// end: refusing here is the only moment the person can still do something
+	// about it, and it keeps unprocessable files off the disk.
+	if err := s.ensureCreditQueueHasRoom(ctx, input); err != nil {
+		s.log.Warn(ctx, "create call failed", zap.String("reason", "pending_credit_queue_full"), zap.String("user_id", input.UploadedByUserUUID.String()), zap.Error(err))
+		return models.Call{}, err
+	}
+
 	if input.FolderUUID.Valid && !input.IntegrationPrincipalUUID.Valid {
 		if s.callFolderRepository == nil {
 			return models.Call{}, models.ErrCallFolderNotFound
@@ -93,6 +101,20 @@ func (s *Service) CreateCall(ctx context.Context, input models.CreateCallInput) 
 	)
 
 	return createdCall, nil
+}
+
+// ensureCreditQueueHasRoom asks the billing side whether one more call may sit
+// and wait. It stays silent when billing is not wired in, which is the case in
+// unit tests and in the sandbox.
+func (s *Service) ensureCreditQueueHasRoom(ctx context.Context, input models.CreateCallInput) error {
+	queue, ok := s.billingLimiter.(interface {
+		CanQueueCallForCredits(ctx context.Context, userID uuid.UUID, companyID, departmentID uuid.NullUUID) error
+	})
+	if !ok {
+		return nil
+	}
+
+	return queue.CanQueueCallForCredits(ctx, input.UploadedByUserUUID, input.CompanyUUID, input.DepartmentUUID)
 }
 
 func folderMatchesPlacement(folder models.CallFolder, input models.CreateCallInput) bool {

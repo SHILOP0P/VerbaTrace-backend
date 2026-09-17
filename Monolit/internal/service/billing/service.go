@@ -43,6 +43,7 @@ type Service struct {
 	creditLimits         creditLimitRepository
 	creditDashboardRepo  creditDashboardRepository
 	developerRepository  developerRepository
+	pendingQueue         pendingCreditQueueRepository
 	now                  func() time.Time
 }
 
@@ -69,11 +70,16 @@ func (s *Service) SetCreditRepository(repository CreditRepository) error {
 	if !ok {
 		return fmt.Errorf("credit repository does not support developer applications")
 	}
+	queue, ok := repository.(pendingCreditQueueRepository)
+	if !ok {
+		return fmt.Errorf("credit repository does not support the pending credit queue")
+	}
 
 	s.creditOperations = operations
 	s.creditLimits = limits
 	s.creditDashboardRepo = dashboard
 	s.developerRepository = developer
+	s.pendingQueue = queue
 
 	return nil
 }

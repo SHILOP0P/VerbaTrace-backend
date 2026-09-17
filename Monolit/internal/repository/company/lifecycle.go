@@ -34,9 +34,12 @@ func (r *Repository) FreezeCompany(ctx context.Context, companyID uuid.UUID, now
 // still covers one more company.
 func (r *Repository) ActivateCompany(ctx context.Context, companyID uuid.UUID, now time.Time) error {
 	query := `
+	-- An owner without a business plan falls back to the "free" plan, where the
+	-- zeros are written out. Reading a missing plan as an empty limit would mean
+	-- "no cap" under the project's own rule, which is the opposite of the truth.
 	WITH owner_plan AS (
 	    SELECT c.manager_user_uuid,
-	           COALESCE(p.company_limit, 0) AS company_limit
+	           COALESCE(p.company_limit, (SELECT company_limit FROM plans WHERE code = 'free')) AS company_limit
 	    FROM companies c
 	    LEFT JOIN subscriptions s ON s.user_uuid = c.manager_user_uuid AND s.type='business' AND s.status='active'
 	    LEFT JOIN plans p ON p.plan_uuid = s.plan_uuid

@@ -30,6 +30,7 @@ func subscriptionColumns(subscriptionAlias string, planAlias string) string {
 	       ` + planAlias + `.departments_per_company_limit,
 	       ` + planAlias + `.members_per_company_limit,
 	       ` + planAlias + `.instructions_per_department_limit,
+	       ` + planAlias + `.pending_credit_calls_limit,
 	       ` + planAlias + `.analysis_level,
 	       ` + planAlias + `.history_retention_days,
 	       ` + planAlias + `.export_enabled,
@@ -51,6 +52,7 @@ func scanSubscription(row planScanner) (models.Subscription, error) {
 	var departmentsPerCompanyLimit sql.NullInt64
 	var membersPerCompanyLimit sql.NullInt64
 	var instructionsPerDepartmentLimit sql.NullInt64
+	var pendingCreditCallsLimit sql.NullInt64
 	var analysisLevel string
 
 	if err := row.Scan(
@@ -77,6 +79,7 @@ func scanSubscription(row planScanner) (models.Subscription, error) {
 		&departmentsPerCompanyLimit,
 		&membersPerCompanyLimit,
 		&instructionsPerDepartmentLimit,
+		&pendingCreditCallsLimit,
 		&analysisLevel,
 		&subscription.Plan.HistoryRetentionDays,
 		&subscription.Plan.ExportEnabled,
@@ -96,6 +99,7 @@ func scanSubscription(row planScanner) (models.Subscription, error) {
 	subscription.Plan.DepartmentsPerCompanyLimit = nullableInt(departmentsPerCompanyLimit)
 	subscription.Plan.MembersPerCompanyLimit = nullableInt(membersPerCompanyLimit)
 	subscription.Plan.InstructionsPerDepartmentLimit = nullableInt(instructionsPerDepartmentLimit)
+	subscription.Plan.PendingCreditCallsLimit = nullableInt(pendingCreditCallsLimit)
 	subscription.Plan.AnalysisLevel = models.AnalysisLevel(analysisLevel)
 	if endsAt.Valid {
 		subscription.EndsAt = &endsAt.Time

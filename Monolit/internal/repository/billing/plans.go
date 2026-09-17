@@ -26,6 +26,7 @@ const planColumns = `
 	departments_per_company_limit,
 	members_per_company_limit,
 	instructions_per_department_limit,
+	pending_credit_calls_limit,
 	analysis_level,
 	history_retention_days,
 	export_enabled,
@@ -54,10 +55,14 @@ func (r *Repository) GetPlanByCode(ctx context.Context, code models.PlanCode) (m
 	return plan, nil
 }
 
+// ListPlans is what a customer is offered. The "free" plan is not on offer: it
+// exists so that having no subscription is expressed as explicit zeros rather
+// than as empty limits, which everywhere else mean no limit at all.
 func (r *Repository) ListPlans(ctx context.Context) ([]models.Plan, error) {
 	query := `
 	SELECT ` + planColumns + `
 	FROM plans
+	WHERE code <> 'free'
 	ORDER BY CASE code
 	    WHEN 'personal_start' THEN 1
 	    WHEN 'personal_plus' THEN 2
@@ -103,6 +108,7 @@ func scanPlan(row planScanner) (models.Plan, error) {
 	var departmentsPerCompanyLimit sql.NullInt64
 	var membersPerCompanyLimit sql.NullInt64
 	var instructionsPerDepartmentLimit sql.NullInt64
+	var pendingCreditCallsLimit sql.NullInt64
 	var analysisLevel string
 
 	if err := row.Scan(
@@ -120,6 +126,7 @@ func scanPlan(row planScanner) (models.Plan, error) {
 		&departmentsPerCompanyLimit,
 		&membersPerCompanyLimit,
 		&instructionsPerDepartmentLimit,
+		&pendingCreditCallsLimit,
 		&analysisLevel,
 		&plan.HistoryRetentionDays,
 		&plan.ExportEnabled,
@@ -138,6 +145,7 @@ func scanPlan(row planScanner) (models.Plan, error) {
 	plan.DepartmentsPerCompanyLimit = nullableInt(departmentsPerCompanyLimit)
 	plan.MembersPerCompanyLimit = nullableInt(membersPerCompanyLimit)
 	plan.InstructionsPerDepartmentLimit = nullableInt(instructionsPerDepartmentLimit)
+	plan.PendingCreditCallsLimit = nullableInt(pendingCreditCallsLimit)
 	plan.AnalysisLevel = models.AnalysisLevel(analysisLevel)
 
 	return plan, nil
