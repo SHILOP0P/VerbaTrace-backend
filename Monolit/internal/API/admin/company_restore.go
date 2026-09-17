@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
@@ -25,6 +26,44 @@ type CompanyLifecycleService interface {
 
 func (h *Handler) SetCompanyLifecycleService(service CompanyLifecycleService) {
 	h.companyLifecycle = service
+}
+
+// ListRestorableCompanies is the queue the restore works from. Every other
+// company list filters deleted rows, so a company on its way to being erased
+// was invisible in the panel and its rescue could not be reached.
+func (h *Handler) ListRestorableCompanies(w http.ResponseWriter, r *http.Request) {
+	if _, ok := middleware.UserIDFromContext(r.Context()); !ok {
+		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+	if !isSuperAdmin(r) {
+		response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "restoring a deleted company is the superadmin's decision")
+		return
+	}
+
+	companies, err := h.service.ListRestorableCompanies(r.Context())
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, response.CodeInternalServerError, "failed to list companies that can be restored")
+		return
+	}
+
+	items := make([]dto.AdminRestorableCompanyResponse, 0, len(companies))
+	for _, company := range companies {
+		item := dto.AdminRestorableCompanyResponse{
+			CompanyUUID:     company.ID.String(),
+			Name:            company.Name,
+			Tag:             company.Tag,
+			ManagerUserUUID: company.ManagerUserUUID.String(),
+			SoftDeletedAt:   company.SoftDeletedAt.UTC().Format(time.RFC3339),
+		}
+		if company.PurgeAfter != nil {
+			deadline := company.PurgeAfter.UTC().Format(time.RFC3339)
+			item.PurgeAfter = &deadline
+		}
+		items = append(items, item)
+	}
+
+	_ = response.WriteJSON(w, http.StatusOK, dto.AdminRestorableCompaniesResponse{Items: items})
 }
 
 // RestoreCompany brings a soft-deleted company back to a freeze, once.

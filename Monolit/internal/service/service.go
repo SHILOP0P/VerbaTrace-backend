@@ -102,6 +102,7 @@ type AdminService interface {
 	RevokeUserSession(ctx context.Context, input models.AdminSessionMutationInput) error
 	RevokeAllUserSessions(ctx context.Context, input models.AdminSessionMutationInput) error
 	ListCompanies(ctx context.Context, input models.ListAdminCompaniesInput) (models.ListAdminCompaniesResult, error)
+	ListRestorableCompanies(ctx context.Context) ([]models.AdminRestorableCompany, error)
 	GetCompany(ctx context.Context, companyID uuid.UUID) (models.AdminCompany, error)
 	GetPersonalSubscription(ctx context.Context, userID uuid.UUID) (models.AdminSubscription, error)
 	GetCompanySubscription(ctx context.Context, companyID uuid.UUID) (models.AdminSubscription, error)

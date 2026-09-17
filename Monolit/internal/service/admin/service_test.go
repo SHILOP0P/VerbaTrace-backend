@@ -134,6 +134,10 @@ func (r *auditRepositoryStub) UpdateAdminCompanyTag(context.Context, models.Upda
 	return models.AdminCompany{}, nil
 }
 
+func (r *auditRepositoryStub) ListRestorableCompanies(context.Context) ([]models.AdminRestorableCompany, error) {
+	return nil, r.err
+}
+
 func (r *auditRepositoryStub) ListAdminUsers(context.Context, models.ListAdminUsersInput) (models.ListAdminUsersResult, error) {
 	return models.ListAdminUsersResult{}, r.err
 }

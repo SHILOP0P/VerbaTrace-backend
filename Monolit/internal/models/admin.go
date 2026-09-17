@@ -226,6 +226,21 @@ type ListAdminCompaniesResult struct {
 	Limit     int
 	Offset    int
 }
+
+// AdminRestorableCompany is a company inside the soft-deletion window that the
+// superadmin may still pull back. It cannot appear in the ordinary company list,
+// which filters deleted rows — that is exactly what these are — so without a
+// list of its own the one-time rescue could not be reached at all.
+type AdminRestorableCompany struct {
+	ID              uuid.UUID
+	Name            string
+	Tag             string
+	ManagerUserUUID uuid.UUID
+	SoftDeletedAt   time.Time
+	// PurgeAfter is the deadline. Once it passes the company is erased and this
+	// row disappears, so it is the only number that matters on the screen.
+	PurgeAfter *time.Time
+}
 type AdminSubscription struct {
 	ID          uuid.UUID
 	PlanCode    PlanCode

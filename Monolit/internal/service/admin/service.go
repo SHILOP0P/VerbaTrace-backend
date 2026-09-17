@@ -27,6 +27,7 @@ type AuditRepository interface {
 	RevokeAdminUserSession(ctx context.Context, input models.AdminSessionMutationInput) error
 	RevokeAllAdminUserSessions(ctx context.Context, input models.AdminSessionMutationInput) error
 	ListAdminCompanies(ctx context.Context, input models.ListAdminCompaniesInput) (models.ListAdminCompaniesResult, error)
+	ListRestorableCompanies(ctx context.Context) ([]models.AdminRestorableCompany, error)
 	GetAdminCompanyByUUID(ctx context.Context, companyID uuid.UUID) (models.AdminCompany, error)
 	GetAdminPersonalSubscription(ctx context.Context, userID uuid.UUID) (models.AdminSubscription, error)
 	GetAdminCompanySubscription(ctx context.Context, companyID uuid.UUID) (models.AdminSubscription, error)
@@ -41,6 +42,17 @@ func (s *Service) ListCompanies(ctx context.Context, input models.ListAdminCompa
 		return models.ListAdminCompaniesResult{}, models.ErrInvalidAdminInput
 	}
 	return s.auditRepository.ListAdminCompanies(ctx, input)
+}
+
+// ListRestorableCompanies is the rescue queue behind the superadmin's one-time
+// restore. Who may ask is decided at the route: this is a list of companies on
+// their way to being erased, not of anybody's content.
+func (s *Service) ListRestorableCompanies(ctx context.Context) ([]models.AdminRestorableCompany, error) {
+	if s.auditRepository == nil {
+		return nil, errAuditRepositoryNotConfigured
+	}
+
+	return s.auditRepository.ListRestorableCompanies(ctx)
 }
 
 // UpdateCompanyTag changes a customer's company tag. It is somebody else's data,

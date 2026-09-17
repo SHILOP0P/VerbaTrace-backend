@@ -87,6 +87,22 @@ type AdminCompaniesResponse struct {
 	Limit  int                    `json:"limit"`
 	Offset int                    `json:"offset"`
 }
+
+// AdminRestorableCompanyResponse is one company waiting to be erased. The
+// deadline is what the superadmin decides by, so it comes with the row rather
+// than being looked up per company.
+type AdminRestorableCompanyResponse struct {
+	CompanyUUID     string  `json:"company_uuid"`
+	Name            string  `json:"name"`
+	Tag             string  `json:"tag"`
+	ManagerUserUUID string  `json:"manager_user_uuid"`
+	SoftDeletedAt   string  `json:"soft_deleted_at"`
+	PurgeAfter      *string `json:"purge_after"`
+}
+
+type AdminRestorableCompaniesResponse struct {
+	Items []AdminRestorableCompanyResponse `json:"items"`
+}
 type AdminSubscriptionResponse struct {
 	ID          string  `json:"id"`
 	PlanCode    string  `json:"plan_code"`

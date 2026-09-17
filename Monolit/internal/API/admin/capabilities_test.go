@@ -121,6 +121,9 @@ func (s *adminServiceStub) RevokeAllUserSessions(context.Context, models.AdminSe
 func (s *adminServiceStub) ListCompanies(context.Context, models.ListAdminCompaniesInput) (models.ListAdminCompaniesResult, error) {
 	return models.ListAdminCompaniesResult{}, s.err
 }
+func (s *adminServiceStub) ListRestorableCompanies(context.Context) ([]models.AdminRestorableCompany, error) {
+	return nil, s.err
+}
 func (s *adminServiceStub) GetCompany(context.Context, uuid.UUID) (models.AdminCompany, error) {
 	return models.AdminCompany{}, s.err
 }

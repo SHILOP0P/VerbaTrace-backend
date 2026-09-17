@@ -121,7 +121,12 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				// handler refuses anyone below that role.
 				if restoreAPI, ok := adminAPI.(interface {
 					RestoreCompany(http.ResponseWriter, *http.Request)
+					ListRestorableCompanies(http.ResponseWriter, *http.Request)
 				}); ok {
+					// The queue comes before the single company on purpose: a
+					// soft-deleted company is filtered out of every other list,
+					// so this is the only way to find one to restore.
+					r.Get("/companies/restorable", restoreAPI.ListRestorableCompanies)
 					r.Post("/companies/{uuid}/restore", restoreAPI.RestoreCompany)
 				}
 				// Alerts are the only trail with a state of its own, so they are

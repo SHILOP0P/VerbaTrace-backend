@@ -86,6 +86,7 @@ type AdminRepository interface {
 	RevokeAdminUserSession(ctx context.Context, input models.AdminSessionMutationInput) error
 	RevokeAllAdminUserSessions(ctx context.Context, input models.AdminSessionMutationInput) error
 	ListAdminCompanies(ctx context.Context, input models.ListAdminCompaniesInput) (models.ListAdminCompaniesResult, error)
+	ListRestorableCompanies(ctx context.Context) ([]models.AdminRestorableCompany, error)
 	GetAdminCompanyByUUID(ctx context.Context, companyID uuid.UUID) (models.AdminCompany, error)
 	GetAdminPersonalSubscription(ctx context.Context, userID uuid.UUID) (models.AdminSubscription, error)
 	GetAdminCompanySubscription(ctx context.Context, companyID uuid.UUID) (models.AdminSubscription, error)
