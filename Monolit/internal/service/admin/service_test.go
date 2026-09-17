@@ -130,6 +130,10 @@ func (r *auditRepositoryStub) ResetAdminUsage(context.Context, models.ResetAdmin
 	return nil
 }
 
+func (r *auditRepositoryStub) UpdateAdminCompanyTag(context.Context, models.UpdateAdminCompanyTagInput) (models.AdminCompany, error) {
+	return models.AdminCompany{}, nil
+}
+
 func (r *auditRepositoryStub) ListAdminUsers(context.Context, models.ListAdminUsersInput) (models.ListAdminUsersResult, error) {
 	return models.ListAdminUsersResult{}, r.err
 }

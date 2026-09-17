@@ -37,6 +37,7 @@ type Service struct {
 	companyRepository   repo.CompanyRepository
 	billingLimiter      BillingLimiter
 	notificationService NotificationService
+	freezeNotifier      FreezeNotifier
 	log                 logger.Logger
 }
 

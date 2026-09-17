@@ -192,7 +192,21 @@ func (s *Service) processNextMedia(ctx context.Context) {
 	}
 	defer func() { _ = tx.Rollback() }()
 	var id uuid.UUID
-	err = tx.QueryRowContext(ctx, `SELECT media_variant_uuid FROM call_media_variants WHERE status IN ('pending','failed') AND available_at<=now() AND attempts<max_attempts ORDER BY available_at,created_at FOR UPDATE SKIP LOCKED LIMIT 1`).Scan(&id)
+	// A call in the bin keeps its queued work instead of losing it: the task is
+	// simply not picked up while the call is deleted, and carries on if the call
+	// is restored. Grinding ffmpeg over a recording somebody just threw away
+	// spends time and disk on nothing.
+	err = tx.QueryRowContext(ctx, `
+		SELECT v.media_variant_uuid
+		FROM call_media_variants v
+		JOIN calls c ON c.call_uuid = v.call_uuid
+		WHERE v.status IN ('pending','failed')
+		  AND v.available_at <= now()
+		  AND v.attempts < v.max_attempts
+		  AND c.deleted_at IS NULL
+		ORDER BY v.available_at, v.created_at
+		FOR UPDATE OF v SKIP LOCKED
+		LIMIT 1`).Scan(&id)
 	if err != nil {
 		return
 	}

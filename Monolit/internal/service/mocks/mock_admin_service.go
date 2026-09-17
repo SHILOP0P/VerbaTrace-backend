@@ -1025,6 +1025,63 @@ func (_c *AdminService_RevokeUserSession_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// UpdateCompanyTag provides a mock function with given fields: ctx, input
+func (_m *AdminService) UpdateCompanyTag(ctx context.Context, input models.UpdateAdminCompanyTagInput) (models.AdminCompany, error) {
+	ret := _m.Called(ctx, input)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateCompanyTag")
+	}
+
+	var r0 models.AdminCompany
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateAdminCompanyTagInput) (models.AdminCompany, error)); ok {
+		return rf(ctx, input)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateAdminCompanyTagInput) models.AdminCompany); ok {
+		r0 = rf(ctx, input)
+	} else {
+		r0 = ret.Get(0).(models.AdminCompany)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.UpdateAdminCompanyTagInput) error); ok {
+		r1 = rf(ctx, input)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// AdminService_UpdateCompanyTag_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateCompanyTag'
+type AdminService_UpdateCompanyTag_Call struct {
+	*mock.Call
+}
+
+// UpdateCompanyTag is a helper method to define mock.On call
+//   - ctx context.Context
+//   - input models.UpdateAdminCompanyTagInput
+func (_e *AdminService_Expecter) UpdateCompanyTag(ctx interface{}, input interface{}) *AdminService_UpdateCompanyTag_Call {
+	return &AdminService_UpdateCompanyTag_Call{Call: _e.mock.On("UpdateCompanyTag", ctx, input)}
+}
+
+func (_c *AdminService_UpdateCompanyTag_Call) Run(run func(ctx context.Context, input models.UpdateAdminCompanyTagInput)) *AdminService_UpdateCompanyTag_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(models.UpdateAdminCompanyTagInput))
+	})
+	return _c
+}
+
+func (_c *AdminService_UpdateCompanyTag_Call) Return(_a0 models.AdminCompany, _a1 error) *AdminService_UpdateCompanyTag_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *AdminService_UpdateCompanyTag_Call) RunAndReturn(run func(context.Context, models.UpdateAdminCompanyTagInput) (models.AdminCompany, error)) *AdminService_UpdateCompanyTag_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateUserProfile provides a mock function with given fields: ctx, input
 func (_m *AdminService) UpdateUserProfile(ctx context.Context, input models.UpdateAdminUserProfileInput) (models.AdminUser, error) {
 	ret := _m.Called(ctx, input)

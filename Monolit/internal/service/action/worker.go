@@ -3,7 +3,10 @@ package action
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
+
+	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
 )
@@ -198,7 +201,11 @@ func (w *OverdueWorker) RunOnce(ctx context.Context) {
 }
 
 func (w *Worker) runInvalidAssignments(ctx context.Context) {
-	rows, err := w.service.db.QueryContext(ctx, `SELECT a.action_uuid,a.company_uuid,a.target_department_uuid,a.assignee_user_uuid,a.title,a.lock_version FROM call_actions a WHERE a.company_uuid IS NOT NULL AND a.status IN ('open','in_progress','overdue') AND a.assignment_state='valid' AND NOT EXISTS(SELECT 1 FROM company_members cm JOIN department_members dm ON dm.user_uuid=cm.user_uuid AND dm.department_uuid=a.target_department_uuid WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=a.assignee_user_uuid AND cm.status='active' AND dm.status='active') LIMIT $1`, w.batch)
+	// An action whose call is in the bin is frozen along with the call, so this
+	// worker leaves it alone too. It used to be the only one of the three that
+	// did not look, and it kept invalidating assignments and notifying people
+	// about calls that had been deleted.
+	rows, err := w.service.db.QueryContext(ctx, `SELECT a.action_uuid,a.company_uuid,a.target_department_uuid,a.assignee_user_uuid,a.title,a.lock_version FROM call_actions a JOIN calls c ON c.call_uuid=a.call_uuid WHERE a.company_uuid IS NOT NULL AND a.status IN ('open','in_progress','overdue') AND a.assignment_state='valid' AND c.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM company_members cm JOIN department_members dm ON dm.user_uuid=cm.user_uuid AND dm.department_uuid=a.target_department_uuid WHERE cm.company_uuid=a.company_uuid AND cm.user_uuid=a.assignee_user_uuid AND cm.status='active' AND dm.status='active') LIMIT $1`, w.batch)
 	if err != nil {
 		return
 	}
@@ -214,23 +221,78 @@ func (w *Worker) runInvalidAssignments(ctx context.Context) {
 		if e != nil {
 			continue
 		}
-		res, e := tx.ExecContext(ctx, `UPDATE call_actions SET assignment_state='invalid',updated_at=$1,lock_version=lock_version+1 WHERE action_uuid=$2 AND lock_version=$3 AND assignment_state='valid'`, w.service.now().UTC(), id, version)
+		// The work does not stop because the person who had it left. It moves to
+		// whoever is responsible for that department — the leader, then the
+		// deputy, then the owner — and only stays unassigned when the company has
+		// nobody left to take it.
+		successor, e := assignmentSuccessor(ctx, tx, company, department, assignee)
 		if e != nil {
 			_ = tx.Rollback()
 			continue
 		}
-		n, _ := res.RowsAffected()
-		if n == 0 {
+
+		if successor == uuid.Nil {
+			res, e := tx.ExecContext(ctx, `UPDATE call_actions SET assignment_state='invalid',updated_at=$1,lock_version=lock_version+1 WHERE action_uuid=$2 AND lock_version=$3 AND assignment_state='valid'`, w.service.now().UTC(), id, version)
+			if e != nil {
+				_ = tx.Rollback()
+				continue
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				_ = tx.Rollback()
+				continue
+			}
+			_ = insertEvent(ctx, tx, id, "assignment_invalid", uuid.Nil, "", nil, nil)
+			recipients, _ := leadersAndManagers(ctx, tx, company, department)
+			for _, recipient := range recipients {
+				_ = createNotification(ctx, tx, id, recipient, "action_assignment_invalid", "Нужно переназначить действие", title, version+1)
+			}
+			_ = tx.Commit()
+			continue
+		}
+
+		res, e := tx.ExecContext(ctx, `UPDATE call_actions SET assignee_user_uuid=$1,assignment_state='valid',updated_at=$2,lock_version=lock_version+1,schedule_version=schedule_version+1 WHERE action_uuid=$3 AND lock_version=$4 AND assignment_state='valid'`, successor, w.service.now().UTC(), id, version)
+		if e != nil {
 			_ = tx.Rollback()
 			continue
 		}
-		_ = insertEvent(ctx, tx, id, "assignment_invalid", uuid.Nil, "", nil, nil)
-		recipients, _ := leadersAndManagers(ctx, tx, company, department)
-		for _, recipient := range recipients {
-			_ = createNotification(ctx, tx, id, recipient, "action_assignment_invalid", "Нужно переназначить действие", title, version+1)
+		if n, _ := res.RowsAffected(); n == 0 {
+			_ = tx.Rollback()
+			continue
 		}
+		_ = insertEvent(ctx, tx, id, "reassigned", uuid.Nil, "", map[string]any{"assignee_user_uuid": assignee.String()}, map[string]any{"assignee_user_uuid": successor.String()})
+		_ = createNotification(ctx, tx, id, successor, string(models.NotificationTypeActionReassigned), "Действие передано вам", title, version+1)
 		_ = tx.Commit()
 	}
 }
 
-var _ *sql.DB
+// assignmentSuccessor answers who takes over an action whose assignee is gone:
+// the leader of its department first, then the deputy, then the owner. The
+// person who left is skipped even if a stale row still names them.
+func assignmentSuccessor(ctx context.Context, tx *sql.Tx, company, department, leaving uuid.UUID) (uuid.UUID, error) {
+	var successor uuid.NullUUID
+	err := tx.QueryRowContext(ctx, `
+		SELECT user_uuid FROM (
+			SELECT dm.user_uuid, 1 AS rank
+			FROM department_members dm
+			WHERE dm.department_uuid = $2 AND dm.status = 'active' AND dm.role = 'department_leader'
+			UNION ALL
+			SELECT cm.user_uuid, CASE cm.role WHEN 'company_deputy' THEN 2 ELSE 3 END
+			FROM company_members cm
+			WHERE cm.company_uuid = $1 AND cm.status = 'active' AND cm.role IN ('company_deputy','company_manager')
+		) candidates
+		WHERE user_uuid <> $3
+		ORDER BY rank
+		LIMIT 1
+	`, company, department, leaving).Scan(&successor)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil
+	}
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if !successor.Valid {
+		return uuid.Nil, nil
+	}
+
+	return successor.UUID, nil
+}

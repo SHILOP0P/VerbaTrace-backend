@@ -279,3 +279,31 @@ type DecideCompanyOwnershipTransferInput struct {
 	Accept       bool
 	LockVersion  int64
 }
+
+// TransferCompanyDataInput moves calls and instruction folders between two
+// companies of the same owner. It is an explicit operation rather than an
+// automatic merge: two companies have different departments, people and privacy
+// policies, and a silent merge would hand the wrong people access.
+type TransferCompanyDataInput struct {
+	OwnerUserUUID     uuid.UUID
+	SourceCompanyUUID uuid.UUID
+	TargetCompanyUUID uuid.UUID
+	// CallUUIDs narrows the move to these calls. Empty means every call of the
+	// source company that is not in the bin.
+	CallUUIDs      []uuid.UUID
+	IncludeCalls   bool
+	IncludeFolders bool
+	Reason         string
+}
+
+// TransferCompanyDataResult is what moved, and the record of it the owner can
+// read later.
+type TransferCompanyDataResult struct {
+	ID                uuid.UUID
+	SourceCompanyUUID uuid.UUID
+	TargetCompanyUUID uuid.UUID
+	Calls             int64
+	Folders           int64
+	Reason            string
+	CreatedAt         time.Time
+}

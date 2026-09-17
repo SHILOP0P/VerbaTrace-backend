@@ -252,6 +252,15 @@ type GrantAdminSubscriptionInput struct {
 	Metadata           AdminMutationMetadata
 }
 
+// UpdateAdminCompanyTagInput is an administrator changing a customer's company
+// tag. The reason is not optional: this is somebody else's data.
+type UpdateAdminCompanyTagInput struct {
+	ActorUserUUID uuid.UUID
+	CompanyUUID   uuid.UUID
+	Tag           string
+	Metadata      AdminMutationMetadata
+}
+
 // CompanySelectionRequired carries what the interface needs to ask which
 // companies stay active: the owner's companies and how many the new plan covers.
 type CompanySelectionRequired struct {

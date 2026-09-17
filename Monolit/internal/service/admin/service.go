@@ -33,6 +33,7 @@ type AuditRepository interface {
 	GrantAdminSubscription(ctx context.Context, input models.GrantAdminSubscriptionInput) (models.AdminSubscription, error)
 	CancelAdminSubscription(ctx context.Context, input models.CancelAdminSubscriptionInput) (models.AdminSubscription, error)
 	ResetAdminUsage(ctx context.Context, input models.ResetAdminUsageInput) error
+	UpdateAdminCompanyTag(ctx context.Context, input models.UpdateAdminCompanyTagInput) (models.AdminCompany, error)
 }
 
 func (s *Service) ListCompanies(ctx context.Context, input models.ListAdminCompaniesInput) (models.ListAdminCompaniesResult, error) {
@@ -41,6 +42,23 @@ func (s *Service) ListCompanies(ctx context.Context, input models.ListAdminCompa
 	}
 	return s.auditRepository.ListAdminCompanies(ctx, input)
 }
+
+// UpdateCompanyTag changes a customer's company tag. It is somebody else's data,
+// so the reason is mandatory and the change is written to the audit trail.
+func (s *Service) UpdateCompanyTag(ctx context.Context, input models.UpdateAdminCompanyTagInput) (models.AdminCompany, error) {
+	if s.auditRepository == nil {
+		return models.AdminCompany{}, errAuditRepositoryNotConfigured
+	}
+	if input.ActorUserUUID == uuid.Nil || input.CompanyUUID == uuid.Nil || strings.TrimSpace(input.Tag) == "" {
+		return models.AdminCompany{}, models.ErrInvalidAdminInput
+	}
+	if strings.TrimSpace(input.Metadata.Reason) == "" {
+		return models.AdminCompany{}, models.ErrAdminReasonRequired
+	}
+
+	return s.auditRepository.UpdateAdminCompanyTag(ctx, input)
+}
+
 func (s *Service) GetCompany(ctx context.Context, id uuid.UUID) (models.AdminCompany, error) {
 	if s.auditRepository == nil || id == uuid.Nil {
 		return models.AdminCompany{}, models.ErrInvalidAdminInput

@@ -22,7 +22,11 @@ var (
 	ErrConflict  = errors.New("support access conflict")
 )
 
-var allowedResources = []string{"calls", "actions", "integrations", "billing_summary"}
+// allowedResources is what a support grant may cover. Changing a customer's own
+// data — their profile, the company name and tag — is covered by
+// "customer_profile": the owner's rule is that reading content and changing data
+// both need the client's approval, and only the superadmin is exempt.
+var allowedResources = []string{"calls", "actions", "integrations", "billing_summary", "customer_profile"}
 var allowedCommands = []string{"diagnose", "retry_ingest", "reconnect_integration"}
 
 type Service struct {

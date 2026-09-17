@@ -57,6 +57,30 @@ type AdminCompanyResponse struct {
 	ManagerUserUUID string `json:"manager_user_uuid"`
 	CreatedAt       string `json:"created_at"`
 }
+
+// UpdateAdminCompanyTagRequest is an administrator changing a customer's company
+// tag. The reason is required, because the change lands in the audit trail the
+// customer can read.
+type UpdateAdminCompanyTagRequest struct {
+	Tag    string `json:"tag"`
+	Reason string `json:"reason"`
+}
+
+// RestoreAdminCompanyRequest is the superadmin's one-time rescue of a company
+// that is being deleted.
+type RestoreAdminCompanyRequest struct {
+	Reason string `json:"reason"`
+}
+
+// AdminCompanyLifecycleResponse says where a company stands after the rescue:
+// frozen again, and unable to be rescued a second time.
+type AdminCompanyLifecycleResponse struct {
+	CompanyUUID  string `json:"company_uuid"`
+	State        string `json:"state"`
+	FreezeReason string `json:"freeze_reason"`
+	RestoreUsed  bool   `json:"restore_used"`
+}
+
 type AdminCompaniesResponse struct {
 	Items  []AdminCompanyResponse `json:"items"`
 	Total  int                    `json:"total"`

@@ -396,6 +396,10 @@ func (s *Service) UpdateExternalUserMapping(ctx context.Context, in models.Updat
 type connectionInfo struct {
 	Domain string
 	Scopes []string
+	// ResponsibleID is the portal user who authorized the connection. It is the
+	// only person we know by name on that side, so anything the app has to tell
+	// the portal is addressed to them.
+	ResponsibleID string
 }
 
 func (s *Service) connectionToken(ctx context.Context, id, actor uuid.UUID) (connectionInfo, string, error) {

@@ -15,10 +15,14 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI API.ContactAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, qualityReviewAPI API.QualityReviewAPI, actionAPI API.ActionAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, integrationAPI API.IntegrationAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, log logger.Logger) http.Handler {
+func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI API.ContactAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, qualityReviewAPI API.QualityReviewAPI, actionAPI API.ActionAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, integrationAPI API.IntegrationAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, companyFreezeGuard func(http.Handler) http.Handler, log logger.Logger) http.Handler {
 	r := chi.NewRouter()
 
-	authGuard := authMiddleware.Auth(jwtSecret, refreshSessionRepository)
+	// The freeze guard is part of the authenticated chain rather than a router
+	// middleware on purpose: chi runs router middleware before it matches, so a
+	// guard placed there would see neither the route pattern nor the path
+	// parameters it needs to tell which company the request is about.
+	authGuard := chainMiddleware(authMiddleware.Auth(jwtSecret, refreshSessionRepository), companyFreezeGuard)
 	if healthHandler == nil {
 		healthHandler = health.NewHandler()
 	}
@@ -112,6 +116,14 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 					r.Get("/audit-trails", auditAPI.ListAuditTrails)
 					r.Get("/audit-trails/{trail}", auditAPI.GetAuditTrail)
 				}
+				// The superadmin's own section. Undoing a deletion is the last
+				// chance a company gets, so it is nobody else's decision, and the
+				// handler refuses anyone below that role.
+				if restoreAPI, ok := adminAPI.(interface {
+					RestoreCompany(http.ResponseWriter, *http.Request)
+				}); ok {
+					r.Post("/companies/{uuid}/restore", restoreAPI.RestoreCompany)
+				}
 				// Alerts are the only trail with a state of its own, so they are
 				// the only one an administrator can act on.
 				if alertAPI, ok := adminAPI.(interface {
@@ -129,7 +141,7 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionSessionsManage)).Delete("/users/{user_uuid}/sessions/{session_uuid}", adminAPI.RevokeUserSession)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCompaniesRead)).Get("/companies", adminAPI.ListCompanies)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionCompaniesRead)).Get("/companies/{company_uuid}", adminAPI.GetCompany)
-				r.With(authMiddleware.RequirePermission(models.AdminPermissionCompaniesManage)).Patch("/companies/{uuid}/tag", companyAPI.UpdateTagAsAdmin)
+				r.With(authMiddleware.RequirePermission(models.AdminPermissionCompaniesManage)).Patch("/companies/{uuid}/tag", adminAPI.UpdateCompanyTag)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsRead)).Get("/users/{user_uuid}/subscription", adminAPI.GetPersonalSubscription)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsRead)).Get("/companies/{company_uuid}/subscription", adminAPI.GetCompanySubscription)
 				r.With(authMiddleware.RequirePermission(models.AdminPermissionSubscriptionsManage)).Post("/users/{user_uuid}/subscription/grant", adminAPI.GrantPersonalSubscription)
@@ -537,6 +549,10 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			// Handing over every company at once is not a company-scoped
 			// operation: the plan that covers them belongs to the owner.
 			r.With(authGuard).Post("/ownership-transfers", companyAPI.OfferAllOwnership)
+			// Moving data out of a company before it is deleted for good. It spans
+			// two companies, so it is not scoped to either of them.
+			r.With(authGuard).Post("/company-data-transfers", companyAPI.TransferData)
+			r.With(authGuard).Get("/company-data-transfers", companyAPI.ListDataTransfers)
 			r.With(authGuard).Get("/ownership-transfers/incoming", companyAPI.ListIncomingOwnership)
 			r.With(authGuard).Post("/ownership-transfers/{transfer_uuid}/accept", companyAPI.AcceptOwnership)
 			r.With(authGuard).Post("/ownership-transfers/{transfer_uuid}/decline", companyAPI.DeclineOwnership)
@@ -578,4 +594,20 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 	})
 
 	return r
+}
+
+// chainMiddleware runs the guards in the order they are given, skipping the ones
+// a deployment did not provide.
+func chainMiddleware(guards ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		handler := next
+		for i := len(guards) - 1; i >= 0; i-- {
+			if guards[i] == nil {
+				continue
+			}
+			handler = guards[i](handler)
+		}
+
+		return handler
+	}
 }

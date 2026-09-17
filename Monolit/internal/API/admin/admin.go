@@ -6,6 +6,7 @@ import (
 
 	"verbatrace/monolit/internal/API/response"
 	"verbatrace/monolit/internal/httpserver/middleware"
+	"verbatrace/monolit/internal/models"
 	"verbatrace/monolit/internal/service"
 
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ type supportAccessAuthorizer interface {
 type Handler struct {
 	service           service.AdminService
 	supportAuthorizer supportAccessAuthorizer
+	companyLifecycle  CompanyLifecycleService
 }
 
 func (h *Handler) SetSupportAccessAuthorizer(authorizer supportAccessAuthorizer) {
@@ -28,6 +30,10 @@ func (h *Handler) SetSupportAccessAuthorizer(authorizer supportAccessAuthorizer)
 }
 
 func (h *Handler) authorizeUser(w http.ResponseWriter, r *http.Request, id uuid.UUID, resource string) bool {
+	if isSuperAdmin(r) {
+		return true
+	}
+
 	actor, ok := middleware.UserIDFromContext(r.Context())
 	if !ok || h.supportAuthorizer == nil || h.supportAuthorizer.AuthorizeUser(r.Context(), actor, id, resource, "") != nil {
 		response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "temporary support access is required")
@@ -37,12 +43,25 @@ func (h *Handler) authorizeUser(w http.ResponseWriter, r *http.Request, id uuid.
 }
 
 func (h *Handler) authorizeCompany(w http.ResponseWriter, r *http.Request, id uuid.UUID, resource string) bool {
+	if isSuperAdmin(r) {
+		return true
+	}
+
 	actor, ok := middleware.UserIDFromContext(r.Context())
 	if !ok || h.supportAuthorizer == nil || h.supportAuthorizer.AuthorizeCompany(r.Context(), actor, id, resource, "") != nil {
 		response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "temporary support access is required")
 		return false
 	}
 	return true
+}
+
+// isSuperAdmin answers the one exemption the owner agreed on: the superadmin acts
+// without the client's approval. The reason and the audit record are still
+// required of them, so nothing they do goes unexplained.
+func isSuperAdmin(r *http.Request) bool {
+	role, ok := middleware.UserRoleFromContext(r.Context())
+
+	return ok && models.UserRole(role) == models.UserRoleSuperAdmin
 }
 
 func (h *Handler) authorizeCall(w http.ResponseWriter, r *http.Request, id uuid.UUID) bool {

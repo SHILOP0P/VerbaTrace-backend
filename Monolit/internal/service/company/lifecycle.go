@@ -23,6 +23,17 @@ type lifecycleRepository interface {
 	CancelCompanyDeletion(context.Context, uuid.UUID, time.Time) error
 }
 
+// FreezeNotifier lets the outside world know a company stopped working. It is
+// optional: a portal that cannot be reached must never prevent a freeze.
+type FreezeNotifier interface {
+	NotifyCompanyFrozen(ctx context.Context, companyID uuid.UUID, reason string) error
+}
+
+// SetFreezeNotifier wires the integrations that have to be told about a freeze.
+func (s *Service) SetFreezeNotifier(notifier FreezeNotifier) {
+	s.freezeNotifier = notifier
+}
+
 // FreezeCompany stops a company on the owner's own decision — usually because
 // the plan no longer covers all of them.
 func (s *Service) FreezeCompany(ctx context.Context, companyID uuid.UUID, requestUser uuid.UUID) error {
@@ -34,7 +45,31 @@ func (s *Service) FreezeCompany(ctx context.Context, companyID uuid.UUID, reques
 		return err
 	}
 
-	return lifecycle.FreezeCompany(ctx, companyID, models.CompanyFreezeReasonDowngrade, time.Now().UTC())
+	if err := lifecycle.FreezeCompany(ctx, companyID, models.CompanyFreezeReasonDowngrade, time.Now().UTC()); err != nil {
+		return err
+	}
+
+	s.announceFreeze(ctx, companyID, models.CompanyFreezeReasonDowngrade)
+
+	return nil
+}
+
+// announceFreeze tells the connected portals why their calls stopped arriving.
+// The inbound event hook is one-way, so silence there looks like a broken
+// integration rather than a frozen company.
+func (s *Service) announceFreeze(ctx context.Context, companyID uuid.UUID, reason models.CompanyFreezeReason) {
+	if s.freezeNotifier == nil {
+		return
+	}
+
+	if err := s.freezeNotifier.NotifyCompanyFrozen(ctx, companyID, string(reason)); err != nil {
+		// The company is already frozen. An unreachable portal is worth knowing
+		// about, not worth undoing a decision the owner made.
+		s.log.Warn(ctx, "failed to announce the freeze to the connected portals",
+			zap.String("company_id", companyID.String()),
+			zap.String("reason", string(reason)),
+			zap.Error(err))
+	}
 }
 
 // ActivateCompany is the other half of the choice: which companies keep working

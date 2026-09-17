@@ -81,32 +81,6 @@ func (h *Handler) UpdateTag(w http.ResponseWriter, r *http.Request) {
 	_ = response.WriteJSON(w, http.StatusOK, resp)
 }
 
-// UpdateTagAsAdmin is mounted only behind admin.companies.manage. It deliberately
-// bypasses the company-manager check used by the self-service tag route.
-func (h *Handler) UpdateTagAsAdmin(w http.ResponseWriter, r *http.Request) {
-	companyID, err := uuid.Parse(chi.URLParam(r, "uuid"))
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCompanyInput, "invalid company uuid")
-		return
-	}
-	var req dto.UpdateCompanyTagRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCompanyInput, "invalid request body")
-		return
-	}
-	company, err := h.service.UpdateCompanyTagAsAdmin(r.Context(), companyID, req.Tag)
-	if err != nil {
-		writeCompanyError(w, err, response.CodeFailedToConvertCompany, "failed to update company tag")
-		return
-	}
-	resp, err := converter.CompanyModelToAPI(company)
-	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToConvertCompany, "failed to convert company")
-		return
-	}
-	_ = response.WriteJSON(w, http.StatusOK, resp)
-}
-
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	userID, ok := userIDFromRequest(r)
 	if !ok {

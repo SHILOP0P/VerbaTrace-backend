@@ -36,6 +36,7 @@ import (
 	"verbatrace/monolit/internal/assistant"
 	"verbatrace/monolit/internal/config"
 	"verbatrace/monolit/internal/httpserver"
+	httpMiddleware "verbatrace/monolit/internal/httpserver/middleware"
 	"verbatrace/monolit/internal/integrationcrypto"
 	"verbatrace/monolit/internal/logger"
 	"verbatrace/monolit/internal/migrator"
@@ -320,6 +321,9 @@ func main() {
 	analysisSvc.SetNotificationService(notificationSvc)
 
 	adminHandler := adminAPI.NewHandler(adminSvc)
+	// Undoing a company deletion is the superadmin's own section of the panel,
+	// and the only place the operation is reachable from.
+	adminHandler.SetCompanyLifecycleService(companySvc)
 	callHandler := call.NewCallHandler(callSvc)
 	callHandler.SetTranscriptionEditor(transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository))
 	callHandler.SetPrivacyService(privacySvc)
@@ -391,6 +395,9 @@ func main() {
 		RedirectURI: os.Getenv("BITRIX24_REDIRECT_URI"), TokenURL: os.Getenv("BITRIX24_TOKEN_URL"), PublicBaseURL: os.Getenv("PUBLIC_APP_URL"), EventToken: os.Getenv("BITRIX24_APPLICATION_TOKEN"),
 	})
 	integrationHandler.SetBitrix24Service(bitrixSvc)
+	// A frozen company stops importing calls, and the portal only learns why if
+	// we tell it: its own event hook is one-way.
+	companySvc.SetFreezeNotifier(bitrixSvc)
 	var bitrixWorkerDone <-chan struct{}
 	var bitrixReconcilerDone <-chan struct{}
 	var bitrixBackfillDone <-chan struct{}
@@ -412,7 +419,7 @@ func main() {
 		privacyCleanupWorkerDone = privacySvc.RunProviderCleanupWorker(ctx)
 	}
 
-	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, actionHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, integrationHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, appLogger)
+	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, actionHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, integrationHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, httpMiddleware.CompanyFreeze(sqlDB), appLogger)
 
 	server := &http.Server{
 		Addr:              config.AppConfig().HTTPConfig.Address(),

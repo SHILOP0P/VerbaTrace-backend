@@ -124,6 +124,9 @@ func (s *adminServiceStub) ListCompanies(context.Context, models.ListAdminCompan
 func (s *adminServiceStub) GetCompany(context.Context, uuid.UUID) (models.AdminCompany, error) {
 	return models.AdminCompany{}, s.err
 }
+func (s *adminServiceStub) UpdateCompanyTag(context.Context, models.UpdateAdminCompanyTagInput) (models.AdminCompany, error) {
+	return models.AdminCompany{}, s.err
+}
 func (s *adminServiceStub) GetPersonalSubscription(context.Context, uuid.UUID) (models.AdminSubscription, error) {
 	return models.AdminSubscription{}, s.err
 }

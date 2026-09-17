@@ -206,3 +206,25 @@ type CompanyLifecycleResponse struct {
 	PurgeAfter    *string `json:"purge_after,omitempty"`
 	RestoreUsed   bool    `json:"restore_used"`
 }
+
+// TransferCompanyDataRequest moves calls and instruction folders between two
+// companies of the same owner. Leaving the selections out moves everything,
+// which is what emptying a company before it is deleted usually means.
+type TransferCompanyDataRequest struct {
+	SourceCompanyUUID string   `json:"source_company_uuid"`
+	TargetCompanyUUID string   `json:"target_company_uuid"`
+	CallUUIDs         []string `json:"call_uuids,omitempty"`
+	IncludeCalls      *bool    `json:"include_calls,omitempty"`
+	IncludeFolders    *bool    `json:"include_folders,omitempty"`
+	Reason            string   `json:"reason,omitempty"`
+}
+
+type CompanyDataTransferResponse struct {
+	ID                string `json:"id"`
+	SourceCompanyUUID string `json:"source_company_uuid"`
+	TargetCompanyUUID string `json:"target_company_uuid"`
+	Calls             int64  `json:"calls"`
+	Folders           int64  `json:"folders"`
+	Reason            string `json:"reason,omitempty"`
+	CreatedAt         string `json:"created_at"`
+}

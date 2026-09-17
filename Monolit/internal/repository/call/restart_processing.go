@@ -63,13 +63,17 @@ func (r *Repository) RestartCallProcessing(ctx context.Context, id, userID uuid.
 // SwitchCallToTranscriptionOnly drops the analysis half of an already
 // transcribed call. Nothing is sent to a provider and nothing is charged: the
 // transcript is there, so the call is simply finished.
+//
+// Only a cancelled call and one that is already transcribed may be switched. A
+// failed call has no answer here: whatever went wrong may have been the
+// transcription itself, and pretending the call is finished would hide that.
 func (r *Repository) SwitchCallToTranscriptionOnly(ctx context.Context, id, userID uuid.UUID) (models.Call, error) {
 	query := fmt.Sprintf(`
 	WITH switched AS (
 		UPDATE calls c
 		SET status = 'transcribed', transcription_only = TRUE
 		WHERE c.call_uuid = $1
-		  AND c.status IN ('cancelled', 'failed', 'transcribed')
+		  AND c.status IN ('cancelled', 'transcribed')
 		  AND EXISTS (
 		      SELECT 1 FROM call_transcriptions t
 		      WHERE t.call_uuid = c.call_uuid AND t.status = 'transcribed' AND t.text IS NOT NULL

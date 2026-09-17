@@ -105,6 +105,7 @@ type AdminService interface {
 	GetCompany(ctx context.Context, companyID uuid.UUID) (models.AdminCompany, error)
 	GetPersonalSubscription(ctx context.Context, userID uuid.UUID) (models.AdminSubscription, error)
 	GetCompanySubscription(ctx context.Context, companyID uuid.UUID) (models.AdminSubscription, error)
+	UpdateCompanyTag(ctx context.Context, input models.UpdateAdminCompanyTagInput) (models.AdminCompany, error)
 	GrantSubscription(ctx context.Context, input models.GrantAdminSubscriptionInput) (models.AdminSubscription, error)
 	CancelSubscription(ctx context.Context, input models.CancelAdminSubscriptionInput) (models.AdminSubscription, error)
 	ResetUsage(ctx context.Context, input models.ResetAdminUsageInput) error
@@ -121,7 +122,6 @@ type CompanyService interface {
 	CreateCompany(ctx context.Context, input models.CreateCompanyInput) (models.Company, error)
 	UpdateCompany(ctx context.Context, input models.UpdateCompanyInput) (models.Company, error)
 	UpdateCompanyTag(ctx context.Context, input models.UpdateCompanyTagInput) (models.Company, error)
-	UpdateCompanyTagAsAdmin(ctx context.Context, companyID uuid.UUID, tag string) (models.Company, error)
 	DeleteCompany(ctx context.Context, input models.DeleteCompanyInput) error
 	UpdateCompanyMemberRole(ctx context.Context, input models.UpdateCompanyMemberRoleInput) (models.CompanyMember, error)
 	RemoveCompanyMember(ctx context.Context, input models.RemoveCompanyMemberInput) (models.CompanyMember, error)
@@ -129,6 +129,8 @@ type CompanyService interface {
 	DecideOwnership(ctx context.Context, input models.DecideCompanyOwnershipTransferInput) (models.CompanyOwnershipTransfer, error)
 	CancelOwnershipOffer(ctx context.Context, transferID uuid.UUID, requestUser uuid.UUID) (models.CompanyOwnershipTransfer, error)
 	ListIncomingOwnershipOffers(ctx context.Context, userID uuid.UUID) ([]models.CompanyOwnershipTransfer, error)
+	TransferCompanyData(ctx context.Context, input models.TransferCompanyDataInput) (models.TransferCompanyDataResult, error)
+	ListCompanyDataTransfers(ctx context.Context, ownerID uuid.UUID, limit int) ([]models.TransferCompanyDataResult, error)
 	UpdateCompanyMemberJobTitle(ctx context.Context, input models.UpdateCompanyMemberJobTitleInput) (models.CompanyMember, error)
 	LeaveCompany(ctx context.Context, companyID uuid.UUID, userID uuid.UUID) (models.CompanyMember, error)
 	ListUserCompanies(ctx context.Context, userID uuid.UUID) ([]models.Company, error)

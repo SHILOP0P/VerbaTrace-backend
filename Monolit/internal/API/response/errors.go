@@ -162,6 +162,8 @@ const (
 	CodeOwnershipRecipientBusy           = "ownership_recipient_busy"
 	CodeOwnershipScopeMismatch           = "ownership_scope_mismatch"
 	CodeCompanySelectionRequired         = "company_selection_required"
+	CodeFailedToUpdateCompany            = "failed_to_update_company"
+	CodeAdminReasonRequired              = "admin_reason_required"
 	CodeDepartmentLimitExceeded          = "department_limit_exceeded"
 	CodeMemberLimitExceeded              = "member_limit_exceeded"
 	CodeExportAccessDenied               = "export_access_denied"

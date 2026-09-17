@@ -463,6 +463,40 @@ func (_c *CompanyAPI_List_Call) RunAndReturn(run func(http.ResponseWriter, *http
 	return _c
 }
 
+// ListDataTransfers provides a mock function with given fields: w, r
+func (_m *CompanyAPI) ListDataTransfers(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_ListDataTransfers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListDataTransfers'
+type CompanyAPI_ListDataTransfers_Call struct {
+	*mock.Call
+}
+
+// ListDataTransfers is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) ListDataTransfers(w interface{}, r interface{}) *CompanyAPI_ListDataTransfers_Call {
+	return &CompanyAPI_ListDataTransfers_Call{Call: _e.mock.On("ListDataTransfers", w, r)}
+}
+
+func (_c *CompanyAPI_ListDataTransfers_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_ListDataTransfers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_ListDataTransfers_Call) Return() *CompanyAPI_ListDataTransfers_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_ListDataTransfers_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_ListDataTransfers_Call {
+	_c.Run(run)
+	return _c
+}
+
 // ListIncomingOwnership provides a mock function with given fields: w, r
 func (_m *CompanyAPI) ListIncomingOwnership(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -599,6 +633,40 @@ func (_c *CompanyAPI_RemoveCompanyMember_Call) RunAndReturn(run func(http.Respon
 	return _c
 }
 
+// TransferData provides a mock function with given fields: w, r
+func (_m *CompanyAPI) TransferData(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// CompanyAPI_TransferData_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TransferData'
+type CompanyAPI_TransferData_Call struct {
+	*mock.Call
+}
+
+// TransferData is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *CompanyAPI_Expecter) TransferData(w interface{}, r interface{}) *CompanyAPI_TransferData_Call {
+	return &CompanyAPI_TransferData_Call{Call: _e.mock.On("TransferData", w, r)}
+}
+
+func (_c *CompanyAPI_TransferData_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_TransferData_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *CompanyAPI_TransferData_Call) Return() *CompanyAPI_TransferData_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *CompanyAPI_TransferData_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_TransferData_Call {
+	_c.Run(run)
+	return _c
+}
+
 // Update provides a mock function with given fields: w, r
 func (_m *CompanyAPI) Update(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
@@ -731,40 +799,6 @@ func (_c *CompanyAPI_UpdateTag_Call) Return() *CompanyAPI_UpdateTag_Call {
 }
 
 func (_c *CompanyAPI_UpdateTag_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_UpdateTag_Call {
-	_c.Run(run)
-	return _c
-}
-
-// UpdateTagAsAdmin provides a mock function with given fields: w, r
-func (_m *CompanyAPI) UpdateTagAsAdmin(w http.ResponseWriter, r *http.Request) {
-	_m.Called(w, r)
-}
-
-// CompanyAPI_UpdateTagAsAdmin_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateTagAsAdmin'
-type CompanyAPI_UpdateTagAsAdmin_Call struct {
-	*mock.Call
-}
-
-// UpdateTagAsAdmin is a helper method to define mock.On call
-//   - w http.ResponseWriter
-//   - r *http.Request
-func (_e *CompanyAPI_Expecter) UpdateTagAsAdmin(w interface{}, r interface{}) *CompanyAPI_UpdateTagAsAdmin_Call {
-	return &CompanyAPI_UpdateTagAsAdmin_Call{Call: _e.mock.On("UpdateTagAsAdmin", w, r)}
-}
-
-func (_c *CompanyAPI_UpdateTagAsAdmin_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *CompanyAPI_UpdateTagAsAdmin_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
-	})
-	return _c
-}
-
-func (_c *CompanyAPI_UpdateTagAsAdmin_Call) Return() *CompanyAPI_UpdateTagAsAdmin_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *CompanyAPI_UpdateTagAsAdmin_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *CompanyAPI_UpdateTagAsAdmin_Call {
 	_c.Run(run)
 	return _c
 }

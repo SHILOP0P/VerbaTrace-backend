@@ -125,6 +125,11 @@ func (h *Handler) UpdateUserProfile(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Changing somebody's own data needs their approval, exactly like reading
+	// their content does. The superadmin is the only exemption.
+	if !h.authorizeUser(w, r, target, "customer_profile") {
+		return
+	}
 	var req dto.UpdateAdminUserProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidRequestBody, "invalid request body")

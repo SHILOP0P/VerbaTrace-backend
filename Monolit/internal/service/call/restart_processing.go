@@ -37,7 +37,10 @@ func (s *Service) RestartProcessing(ctx context.Context, id, userID uuid.UUID, t
 		return models.Call{}, models.ErrTestCallReadOnly
 	}
 
-	if transcriptionOnly && s.hasUsableTranscription(ctx, id) {
+	// Switching a finished call to transcription only is free, but it is not a
+	// way around the states this operation belongs to: a call that failed or is
+	// still being worked on has to go through the queue like any other.
+	if transcriptionOnly && switchableToTranscriptionOnly(current.Status) && s.hasUsableTranscription(ctx, id) {
 		call, switchErr := restarter.SwitchCallToTranscriptionOnly(ctx, id, userID)
 		if switchErr != nil {
 			s.log.Warn(ctx, "switch call to transcription only failed", zap.String("user_id", userID.String()), zap.String("call_id", id.String()), zap.Error(switchErr))
@@ -73,6 +76,17 @@ func (s *Service) RestartProcessing(ctx context.Context, id, userID uuid.UUID, t
 	s.log.Info(ctx, "call processing restarted", zap.String("user_id", userID.String()), zap.String("call_id", call.ID.String()), zap.Bool("transcription_only", transcriptionOnly))
 
 	return call, nil
+}
+
+// switchableToTranscriptionOnly is where dropping the analysis makes sense: the
+// work was stopped on purpose, or the transcript is already the whole result.
+func switchableToTranscriptionOnly(status models.CallStatus) bool {
+	switch status {
+	case models.CallStatusCancelled, models.CallStatusTranscribed:
+		return true
+	default:
+		return false
+	}
 }
 
 // hasUsableTranscription answers whether the transcript survived whatever

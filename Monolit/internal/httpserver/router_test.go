@@ -37,6 +37,9 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 		nil,
 		"test-secret",
 		repositoryMocks.NewRefreshSessionRepository(t),
+		// No freeze guard: this test is about which routes exist, and the guard
+		// needs a database to answer anything.
+		nil,
 		logger.NewNop(),
 	)
 
@@ -177,6 +180,7 @@ func (stubAdminAPI) RevokeUserSession(w http.ResponseWriter, r *http.Request)   
 func (stubAdminAPI) RevokeAllUserSessions(w http.ResponseWriter, r *http.Request)      {}
 func (stubAdminAPI) ListCompanies(w http.ResponseWriter, r *http.Request)              {}
 func (stubAdminAPI) GetCompany(w http.ResponseWriter, r *http.Request)                 {}
+func (stubAdminAPI) UpdateCompanyTag(w http.ResponseWriter, r *http.Request)           {}
 func (stubAdminAPI) GetPersonalSubscription(w http.ResponseWriter, r *http.Request)    {}
 func (stubAdminAPI) GetCompanySubscription(w http.ResponseWriter, r *http.Request)     {}
 func (stubAdminAPI) GrantPersonalSubscription(w http.ResponseWriter, r *http.Request)  {}

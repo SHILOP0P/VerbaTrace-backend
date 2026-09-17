@@ -701,6 +701,40 @@ func (_c *AdminAPI_RevokeUserSession_Call) RunAndReturn(run func(http.ResponseWr
 	return _c
 }
 
+// UpdateCompanyTag provides a mock function with given fields: w, r
+func (_m *AdminAPI) UpdateCompanyTag(w http.ResponseWriter, r *http.Request) {
+	_m.Called(w, r)
+}
+
+// AdminAPI_UpdateCompanyTag_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateCompanyTag'
+type AdminAPI_UpdateCompanyTag_Call struct {
+	*mock.Call
+}
+
+// UpdateCompanyTag is a helper method to define mock.On call
+//   - w http.ResponseWriter
+//   - r *http.Request
+func (_e *AdminAPI_Expecter) UpdateCompanyTag(w interface{}, r interface{}) *AdminAPI_UpdateCompanyTag_Call {
+	return &AdminAPI_UpdateCompanyTag_Call{Call: _e.mock.On("UpdateCompanyTag", w, r)}
+}
+
+func (_c *AdminAPI_UpdateCompanyTag_Call) Run(run func(w http.ResponseWriter, r *http.Request)) *AdminAPI_UpdateCompanyTag_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(http.ResponseWriter), args[1].(*http.Request))
+	})
+	return _c
+}
+
+func (_c *AdminAPI_UpdateCompanyTag_Call) Return() *AdminAPI_UpdateCompanyTag_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *AdminAPI_UpdateCompanyTag_Call) RunAndReturn(run func(http.ResponseWriter, *http.Request)) *AdminAPI_UpdateCompanyTag_Call {
+	_c.Run(run)
+	return _c
+}
+
 // UpdateUserProfile provides a mock function with given fields: w, r
 func (_m *AdminAPI) UpdateUserProfile(w http.ResponseWriter, r *http.Request) {
 	_m.Called(w, r)
