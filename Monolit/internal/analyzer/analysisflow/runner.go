@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"verbatrace/monolit/internal/models"
@@ -58,15 +59,19 @@ func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 	r.assessSlots = make(chan struct{}, assessConcurrency)
 	r.progress.Stage = "inventory"
 	r.progress.WindowsTotal = len(r.windows)
+	adhoc := r.takeScorecardRequirements()
 	if err := r.publish(ctx, nil); err != nil {
 		return models.AnalysisResult{}, err
 	}
-	if len(r.Request.Instructions) > 0 {
+	if len(adhoc) > 0 {
 		// Requirements depend only on instructions, so they overlap the inventory.
-		r.tasks.Go(func() error { return r.decomposeInstructions(ctx) })
+		r.tasks.Go(func() error { return r.decomposeInstructions(ctx, adhoc) })
 	} else {
 		r.mu.Lock()
 		r.prepareAssessmentLocked()
+		// Scorecard requirements are known before any window is read, so their
+		// assessment need not wait for the inventory.
+		r.scheduleLocked(ctx)
 		r.mu.Unlock()
 	}
 	for w := range r.windows {
@@ -131,9 +136,65 @@ func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 	return models.AnalysisResult{ResultJSON: raw, Model: r.model}, err
 }
 
-func (r *Runner) decomposeInstructions(ctx context.Context) error {
+// takeScorecardRequirements turns the scorecard criteria of the request into
+// requirement units and returns the instructions still to be broken down by
+// the model. Without scorecards that is every instruction, as it always was.
+func (r *Runner) takeScorecardRequirements() []models.AnalysisInstructionContent {
+	scorecards := r.Request.Scorecards
+	if scorecards == nil {
+		return r.Request.Instructions
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requirementMeta = make(map[string]models.AnalysisRequirement, len(scorecards.Requirements))
+	for i, requirement := range scorecards.Requirements {
+		id := fmt.Sprintf("r%d", i+1)
+		r.requirements = append(r.requirements, scorecardUnit(id, requirement))
+		r.requirementMeta[id] = requirement
+	}
+	adhocIDs := make(map[string]bool, len(scorecards.AdhocInstructions))
+	for _, id := range scorecards.AdhocInstructions {
+		adhocIDs[id.String()] = true
+	}
+	adhoc := []models.AnalysisInstructionContent{}
+	for _, instruction := range r.Request.Instructions {
+		if adhocIDs[instruction.ID.String()] {
+			adhoc = append(adhoc, instruction)
+		}
+	}
+	r.refreshLocked()
+	return adhoc
+}
+
+// scorecardUnit is built by the server, never by the model: the wording of a
+// scorecard criterion is fixed, so every call is scored on the same text.
+func scorecardUnit(id string, requirement models.AnalysisRequirement) Unit {
+	parts := []string{
+		"Требование: " + requirement.Requirement,
+		"Инструкция-источник: " + requirement.InstructionID.String(),
+		"Применимость: " + valueOr(requirement.Applicability, "всегда"),
+		"Глубина: " + valueOr(requirement.Depth, "не задана"),
+		"Важность: " + strconv.Itoa(requirement.Weight),
+	}
+	if requirement.CrossCutting {
+		parts = append(parts, "Сквозное требование: проверяется по всему разговору")
+	}
+	if requirement.IsCritical {
+		parts = append(parts, "Критичное требование")
+	}
+	return Unit{ID: id, Kind: "requirement", Title: requirement.Title, Topic: requirement.InstructionTitle, SegmentIDs: []string{}, Parts: parts, RequiredQuestion: requirement.RequiredQuestion}
+}
+
+func valueOr(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func (r *Runner) decomposeInstructions(ctx context.Context, instructions []models.AnalysisInstructionContent) error {
 	var req Inventory
-	if err := r.step(ctx, nil, StepRequirements, "requirements", requirementsPrompt, "", map[string]any{"instructions": r.Request.Instructions}, inventorySchema(), &req, func() error {
+	if err := r.step(ctx, nil, StepRequirements, "requirements", requirementsPrompt, "", map[string]any{"instructions": instructions}, inventorySchema(), &req, func() error {
 		for _, u := range req.Units {
 			if u.Kind != "requirement" || !nonempty(u.Title) || len(u.Parts) == 0 {
 				return errors.New("invalid instruction requirement")
@@ -145,8 +206,9 @@ func (r *Runner) decomposeInstructions(ctx context.Context) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for i, u := range req.Units {
-		u.ID = fmt.Sprintf("r%d", i+1)
+	// Numbering continues after the scorecard requirements already in place.
+	for _, u := range req.Units {
+		u.ID = fmt.Sprintf("r%d", len(r.requirements)+1)
 		r.requirements = append(r.requirements, u)
 	}
 	r.prepareAssessmentLocked()
@@ -674,7 +736,11 @@ func (r *Runner) validateItems(items []map[string]any, units []Unit) error {
 			segmentID := text(e["segment_id"])
 			s, ok := index[segmentID]
 			quote := text(e["quote"])
-			if !ok || !allowedEvidence[segmentID] {
+			// A requirement has no segments of its own: it is checked against the
+			// whole conversation, so its evidence may come from anywhere in it.
+			// Dropping that evidence left requirement cards without a moment to
+			// jump to.
+			if !ok || (!allowedEvidence[segmentID] && u.Kind != "requirement") {
 				continue
 			}
 			if !nonempty(quote) || !strings.Contains(s.Text, quote) {
@@ -725,12 +791,33 @@ func (r *Runner) validateItems(items []map[string]any, units []Unit) error {
 				validSources = append(validSources, raw)
 			}
 		}
+		if requirement, ok := r.requirementMeta[u.ID]; ok {
+			stampScorecardRequirement(item, requirement)
+			if !slices.ContainsFunc(validSources, func(v any) bool { return text(v) == requirement.InstructionID.String() }) {
+				validSources = append(validSources, requirement.InstructionID.String())
+			}
+		}
 		item["instruction_sources"] = validSources
 		if u.Kind == "requirement" && len(validSources) == 0 {
 			return errors.New("invalid requirement without instruction source")
 		}
 	}
 	return nil
+}
+
+// stampScorecardRequirement gives a requirement card its identity from the
+// scorecard. The weight is the scorecard's too: the model is told to return 1
+// for requirements, and whatever it returns is ignored.
+func stampScorecardRequirement(item map[string]any, requirement models.AnalysisRequirement) {
+	also := make([]any, 0, len(requirement.AlsoCriterionKeys))
+	for _, key := range requirement.AlsoCriterionKeys {
+		also = append(also, key.String())
+	}
+	item["criterion_key"] = requirement.CriterionKey.String()
+	item["also_criterion_keys"] = also
+	item["scorecard_uuid"] = requirement.ScorecardID.String()
+	item["is_critical"] = requirement.IsCritical
+	item["weight"] = requirement.Weight
 }
 
 // normalizeSpeakerMarkers rewrites markers that cite a segment ID, e.g.
@@ -847,7 +934,7 @@ func (r *Runner) result(summary map[string]any) map[string]any {
 		summary = map[string]any{"summary": "Разбор выполняется. Готовые карточки уже можно читать.", "strengths": []any{}, "work_on": []any{}, "recommendations": []any{}, "priority_recommendation_ids": []any{}}
 	}
 	summary["schema_version"] = 3
-	summary["prompt_version"] = "universal-v3.1"
+	summary["prompt_version"] = PromptVersion
 	summary["pipeline_version"] = Version
 	items := r.items
 	if items == nil {
@@ -867,7 +954,23 @@ func (r *Runner) result(summary map[string]any) map[string]any {
 			early++
 		}
 	}
-	summary["coverage"] = map[string]any{"status": "partial", "actual_question_count": r.progress.QuestionsFound, "analyzed_actual_question_count": analyzed, "required_question_count": required, "complete_without_separate_question": early, "limitations": []any{}}
+	limitations := []any{}
+	if scorecards := r.Request.Scorecards; scorecards != nil {
+		applied := make([]any, 0, len(scorecards.Applied))
+		for _, card := range scorecards.Applied {
+			applied = append(applied, map[string]any{
+				"scorecard_uuid": card.ScorecardID.String(), "instruction_uuid": card.InstructionID.String(),
+				"instruction_version_uuid": card.VersionID.String(), "revision": card.Revision,
+			})
+		}
+		summary["scorecards"] = applied
+		summary["scorecard_mode"] = scorecards.Mode
+		summary["scorecard_limit_applied"] = scorecards.LimitApplied
+		if scorecards.LimitApplied {
+			limitations = append(limitations, "Критериев в инструкциях больше предела на звонок; оценены первые "+strconv.Itoa(len(scorecards.Requirements))+".")
+		}
+	}
+	summary["coverage"] = map[string]any{"status": "partial", "actual_question_count": r.progress.QuestionsFound, "analyzed_actual_question_count": analyzed, "required_question_count": required, "complete_without_separate_question": early, "limitations": limitations}
 	summary["overall_score"] = nil
 	summary["overall_score_label"] = "Разбор не завершён"
 	return summary

@@ -30,6 +30,7 @@ import (
 	notificationAPI "verbatrace/monolit/internal/API/notification"
 	qualityReviewAPI "verbatrace/monolit/internal/API/quality_review"
 	reportAPI "verbatrace/monolit/internal/API/report"
+	scorecardAPI "verbatrace/monolit/internal/API/scorecard"
 	searchAPI "verbatrace/monolit/internal/API/search"
 	"verbatrace/monolit/internal/analyzer"
 	analyzerMock "verbatrace/monolit/internal/analyzer/mock"
@@ -83,6 +84,7 @@ import (
 	qualityReviewService "verbatrace/monolit/internal/service/qualityreview"
 	reportService "verbatrace/monolit/internal/service/report"
 	retentionService "verbatrace/monolit/internal/service/retention"
+	scorecardService "verbatrace/monolit/internal/service/scorecard"
 	searchService "verbatrace/monolit/internal/service/search"
 	supportAccessService "verbatrace/monolit/internal/service/supportaccess"
 	transcriptionEditService "verbatrace/monolit/internal/service/transcriptionedit"
@@ -336,6 +338,16 @@ func main() {
 	departmentHandler := departmentAPI.NewDepartmentHandler(departmentSvc)
 	invitationHandler := invitationAPI.NewHandler(invitationSvc)
 	instructionHandler := instructionAPI.NewHandler(instructionSvc)
+	scorecardSvc := scorecardService.NewService(sqlDB, instructionSvc, analyzerProvider, instructionStorage, appLogger)
+	scorecardSvc.SetCreditMeter(billingSvc)
+	scorecardSvc.SetNotificationService(notificationSvc)
+	analysisSvc.SetScorecardPlanner(scorecardSvc)
+	scorecardHandler := scorecardAPI.NewHandler(scorecardSvc)
+	// Compiling spends credits, so it runs only where calls are processed.
+	var scorecardWorkerDone <-chan struct{}
+	if config.AppConfig().Worker.Enabled() {
+		scorecardWorkerDone = scorecardService.NewWorker(scorecardSvc, 0).Run(ctx)
+	}
 	analysisContextHandler := analysisContextAPI.NewHandler(analysisContextSvc)
 	analysisHandler := analysisAPI.NewHandler(analysisSvc)
 	qualityReviewHandler := qualityReviewAPI.NewHandler(qualityReviewService.NewService(sqlDB))
@@ -421,7 +433,7 @@ func main() {
 		privacyCleanupWorkerDone = privacySvc.RunProviderCleanupWorker(ctx)
 	}
 
-	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, actionHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, integrationHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, httpMiddleware.CompanyFreeze(sqlDB), appLogger)
+	r := httpserver.NewRouter(callHandler, callFolderHandler, contactHandler, authHandler, companyHandler, departmentHandler, instructionHandler, scorecardHandler, analysisContextHandler, analysisHandler, qualityReviewHandler, actionHandler, reportHandler, billingHandler, invitationHandler, analyticsHandler, monitoringHandler, searchHandler, notificationHandler, adminHandler, integrationHandler, healthHandler, config.AppConfig().Auth.JWTSecret(), refreshRepository, httpMiddleware.CompanyFreeze(sqlDB), appLogger)
 
 	server := &http.Server{
 		Addr:              config.AppConfig().HTTPConfig.Address(),
@@ -480,6 +492,7 @@ func main() {
 		"invitation expiry worker":      invitationExpiryWorkerDone,
 		"department transfer worker":    departmentTransferWorkerDone,
 		"membership maintenance worker": membershipMaintenanceWorkerDone,
+		"scorecard worker":              scorecardWorkerDone,
 	} {
 		if workerDone == nil {
 			continue

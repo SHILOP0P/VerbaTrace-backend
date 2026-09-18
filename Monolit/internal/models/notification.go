@@ -43,6 +43,8 @@ const (
 	NotificationTypeActionExternalSyncConflict  NotificationType = "action_external_sync_conflict"
 	NotificationTypeAnalysisRerunRequested      NotificationType = "analysis_rerun_requested"
 	NotificationTypeAnalysisRerunDecided        NotificationType = "analysis_rerun_decided"
+	NotificationTypeScorecardFailed             NotificationType = "scorecard_failed"
+	NotificationTypeScorecardReviewNeeded       NotificationType = "scorecard_review_needed"
 )
 
 // NotificationTypes is every type the application is allowed to write. The
@@ -85,6 +87,8 @@ func NotificationTypes() []NotificationType {
 		NotificationTypeActionExternalSyncConflict,
 		NotificationTypeAnalysisRerunRequested,
 		NotificationTypeAnalysisRerunDecided,
+		NotificationTypeScorecardFailed,
+		NotificationTypeScorecardReviewNeeded,
 	}
 }
 
