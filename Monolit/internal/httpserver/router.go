@@ -355,6 +355,13 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				r.With(authGuard).Get("/companies/{uuid}/analytics-settings", teamAPI.GetCompanySettings)
 				r.With(authGuard).Patch("/companies/{uuid}/analytics-settings", teamAPI.UpdateCompanySettings)
 			}
+			if progressAPI, ok := analyticsAPI.(interface {
+				GetCallProgress(http.ResponseWriter, *http.Request)
+				GetEmployeeProgress(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/calls/{uuid}/progress", progressAPI.GetCallProgress)
+				r.With(authGuard).Get("/analytics/employees/{user_uuid}/progress", progressAPI.GetEmployeeProgress)
+			}
 			r.With(authGuard).With(authMiddleware.RequirePermission(models.AdminPermissionMonitoringRead)).Get("/monitoring/processing", monitoringAPI.GetProcessing)
 			r.With(authGuard).Get("/contacts/search", contactAPI.SearchContacts)
 			r.With(authGuard).Get("/contacts", contactAPI.ListContacts)

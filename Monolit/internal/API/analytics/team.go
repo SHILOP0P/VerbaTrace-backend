@@ -147,6 +147,51 @@ func (h *Handler) GetEmployeeProfile(w http.ResponseWriter, r *http.Request) {
 	respondTeam(w, value, err)
 }
 
+// GetCallProgress serves /calls/{uuid}/progress: the work on mistakes of one
+// call against the employee's previous calls.
+func (h *Handler) GetCallProgress(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+	if h.team == nil {
+		response.WriteError(w, http.StatusNotImplemented, response.CodeNotImplemented, "team analytics is not configured")
+		return
+	}
+	callID, err := uuid.Parse(chi.URLParam(r, "uuid"))
+	if err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallUUID, "invalid call uuid")
+		return
+	}
+	value, err := h.team.CallProgress(r.Context(), userID, callID)
+	if errors.Is(err, teamanalytics.ErrNotFound) {
+		response.WriteError(w, http.StatusNotFound, response.CodeCallNotFound, "call not found")
+		return
+	}
+	respondTeam(w, value, err)
+}
+
+// GetEmployeeProgress serves /analytics/employees/{user_uuid}/progress; "me"
+// is the viewer.
+func (h *Handler) GetEmployeeProgress(w http.ResponseWriter, r *http.Request) {
+	req, ok := h.teamRequest(w, r)
+	if !ok {
+		return
+	}
+	target := uuid.Nil
+	if raw := chi.URLParam(r, "user_uuid"); raw != "me" {
+		parsed, err := uuid.Parse(raw)
+		if err != nil {
+			response.WriteError(w, http.StatusBadRequest, response.CodeInvalidAnalyticsFilter, "invalid user uuid")
+			return
+		}
+		target = parsed
+	}
+	value, err := h.team.EmployeeProgress(r.Context(), req, target)
+	respondTeam(w, value, err)
+}
+
 func (h *Handler) GetCriterionCalls(w http.ResponseWriter, r *http.Request) {
 	req, ok := h.teamRequest(w, r)
 	if !ok {

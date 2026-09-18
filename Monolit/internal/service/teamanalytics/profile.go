@@ -211,27 +211,8 @@ func (s *Service) Profile(ctx context.Context, req Request, target uuid.UUID) (P
 	if err != nil {
 		return Profile{}, err
 	}
-	if target == uuid.Nil || target == scope.UserID {
-		target = scope.UserID
-		if err := scope.requireOwn(); err != nil {
-			return Profile{}, err
-		}
-	} else {
-		if scope.ownOnly() {
-			return Profile{}, ErrForbidden
-		}
-		if err := scope.requireTeam(); err != nil {
-			return Profile{}, err
-		}
-		if scope.Role == roleLeader {
-			var member bool
-			if err := s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM department_members WHERE user_uuid = $1 AND department_uuid = ANY($2::uuid[]))`, target, uuidStrings(scope.LedDepartments)).Scan(&member); err != nil {
-				return Profile{}, err
-			}
-			if !member {
-				return Profile{}, ErrForbidden
-			}
-		}
+	if target, err = s.profileTarget(ctx, scope, target); err != nil {
+		return Profile{}, err
 	}
 	own := scope
 	own.Employee = uuid.NullUUID{UUID: target, Valid: true}
@@ -301,6 +282,31 @@ func (s *Service) Profile(ctx context.Context, req Request, target uuid.UUID) (P
 		return Profile{}, err
 	}
 	return profile, nil
+}
+
+// profileTarget checks that the viewer may see an employee's own numbers and
+// says whose they are; uuid.Nil is the viewer. A leader sees the people of the
+// departments they lead.
+func (s *Service) profileTarget(ctx context.Context, scope Scope, target uuid.UUID) (uuid.UUID, error) {
+	if target == uuid.Nil || target == scope.UserID {
+		return scope.UserID, scope.requireOwn()
+	}
+	if scope.ownOnly() {
+		return uuid.Nil, ErrForbidden
+	}
+	if err := scope.requireTeam(); err != nil {
+		return uuid.Nil, err
+	}
+	if scope.Role == roleLeader {
+		var member bool
+		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM department_members WHERE user_uuid = $1 AND department_uuid = ANY($2::uuid[]))`, target, uuidStrings(scope.LedDepartments)).Scan(&member); err != nil {
+			return uuid.Nil, err
+		}
+		if !member {
+			return uuid.Nil, ErrForbidden
+		}
+	}
+	return target, nil
 }
 
 func sortProfileCriteria(rows []ProfileCriterion) {
