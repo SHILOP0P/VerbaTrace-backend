@@ -332,6 +332,29 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 
 			//ANALYTICS
 			r.With(authGuard).Get("/analytics/overview", analyticsAPI.GetOverview)
+			if teamAPI, ok := analyticsAPI.(interface {
+				GetCapabilities(http.ResponseWriter, *http.Request)
+				GetSummary(http.ResponseWriter, *http.Request)
+				GetCriteria(http.ResponseWriter, *http.Request)
+				GetEmployees(http.ResponseWriter, *http.Request)
+				GetDepartments(http.ResponseWriter, *http.Request)
+				GetMatrix(http.ResponseWriter, *http.Request)
+				GetEmployeeProfile(http.ResponseWriter, *http.Request)
+				GetCriterionCalls(http.ResponseWriter, *http.Request)
+				GetCompanySettings(http.ResponseWriter, *http.Request)
+				UpdateCompanySettings(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/analytics/capabilities", teamAPI.GetCapabilities)
+				r.With(authGuard).Get("/analytics/summary", teamAPI.GetSummary)
+				r.With(authGuard).Get("/analytics/criteria", teamAPI.GetCriteria)
+				r.With(authGuard).Get("/analytics/criteria/{criterion_key}/calls", teamAPI.GetCriterionCalls)
+				r.With(authGuard).Get("/analytics/employees", teamAPI.GetEmployees)
+				r.With(authGuard).Get("/analytics/employees/{user_uuid}", teamAPI.GetEmployeeProfile)
+				r.With(authGuard).Get("/analytics/departments", teamAPI.GetDepartments)
+				r.With(authGuard).Get("/analytics/matrix", teamAPI.GetMatrix)
+				r.With(authGuard).Get("/companies/{uuid}/analytics-settings", teamAPI.GetCompanySettings)
+				r.With(authGuard).Patch("/companies/{uuid}/analytics-settings", teamAPI.UpdateCompanySettings)
+			}
 			r.With(authGuard).With(authMiddleware.RequirePermission(models.AdminPermissionMonitoringRead)).Get("/monitoring/processing", monitoringAPI.GetProcessing)
 			r.With(authGuard).Get("/contacts/search", contactAPI.SearchContacts)
 			r.With(authGuard).Get("/contacts", contactAPI.ListContacts)

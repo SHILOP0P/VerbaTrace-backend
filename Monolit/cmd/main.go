@@ -89,6 +89,7 @@ import (
 	scorecardService "verbatrace/monolit/internal/service/scorecard"
 	searchService "verbatrace/monolit/internal/service/search"
 	supportAccessService "verbatrace/monolit/internal/service/supportaccess"
+	teamAnalyticsService "verbatrace/monolit/internal/service/teamanalytics"
 	transcriptionEditService "verbatrace/monolit/internal/service/transcriptionedit"
 	"verbatrace/monolit/internal/storage/audio"
 	avatarStorage "verbatrace/monolit/internal/storage/avatar"
@@ -386,6 +387,7 @@ func main() {
 	reportHandler := reportAPI.NewHandler(reportSvc)
 	billingHandler := billingAPI.NewHandler(billingSvc)
 	analyticsHandler := analyticsAPI.NewHandler(analyticsSvc)
+	analyticsHandler.SetTeamAnalytics(teamAnalyticsService.NewService(sqlDB, appLogger))
 	monitoringHandler := monitoringAPI.NewHandler(monitoringSvc)
 	searchHandler := searchAPI.NewHandler(searchSvc)
 	embeddingKey := firstConfigured(os.Getenv("EMBEDDING_API_KEY"), os.Getenv("ANALYZER_API_KEY"))
