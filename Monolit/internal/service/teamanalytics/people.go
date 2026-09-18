@@ -28,6 +28,9 @@ type TeamRow struct {
 	Delta            Delta        `json:"delta"`
 	Sample           string       `json:"sample"`
 	Trend            []TrendPoint `json:"trend"`
+	// Speech is the team's median, what each employee's numbers are read
+	// against.
+	Speech *Speech `json:"speech"`
 }
 
 type EmployeeRow struct {
@@ -309,10 +312,19 @@ func (s *Service) Employees(ctx context.Context, req Request) (EmployeesView, er
 	if err != nil {
 		return EmployeesView{}, err
 	}
+	speech, err := s.speechByEmployee(ctx, scope, scope.Period.From, scope.Period.To)
+	if err != nil {
+		return EmployeesView{}, err
+	}
 	view := EmployeesView{Period: scope.periodView(), Employees: []EmployeeRow{}}
 	if !scope.ownOnly() {
 		if view.Team, err = s.teamRow(ctx, scope); err != nil {
 			return EmployeesView{}, err
+		}
+		if view.Team != nil {
+			if view.Team.Speech, err = s.speechMedian(ctx, scope, scope.Period.From, scope.Period.To); err != nil {
+				return EmployeesView{}, err
+			}
 		}
 	}
 	for _, id := range ids {
@@ -328,6 +340,9 @@ func (s *Service) Employees(ctx context.Context, req Request) (EmployeesView, er
 			WeakestCriterion: weakest[id], Trend: trends[id]}
 		if row.Trend == nil {
 			row.Trend = []TrendPoint{}
+		}
+		if sp, ok := speech[id]; ok {
+			row.Speech = sp
 		}
 		view.Employees = append(view.Employees, row)
 	}

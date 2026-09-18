@@ -201,6 +201,14 @@ type Profile struct {
 	Reference      Reference          `json:"reference"`
 	Criteria       []ProfileCriterion `json:"criteria"`
 	WorthListening []WorthListening   `json:"worth_listening"`
+	Speech         ProfileSpeech      `json:"speech"`
+}
+
+// ProfileSpeech is the employee's speech beside the median of the reference —
+// the department or the company — hidden with it when that is too few people.
+type ProfileSpeech struct {
+	Own        *Speech `json:"own"`
+	TeamMedian *Speech `json:"team_median"`
 }
 
 // Profile is one employee's page: their numbers against their department's,
@@ -280,6 +288,18 @@ func (s *Service) Profile(ctx context.Context, req Request, target uuid.UUID) (P
 	sortProfileCriteria(profile.Criteria)
 	if profile.WorthListening, err = s.worthListening(ctx, own); err != nil {
 		return Profile{}, err
+	}
+	speech, err := s.speechByEmployee(ctx, own, own.Period.From, own.Period.To)
+	if err != nil {
+		return Profile{}, err
+	}
+	if sp, ok := speech[target]; ok {
+		profile.Speech.Own = &sp
+	}
+	if !reference.Hidden && refScope != nil {
+		if profile.Speech.TeamMedian, err = s.speechMedian(ctx, *refScope, refScope.Period.From, refScope.Period.To); err != nil {
+			return Profile{}, err
+		}
 	}
 	return profile, nil
 }

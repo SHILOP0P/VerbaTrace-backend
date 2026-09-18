@@ -54,6 +54,8 @@ type CallResponse struct {
 	IsShared                *bool                 `json:"is_shared,omitempty"`
 	IsInternal              *bool                 `json:"is_internal,omitempty"`
 	SubjectsChangedManually *bool                 `json:"subjects_changed_manually,omitempty"`
+	// Speech is the «Речь» block: numbers measured from word timings.
+	Speech any `json:"speech,omitempty"`
 }
 
 type CallAccessResponse struct {

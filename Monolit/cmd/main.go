@@ -91,6 +91,7 @@ import (
 	retentionService "verbatrace/monolit/internal/service/retention"
 	scorecardService "verbatrace/monolit/internal/service/scorecard"
 	searchService "verbatrace/monolit/internal/service/search"
+	speechService "verbatrace/monolit/internal/service/speech"
 	supportAccessService "verbatrace/monolit/internal/service/supportaccess"
 	teamAnalyticsService "verbatrace/monolit/internal/service/teamanalytics"
 	transcriptionEditService "verbatrace/monolit/internal/service/transcriptionedit"
@@ -368,6 +369,9 @@ func main() {
 	callHandler.SetPrivacyService(privacySvc)
 	callHandler.SetCallAccessReader(callRepository)
 	callHandler.SetCallSubjectsService(callSubjectSvc)
+	// Speech numbers come from word timings: no model, no credits.
+	speechSvc := speechService.NewService(sqlDB, transcriptionRepository, appLogger)
+	callHandler.SetSpeech(speechSvc)
 	callFolderHandler := callFolderAPI.NewHandler(callFolderSvc)
 	contactHandler := contactAPI.NewHandler(contactSvc)
 	authHandler := authAPI.NewAuthHandler(authSvc, config.AppConfig().Auth.AccessTokenTTL(), config.AppConfig().Auth.RefreshTokenTTL())
@@ -386,13 +390,15 @@ func main() {
 	analysisSvc.SetScorecardPlanner(scorecardSvc)
 	scorecardHandler := scorecardAPI.NewHandler(scorecardSvc)
 	// Compiling spends credits, so it runs only where calls are processed.
-	var scorecardWorkerDone, factsWorkerDone, outboxWorkerDone, digestWorkerDone <-chan struct{}
+	var scorecardWorkerDone, factsWorkerDone, outboxWorkerDone, digestWorkerDone, speechWorkerDone <-chan struct{}
 	scorecardSvc.SetAliasHook(analyticsFactsService.Rekey)
 	if config.AppConfig().Worker.Enabled() {
 		scorecardWorkerDone = scorecardService.NewWorker(scorecardSvc, 0).Run(ctx)
 		factsWorkerDone = analyticsFactsService.NewWorker(factsSvc, callSubjectSvc, 0, 0).Run(ctx)
 		outboxWorkerDone = deliveryService.NewWorker(sqlDB, notificationSender, appLogger, 0, 0).Run(ctx)
 		digestWorkerDone = deliveryService.NewDigests(deliverySvc, teamAnalyticsSvc).Run(ctx, 0)
+		// New and edited transcripts are measured within two minutes.
+		speechWorkerDone = speechSvc.RunBackfill(ctx, 2*time.Minute)
 	}
 	analysisContextHandler := analysisContextAPI.NewHandler(analysisContextSvc)
 	analysisHandler := analysisAPI.NewHandler(analysisSvc)
@@ -552,6 +558,7 @@ func main() {
 		"analytics facts worker":        factsWorkerDone,
 		"outbound message worker":       outboxWorkerDone,
 		"weekly digest worker":          digestWorkerDone,
+		"speech metrics worker":         speechWorkerDone,
 	} {
 		if workerDone == nil {
 			continue

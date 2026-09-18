@@ -9,6 +9,7 @@ import (
 	"verbatrace/monolit/internal/API/dto"
 	"verbatrace/monolit/internal/API/response"
 	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/service/speech"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -68,6 +69,13 @@ func (h *CallHandler) ListSubjectCandidates(w http.ResponseWriter, r *http.Reque
 func (h *CallHandler) SetCallAccessReader(reader CallAccessReader)        { h.access = reader }
 func (h *CallHandler) SetCallSubjectsService(service CallSubjectsService) { h.subjects = service }
 
+// CallSpeechReader gives the «Речь» block of a call; nil when not measured.
+type CallSpeechReader interface {
+	ForCall(ctx context.Context, callID uuid.UUID) (*speech.CallBlock, error)
+}
+
+func (h *CallHandler) SetSpeech(reader CallSpeechReader) { h.speech = reader }
+
 // enrichCallAccess adds what the call page needs to hide editing from a reader
 // and to show whom the call counts for. It is best effort: the call itself is
 // already authorised.
@@ -80,6 +88,11 @@ func (h *CallHandler) enrichCallAccess(r *http.Request, callID, userID uuid.UUID
 	if h.subjects != nil {
 		if subjects, err := h.subjects.Get(r.Context(), callID); err == nil {
 			applySubjects(resp, subjects)
+		}
+	}
+	if h.speech != nil {
+		if block, err := h.speech.ForCall(r.Context(), callID); err == nil && block != nil {
+			resp.Speech = block
 		}
 	}
 }

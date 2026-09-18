@@ -18,6 +18,7 @@ type CallHandler struct {
 	// access and subjects fill a single call's response; both are optional.
 	access   CallAccessReader
 	subjects CallSubjectsService
+	speech   CallSpeechReader
 }
 
 func NewCallHandler(service service.CallService) *CallHandler {
