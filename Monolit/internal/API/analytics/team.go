@@ -227,6 +227,46 @@ func (h *Handler) companySettingsTarget(w http.ResponseWriter, r *http.Request) 
 	return companyID, userID, true
 }
 
+// GetPersonalSettings and UpdatePersonalSettings serve
+// /analytics/personal-settings: the same switches for a personal account.
+func (h *Handler) GetPersonalSettings(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+	if h.team == nil {
+		response.WriteError(w, http.StatusNotImplemented, response.CodeNotImplemented, "team analytics is not configured")
+		return
+	}
+	value, err := h.team.GetPersonalSettings(r.Context(), userID)
+	respondTeam(w, value, err)
+}
+
+func (h *Handler) UpdatePersonalSettings(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+	if h.team == nil {
+		response.WriteError(w, http.StatusNotImplemented, response.CodeNotImplemented, "team analytics is not configured")
+		return
+	}
+	var body struct {
+		CriticalAlertThreshold *int  `json:"critical_alert_threshold"`
+		GrowthAreasEnabled     *bool `json:"growth_areas_enabled"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&body); err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidRequestBody, "invalid request body")
+		return
+	}
+	value, err := h.team.UpdatePersonalSettings(r.Context(), userID, teamanalytics.SettingsPatch{CriticalAlertThreshold: body.CriticalAlertThreshold, GrowthAreasEnabled: body.GrowthAreasEnabled})
+	respondTeam(w, value, err)
+}
+
 // GetCompanySettings and UpdateCompanySettings serve
 // /companies/{uuid}/analytics-settings for the owner and the deputy.
 func (h *Handler) GetCompanySettings(w http.ResponseWriter, r *http.Request) {

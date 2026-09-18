@@ -362,6 +362,13 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 				r.With(authGuard).Get("/calls/{uuid}/progress", progressAPI.GetCallProgress)
 				r.With(authGuard).Get("/analytics/employees/{user_uuid}/progress", progressAPI.GetEmployeeProgress)
 			}
+			if personalAPI, ok := analyticsAPI.(interface {
+				GetPersonalSettings(http.ResponseWriter, *http.Request)
+				UpdatePersonalSettings(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/analytics/personal-settings", personalAPI.GetPersonalSettings)
+				r.With(authGuard).Patch("/analytics/personal-settings", personalAPI.UpdatePersonalSettings)
+			}
 			if growthAPI, ok := analyticsAPI.(interface {
 				GetEmployeeGrowthAreas(http.ResponseWriter, *http.Request)
 				DismissGrowthArea(http.ResponseWriter, *http.Request)

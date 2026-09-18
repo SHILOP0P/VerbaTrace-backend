@@ -215,4 +215,14 @@ func TestSettingsAreForTheOwnerAndTheDeputy(t *testing.T) {
 	require.Equal(t, 40, settings.CriticalAlertThreshold)
 	_, err = tm.service.UpdateSettings(ctx, tm.company, tm.owner, SettingsPatch{LockVersion: 0, CriticalAlertThreshold: &threshold})
 	require.ErrorIs(t, err, ErrSettingsVersionConflict)
+
+	// A personal account keeps the same switches in its preferences.
+	personal, err := tm.service.GetPersonalSettings(ctx, tm.ivan)
+	require.NoError(t, err)
+	require.True(t, personal.GrowthAreasEnabled)
+	off := false
+	personal, err = tm.service.UpdatePersonalSettings(ctx, tm.ivan, SettingsPatch{GrowthAreasEnabled: &off})
+	require.NoError(t, err)
+	require.False(t, personal.GrowthAreasEnabled)
+	require.Equal(t, 50, personal.CriticalAlertThreshold, "an absent field keeps its value")
 }

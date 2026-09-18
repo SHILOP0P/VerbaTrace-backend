@@ -802,6 +802,7 @@ Analytics and monitoring:
 | GET | `/api/v1/analytics/departments` | Да | Отделы компании и строка всей компании |
 | GET | `/api/v1/analytics/matrix` | Да | Матрица «сотрудник × критерий» одной инструкции (до 30 критериев) |
 | GET/PATCH | `/api/v1/companies/{uuid}/analytics-settings` | Да | Настройки аналитики компании (`critical_alert_threshold`, `growth_areas_enabled`, `lock_version`); владелец и заместитель |
+| GET/PATCH | `/api/v1/analytics/personal-settings` | Да | Те же настройки личного кабинета (`user_preferences`), без `lock_version`; поле, которого нет в запросе, не меняется |
 
 | GET | `/api/v1/monitoring/processing` | Да | Summary очереди обработки; требует permission `admin.monitoring.read` (`admin`/`superadmin`) |
 
