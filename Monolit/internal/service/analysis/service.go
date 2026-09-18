@@ -77,9 +77,19 @@ type Service struct {
 	notifications            NotificationSender
 	scorecards               ScorecardPlanner
 	facts                    FactsProjector
+	growth                   GrowthKeeper
 }
 
 func (s *Service) SetScorecardPlanner(planner ScorecardPlanner) { s.scorecards = planner }
+
+// GrowthKeeper tells the summary step about an employee's open growth areas and
+// stores what it said about them.
+type GrowthKeeper interface {
+	ContextFor(ctx context.Context, callID uuid.UUID) (*models.GrowthContext, error)
+	Record(ctx context.Context, callID uuid.UUID, outcome models.GrowthOutcome) error
+}
+
+func (s *Service) SetGrowth(keeper GrowthKeeper) { s.growth = keeper }
 
 // FactsProjector re-projects the analytics facts of a call once its analysis is
 // done.

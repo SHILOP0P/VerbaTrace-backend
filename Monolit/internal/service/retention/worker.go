@@ -364,6 +364,7 @@ func (w *Worker) runInstructions(ctx context.Context) {
 	}
 	w.service.log.Info(ctx, "instruction retention run completed", zap.Int("selected", len(items)))
 	w.sweepUnusedVersions(ctx, run)
+	w.sweepEmptyGrowthAreas(ctx, run)
 }
 
 // versionGrace covers the window between an analysis reading an instruction
@@ -439,6 +440,23 @@ func (w *Worker) sweepUnusedVersions(ctx context.Context, run uuid.UUID) {
 	}
 	w.sweepUnusedScorecardRevisions(ctx, run)
 	w.service.log.Info(ctx, "instruction version sweep completed", zap.Int("selected", len(items)), zap.Int("swept", swept))
+}
+
+// sweepEmptyGrowthAreas drops growth areas no call supports any more: their
+// observations went with deleted calls or with a change of employee.
+func (w *Worker) sweepEmptyGrowthAreas(ctx context.Context, run uuid.UUID) {
+	res, err := w.service.db.ExecContext(ctx, `
+		DELETE FROM growth_areas a
+		WHERE a.created_at < now() - interval '1 day'
+		  AND NOT EXISTS (SELECT 1 FROM growth_area_observations o WHERE o.area_uuid = a.area_uuid)`)
+	if err != nil {
+		w.service.log.Warn(ctx, "empty growth area sweep failed", zap.Error(err))
+		return
+	}
+	count, _ := res.RowsAffected()
+	if count > 0 {
+		_ = audit(ctx, w.service.db, run, uuid.Nil, "growth_area", uuid.Nil, "growth_areas_swept", count, -1, nil)
+	}
 }
 
 // sweepUnusedScorecardRevisions drops hand-edited revisions nobody scored a call

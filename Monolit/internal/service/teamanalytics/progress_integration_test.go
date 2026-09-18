@@ -100,6 +100,34 @@ func TestWorkOnMistakesFollowsTheEmployeesChain(t *testing.T) {
 	require.ErrorIs(t, err, ErrForbidden)
 }
 
+func TestGrowthAreasShowOnTheCallAndInTheProfile(t *testing.T) {
+	tm := newTeam(t, "business_plus")
+	ctx := context.Background()
+	call := tm.call(2, tm.sales, 60, 100, tm.ivan)
+	area := uuid.New()
+	tm.exec(`INSERT INTO growth_areas (area_uuid, subject_user_uuid, company_uuid, title, description, occurrences, first_call_uuid) VALUES ($1,$2,$3,'Отвечает общими словами','Без примеров.',2,$4)`, area, tm.ivan, tm.company, call)
+	tm.exec(`INSERT INTO growth_area_observations (area_uuid, call_uuid, verdict, item_ids, note) VALUES ($1,$2,'repeated','{q1}','{{speaker:A}} снова без примеров')`, area, call)
+
+	progress, err := tm.service.CallProgress(ctx, tm.ivan, call)
+	require.NoError(t, err)
+	require.Len(t, progress.GrowthAreas, 1)
+	require.Equal(t, "repeated", progress.GrowthAreas[0].Verdict)
+	require.Equal(t, []string{"q1"}, progress.GrowthAreas[0].ItemIDs)
+	require.Equal(t, "Иван Тестов снова без примеров", progress.GrowthAreas[0].Note, "the speaker marker becomes the name")
+
+	areas, err := tm.service.EmployeeGrowthAreas(ctx, tm.req(tm.owner), tm.ivan, "")
+	require.NoError(t, err)
+	require.Len(t, areas.Areas, 1)
+	require.Equal(t, 2, areas.Areas[0].Occurrences)
+	require.Len(t, areas.Areas[0].Observations, 1)
+	require.Equal(t, call.String(), areas.Areas[0].Observations[0].CallUUID)
+	own, err := tm.service.EmployeeProgress(ctx, tm.req(tm.ivan), uuid.Nil)
+	require.NoError(t, err)
+	require.Len(t, own.GrowthAreas, 1)
+	_, err = tm.service.EmployeeGrowthAreas(ctx, tm.req(tm.olga), tm.ivan, "")
+	require.ErrorIs(t, err, ErrForbidden)
+}
+
 func TestWorkOnMistakesOfOthersFollowsThePlan(t *testing.T) {
 	tm := newTeam(t, "business_start")
 	ctx := context.Background()

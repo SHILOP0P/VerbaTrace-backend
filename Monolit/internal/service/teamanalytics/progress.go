@@ -288,8 +288,16 @@ func (s *Service) CallProgress(ctx context.Context, viewer, callID uuid.UUID) (C
 	if err := rows.Err(); err != nil {
 		return CallProgress{}, err
 	}
+	if out.GrowthAreas, err = s.callGrowth(ctx, callID, out.Employee.FullName); err != nil {
+		return CallProgress{}, err
+	}
 	if len(out.Criteria) == 0 {
-		// Nothing scored by a scorecard: questions and episodes are not a chain.
+		// Nothing scored by a scorecard: questions and episodes are not a chain,
+		// though growth areas cover exactly such calls.
+		if len(out.GrowthAreas) > 0 {
+			out.Available = true
+			return out, nil
+		}
 		return unavailable(ProgressNoFixedScorecard)
 	}
 	info, err := s.criterionInfo(ctx, keys)
@@ -478,5 +486,8 @@ func (s *Service) EmployeeProgress(ctx context.Context, req Request, target uuid
 		return out.Open[i].Title < out.Open[j].Title
 	})
 	sort.SliceStable(out.ClosedInPeriod, func(i, j int) bool { return out.ClosedInPeriod[i].ClosedAt.After(out.ClosedInPeriod[j].ClosedAt) })
+	if out.GrowthAreas, err = s.employeeGrowth(ctx, scope, target, []string{"open"}); err != nil {
+		return EmployeeProgress{}, err
+	}
 	return out, nil
 }

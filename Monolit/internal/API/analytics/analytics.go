@@ -18,6 +18,7 @@ import (
 type Handler struct {
 	service service.AnalyticsService
 	team    *teamanalytics.Service
+	growth  GrowthAreas
 }
 
 func NewHandler(service service.AnalyticsService) *Handler {

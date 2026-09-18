@@ -97,7 +97,18 @@ func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 	for _, key := range []string{"summary", "purpose", "outcome", "conversation_types", "strengths", "work_on", "recommendations", "priority_recommendation_ids"} {
 		summaryProps[key] = props[key]
 	}
-	if err := r.step(ctx, nil, StepSummary, "summary", summaryPrompt, "", map[string]any{"assessed_items": summaryItems(r.items)}, object(summaryProps), &summary, func() error {
+	prompt, summaryInput := summaryPrompt, map[string]any{"assessed_items": summaryItems(r.items)}
+	growth := r.Request.Growth
+	if growth != nil {
+		prompt += "\n" + growthPrompt
+		summaryInput["growth_context"] = growthInput(growth)
+		for key, value := range growthProperties(len(growth.OpenAreas) > 0) {
+			summaryProps[key] = value
+		}
+	}
+	var growthOutcome *models.GrowthOutcome
+	if err := r.stepAttempts(ctx, nil, StepSummary, "summary", prompt, "", summaryInput, object(summaryProps), &summary, func(attempt int) error {
+		growthOutcome = nil
 		if !nonempty(text(summary["summary"])) {
 			return errors.New("empty summary")
 		}
@@ -124,11 +135,42 @@ func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 				}
 			}
 		}
+		if growth == nil {
+			return nil
+		}
+		outcome, err := readGrowth(summary)
+		if err == nil {
+			err = checkGrowth(outcome, growth, r.items)
+		}
+		if err == nil {
+			growthOutcome = &outcome
+			return nil
+		}
+		// A mistake in the growth fields never costs the analysis: after two
+		// retries the summary is taken without them.
+		if attempt < 2 {
+			return err
+		}
+		if r.Warn != nil {
+			r.Warn(ctx, "growth fields dropped from the summary: "+err.Error())
+		}
 		return nil
 	}); err != nil {
 		return models.AnalysisResult{}, err
 	}
 	normalizeSpeakerMarkers(summary, r.Segments)
+	if growthOutcome != nil {
+		// Markers in notes are normalized with the rest of the summary before the
+		// fields leave it.
+		if outcome, err := readGrowth(summary); err == nil {
+			growthOutcome = &outcome
+		}
+	}
+	delete(summary, "growth_observations")
+	delete(summary, "new_growth_areas")
+	if growthOutcome != nil && r.OnGrowth != nil {
+		r.OnGrowth(ctx, *growthOutcome)
+	}
 	r.progress.Stage = "complete"
 	root := r.result(summary)
 	root["coverage"].(map[string]any)["status"] = "complete"
@@ -874,6 +916,11 @@ func summaryItems(items []map[string]any) []map[string]any {
 // step runs one structured provider request with validation retries. A nil
 // slots channel leaves the request outside the concurrency lanes.
 func (r *Runner) step(ctx context.Context, slots chan struct{}, kind, key, prompt, sharedContext string, input map[string]any, schema map[string]any, out any, validate func() error) error {
+	return r.stepAttempts(ctx, slots, kind, key, prompt, sharedContext, input, schema, out, func(int) error { return validate() })
+}
+
+// stepAttempts is step for a validation that is softer on the last attempt.
+func (r *Runner) stepAttempts(ctx context.Context, slots chan struct{}, kind, key, prompt, sharedContext string, input map[string]any, schema map[string]any, out any, validate func(attempt int) error) error {
 	input["input_version"] = Version
 	var last error
 	for attempt := 0; attempt < 3; attempt++ {
@@ -903,7 +950,7 @@ func (r *Runner) step(ctx context.Context, slots chan struct{}, kind, key, promp
 		r.model = result.Model
 		r.mu.Unlock()
 		if err = json.Unmarshal(result.ResultJSON, out); err == nil {
-			err = validate()
+			err = validate(attempt)
 		}
 		if err == nil {
 			return nil

@@ -72,6 +72,9 @@ type AnalysisRequest struct {
 	// Without it every instruction is broken down by the model, as before
 	// scorecards existed.
 	Scorecards *AnalysisScorecards
+	// Growth is set only when the call keeps growth areas. It is omitted from
+	// the run key otherwise, so a run without growth areas hashes as before.
+	Growth *GrowthContext `json:",omitempty"`
 }
 
 type AnalysisScorecards struct {
@@ -102,6 +105,9 @@ type AnalysisResult struct {
 	ResultText            *string
 	Model                 *string
 	Usage                 *ProviderUsage
+	// Growth is what the summary step said about growth areas; it goes to the
+	// growth tables, never into the result JSON.
+	Growth *GrowthOutcome `json:"-"`
 }
 
 type ProviderUsage struct {

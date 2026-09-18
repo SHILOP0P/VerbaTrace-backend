@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"verbatrace/monolit/internal/analyzer"
 	"verbatrace/monolit/internal/analyzer/analysisflow"
@@ -137,8 +138,14 @@ func (s *Service) analyzeProgressively(ctx context.Context, call models.Call, an
 		}
 		return result, providerErr
 	}
+	var growth *models.GrowthOutcome
+	runner.OnGrowth = func(_ context.Context, outcome models.GrowthOutcome) { growth = &outcome }
+	runner.Warn = func(ctx context.Context, message string) {
+		s.log.Warn(ctx, message, zap.String("call_id", call.ID.String()))
+	}
 	result, err := runner.Run(ctx)
 	result.PipelineRunKey = runKey
 	result.TranscriptionRevision = revision
+	result.Growth = growth
 	return result, err
 }

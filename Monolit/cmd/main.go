@@ -77,6 +77,7 @@ import (
 	companyService "verbatrace/monolit/internal/service/company"
 	contactService "verbatrace/monolit/internal/service/contact"
 	departmentService "verbatrace/monolit/internal/service/department"
+	growthService "verbatrace/monolit/internal/service/growth"
 	integrationService "verbatrace/monolit/internal/service/integration"
 	invitationService "verbatrace/monolit/internal/service/invitation"
 	monitoringService "verbatrace/monolit/internal/service/monitoring"
@@ -98,6 +99,7 @@ import (
 	"verbatrace/monolit/internal/transcriber"
 	transcriberMock "verbatrace/monolit/internal/transcriber/mock"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
@@ -338,8 +340,15 @@ func main() {
 	// Analytics reads facts projected from each call's effective analysis, never
 	// result_json. Every change that moves a number re-projects the call.
 	factsSvc := analyticsFactsService.NewService(sqlDB, appLogger)
-	callSubjectSvc.SetChangeHook(factsSvc.Refresh)
+	// Growth areas ride on the summary step of the analysis; a call that changes
+	// hands or becomes shared loses the observations it gave.
+	growthSvc := growthService.NewService(sqlDB, appLogger)
+	callSubjectSvc.SetChangeHook(func(ctx context.Context, callID uuid.UUID) {
+		factsSvc.Refresh(ctx, callID)
+		growthSvc.Reconcile(ctx, callID)
+	})
 	analysisSvc.SetFactsProjector(factsSvc)
+	analysisSvc.SetGrowth(growthSvc)
 	processingSvc.SetSubjectRefresher(callSubjectSvc)
 	transcriptionEditor := transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository)
 	transcriptionEditor.SetSubjectResolver(callSubjectSvc)
@@ -388,6 +397,7 @@ func main() {
 	billingHandler := billingAPI.NewHandler(billingSvc)
 	analyticsHandler := analyticsAPI.NewHandler(analyticsSvc)
 	analyticsHandler.SetTeamAnalytics(teamAnalyticsService.NewService(sqlDB, appLogger))
+	analyticsHandler.SetGrowth(growthSvc)
 	monitoringHandler := monitoringAPI.NewHandler(monitoringSvc)
 	searchHandler := searchAPI.NewHandler(searchSvc)
 	embeddingKey := firstConfigured(os.Getenv("EMBEDDING_API_KEY"), os.Getenv("ANALYZER_API_KEY"))

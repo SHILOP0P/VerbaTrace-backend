@@ -74,8 +74,13 @@ type Runner struct {
 	Segments []Segment
 	Schema   map[string]any
 	// Execute durably caches and meters each distinct task before returning.
-	Execute  func(context.Context, string, models.AnalysisTask) (models.AnalysisResult, error)
-	Publish  func(context.Context, json.RawMessage) error
+	Execute func(context.Context, string, models.AnalysisTask) (models.AnalysisResult, error)
+	Publish func(context.Context, json.RawMessage) error
+	// OnGrowth receives what the summary step said about growth areas, when the
+	// request carried a growth context and the fields passed validation.
+	OnGrowth func(context.Context, models.GrowthOutcome)
+	// Warn reports what went wrong without failing the analysis.
+	Warn     func(context.Context, string)
 	items    []map[string]any
 	units    []Unit
 	progress Progress
