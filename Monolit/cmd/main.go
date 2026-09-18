@@ -359,7 +359,6 @@ func main() {
 		appLogger.Error(ctx, "invalid notification sender", zap.Error(err))
 		return
 	}
-	analysisSvc.SetAlerts(deliverySvc)
 	processingSvc.SetSubjectRefresher(callSubjectSvc)
 	transcriptionEditor := transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository)
 	transcriptionEditor.SetSubjectResolver(callSubjectSvc)
@@ -392,7 +391,6 @@ func main() {
 	analysisContextHandler := analysisContextAPI.NewHandler(analysisContextSvc)
 	analysisHandler := analysisAPI.NewHandler(analysisSvc)
 	qualityReviewSvc := qualityReviewService.NewService(sqlDB)
-	qualityReviewSvc.SetFactsProjector(factsSvc)
 	qualityReviewHandler := qualityReviewAPI.NewHandler(qualityReviewSvc)
 	actionSvc := actionService.NewService(sqlDB)
 	actionHandler := actionAPI.NewHandler(actionSvc)
@@ -455,6 +453,12 @@ func main() {
 		RedirectURI: os.Getenv("BITRIX24_REDIRECT_URI"), TokenURL: os.Getenv("BITRIX24_TOKEN_URL"), PublicBaseURL: os.Getenv("PUBLIC_APP_URL"), EventToken: os.Getenv("BITRIX24_APPLICATION_TOKEN"),
 	})
 	integrationHandler.SetBitrix24Service(bitrixSvc)
+	bitrixSvc.SetAppURL(config.AppConfig().Notify.PublicAppURL())
+	// After an analysis: the alert about a failed call, and the summary in the
+	// CRM card of a call that came from Bitrix24. A published QA revision updates
+	// that summary too.
+	analysisSvc.SetAlerts(callHooks{deliverySvc.CallAnalyzed, bitrixSvc.QueueCRMNote})
+	qualityReviewSvc.SetFactsProjector(callHooks{factsSvc.Refresh, bitrixSvc.QueueCRMNote})
 	// A frozen company stops importing calls, and the portal only learns why if
 	// we tell it: its own event hook is one-way.
 	companySvc.SetFreezeNotifier(bitrixSvc)
@@ -662,4 +666,16 @@ func firstConfigured(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// callHooks runs several reactions to one event about a call, in order.
+type callHooks []func(context.Context, uuid.UUID)
+
+func (hooks callHooks) CallAnalyzed(ctx context.Context, callID uuid.UUID) { hooks.run(ctx, callID) }
+func (hooks callHooks) Refresh(ctx context.Context, callID uuid.UUID)      { hooks.run(ctx, callID) }
+
+func (hooks callHooks) run(ctx context.Context, callID uuid.UUID) {
+	for _, hook := range hooks {
+		hook(ctx, callID)
+	}
 }

@@ -440,6 +440,11 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 					r.With(authGuard).Post("/action-external-sync-requests/{sync_uuid}/resolve", bitrixAPI.ResolveActionExternalSync)
 					r.With(authGuard).Get("/actions/{action_uuid}/external-sync", bitrixAPI.GetActionExternalSync)
 					r.With(authGuard).Get("/action-external-sync-requests/{sync_uuid}", bitrixAPI.GetActionExternalSyncRequest)
+					if crmAPI, ok := integrationAPI.(interface {
+						SetBitrix24CRMNotes(http.ResponseWriter, *http.Request)
+					}); ok {
+						r.With(authGuard).Put("/integrations/{connection_uuid}/crm-notes", crmAPI.SetBitrix24CRMNotes)
+					}
 					r.With(authGuard).Post("/integrations/{connection_uuid}/pause", bitrixAPI.PauseBitrix24Connection)
 					r.With(authGuard).Post("/integrations/{connection_uuid}/resume", bitrixAPI.ResumeBitrix24Connection)
 					r.With(authGuard).Post("/integrations/{connection_uuid}/backfills/preview", bitrixAPI.PreviewBitrix24Backfill)
