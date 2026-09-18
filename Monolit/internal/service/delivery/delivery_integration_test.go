@@ -182,6 +182,24 @@ func TestTheQueueSendsOnceRetriesAndGivesUp(t *testing.T) {
 	require.Equal(t, "sent", status)
 }
 
+func TestAnInvitedUserGetsALetterOnce(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	invitation := uuid.New()
+	w.exec(`INSERT INTO membership_invitations (invitation_uuid, company_uuid, department_uuid, invited_user_uuid, invited_by_user_uuid, company_role, department_role, status, expires_at, approval_status)
+		VALUES ($1,$2,$3,$4,$5,'employee','employee','pending',now() + interval '7 days','not_required')`, invitation, w.company, w.sales, w.olga, w.owner)
+	w.service.InvitationCreated(ctx, invitation)
+	w.service.InvitationCreated(ctx, invitation)
+	var count int
+	var title, text, address, email string
+	require.NoError(t, w.db.QueryRow(`SELECT count(*), max(payload_json->>'title'), max(payload_json->>'text'), max(payload_json->>'address') FROM outbound_messages WHERE kind = 'invitation'`).Scan(&count, &title, &text, &address))
+	require.Equal(t, 1, count, "one letter per invitation")
+	require.NoError(t, w.db.QueryRow(`SELECT email FROM users WHERE user_uuid = $1`, w.olga).Scan(&email))
+	require.Equal(t, email, address)
+	require.Equal(t, "Вас пригласили в компанию Ромашка в VerbaTrace", title)
+	require.Equal(t, "Павел Тестов приглашает вас в компанию Ромашка, отдел Продажи. Принять или отклонить приглашение: https://app.example/invitations", text)
+}
+
 func TestSubscriptionsKeepOnlyTheAppSwitchable(t *testing.T) {
 	w := newWorld(t)
 	ctx := context.Background()

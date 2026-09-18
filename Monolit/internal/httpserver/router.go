@@ -583,6 +583,15 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.Post("/auth/register", authAPI.Register)
 			r.Post("/auth/login", authAPI.Login)
 			r.Post("/auth/refresh", authAPI.Refresh)
+			if resetAPI, ok := authAPI.(interface {
+				Capabilities(http.ResponseWriter, *http.Request)
+				RequestPasswordReset(http.ResponseWriter, *http.Request)
+				ConfirmPasswordReset(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.Get("/auth/capabilities", resetAPI.Capabilities)
+				r.Post("/auth/password-reset/request", resetAPI.RequestPasswordReset)
+				r.Post("/auth/password-reset/confirm", resetAPI.ConfirmPasswordReset)
+			}
 			r.With(authGuard).Get("/auth/me", authAPI.Me)
 			r.With(authGuard).Patch("/auth/me/password", authAPI.UpdatePassword)
 			r.With(authGuard).Get("/auth/me/sessions", authAPI.ListSessions)

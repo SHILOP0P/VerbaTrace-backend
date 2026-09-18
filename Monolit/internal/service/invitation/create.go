@@ -214,6 +214,9 @@ func (s *Service) companyHasDeputy(ctx context.Context, companyID uuid.UUID) (bo
 
 func (s *Service) notifyInvitationCreated(ctx context.Context, invitation models.MembershipInvitation) {
 	s.notify(ctx, invitation.InvitedUserUUID, models.NotificationTypeInvitation, "Новое приглашение", "Вам отправили приглашение в VerbaTrace", invitation.ID)
+	if s.mailer != nil {
+		s.mailer.InvitationCreated(ctx, invitation.ID)
+	}
 }
 
 func (s *Service) notifyApprover(ctx context.Context, invitation models.MembershipInvitation) {

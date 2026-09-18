@@ -10,6 +10,7 @@ type AuthHandler struct {
 	service         service.AuthService
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
+	reset           PasswordReset
 }
 
 func NewAuthHandler(service service.AuthService, accessTokenTTL time.Duration, refreshTokenTTL time.Duration) *AuthHandler {

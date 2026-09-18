@@ -83,6 +83,7 @@ import (
 	invitationService "verbatrace/monolit/internal/service/invitation"
 	monitoringService "verbatrace/monolit/internal/service/monitoring"
 	notificationService "verbatrace/monolit/internal/service/notification"
+	passwordResetService "verbatrace/monolit/internal/service/passwordreset"
 	privacyService "verbatrace/monolit/internal/service/privacy"
 	processingService "verbatrace/monolit/internal/service/processing"
 	qualityReviewService "verbatrace/monolit/internal/service/qualityreview"
@@ -370,6 +371,11 @@ func main() {
 	callFolderHandler := callFolderAPI.NewHandler(callFolderSvc)
 	contactHandler := contactAPI.NewHandler(contactSvc)
 	authHandler := authAPI.NewAuthHandler(authSvc, config.AppConfig().Auth.AccessTokenTTL(), config.AppConfig().Auth.RefreshTokenTTL())
+	// The reset letter goes through the delivery queue. While its only sender is
+	// the mock one the page is hidden: nobody would receive the link.
+	authHandler.SetPasswordReset(passwordResetService.NewService(sqlDB, userRepository, config.AppConfig().Auth.PasswordPepper(),
+		config.AppConfig().Notify.PublicAppURL(), notificationSender.Name() != "mock", appLogger))
+	invitationSvc.SetMailer(deliverySvc)
 	companyHandler := companyAPI.NewCompanyHandler(companySvc)
 	departmentHandler := departmentAPI.NewDepartmentHandler(departmentSvc)
 	invitationHandler := invitationAPI.NewHandler(invitationSvc)

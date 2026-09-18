@@ -120,7 +120,7 @@ func (w *Worker) RunOnce(ctx context.Context) int {
 			ORDER BY available_at, message_uuid
 			FOR UPDATE SKIP LOCKED LIMIT $1)
 		RETURNING m.message_uuid, m.user_uuid, m.channel, m.kind, m.payload_json::text, m.attempts,
-		          COALESCE((SELECT c.address FROM notification_channels c WHERE c.user_uuid = m.user_uuid AND c.channel = m.channel AND c.status = 'verified'), m.payload_json->>'address', ''),
+		          COALESCE(m.payload_json->>'address', (SELECT c.address FROM notification_channels c WHERE c.user_uuid = m.user_uuid AND c.channel = m.channel AND c.status = 'verified'), ''),
 		          COALESCE((SELECT co.lifecycle_state <> 'active' FROM companies co WHERE co.company_uuid::text = m.payload_json->>'company_uuid'), false)`,
 		w.batch, leaseTime.Seconds())
 	if err != nil {
@@ -155,11 +155,15 @@ func (w *Worker) RunOnce(ctx context.Context) int {
 func (w *Worker) finish(ctx context.Context, id uuid.UUID, attempts int, sendErr error) {
 	var err error
 	switch {
+	// A message that carries a secret, such as a reset link, keeps nothing once
+	// it is settled.
 	case sendErr == nil:
-		_, err = w.db.ExecContext(ctx, `UPDATE outbound_messages SET status = 'sent', sent_at = now(), lease_until = NULL, last_error = NULL WHERE message_uuid = $1`, id)
+		_, err = w.db.ExecContext(ctx, `UPDATE outbound_messages SET status = 'sent', sent_at = now(), lease_until = NULL, last_error = NULL,
+			payload_json = CASE WHEN payload_json ? 'sensitive' THEN '{}'::jsonb ELSE payload_json END WHERE message_uuid = $1`, id)
 	case errors.Is(sendErr, errCompanyFrozen) || attempts >= maxAttempts:
 		// A frozen company sends nothing, and it would be stale when unfrozen.
-		_, err = w.db.ExecContext(ctx, `UPDATE outbound_messages SET status = 'dead', lease_until = NULL, last_error = $2 WHERE message_uuid = $1`, id, sendErr.Error())
+		_, err = w.db.ExecContext(ctx, `UPDATE outbound_messages SET status = 'dead', lease_until = NULL, last_error = $2,
+			payload_json = CASE WHEN payload_json ? 'sensitive' THEN '{}'::jsonb ELSE payload_json END WHERE message_uuid = $1`, id, sendErr.Error())
 	default:
 		delay := firstBackoff << (attempts - 1)
 		_, err = w.db.ExecContext(ctx, `UPDATE outbound_messages SET status = 'failed', lease_until = NULL, last_error = $2, available_at = now() + make_interval(secs => $3) WHERE message_uuid = $1`,

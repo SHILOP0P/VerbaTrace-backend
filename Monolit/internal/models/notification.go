@@ -49,6 +49,7 @@ const (
 	NotificationTypeCallSubjectsChanged         NotificationType = "call_subjects_changed"
 	NotificationTypeCriticalCallAlert           NotificationType = "critical_call_alert"
 	NotificationTypeWeeklyDigestReady           NotificationType = "weekly_digest_ready"
+	NotificationTypePasswordChanged             NotificationType = "password_changed"
 )
 
 // NotificationTypes is every type the application is allowed to write. The
@@ -97,6 +98,7 @@ func NotificationTypes() []NotificationType {
 		NotificationTypeCallSubjectsChanged,
 		NotificationTypeCriticalCallAlert,
 		NotificationTypeWeeklyDigestReady,
+		NotificationTypePasswordChanged,
 	}
 }
 
