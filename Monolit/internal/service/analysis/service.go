@@ -78,6 +78,7 @@ type Service struct {
 	scorecards               ScorecardPlanner
 	facts                    FactsProjector
 	growth                   GrowthKeeper
+	alerts                   AlertRaiser
 }
 
 func (s *Service) SetScorecardPlanner(planner ScorecardPlanner) { s.scorecards = planner }
@@ -90,6 +91,13 @@ type GrowthKeeper interface {
 }
 
 func (s *Service) SetGrowth(keeper GrowthKeeper) { s.growth = keeper }
+
+// AlertRaiser tells the people who answer for a call that it failed.
+type AlertRaiser interface {
+	CallAnalyzed(ctx context.Context, callID uuid.UUID)
+}
+
+func (s *Service) SetAlerts(alerts AlertRaiser) { s.alerts = alerts }
 
 // FactsProjector re-projects the analytics facts of a call once its analysis is
 // done.

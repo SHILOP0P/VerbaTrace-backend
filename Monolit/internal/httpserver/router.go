@@ -498,6 +498,13 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Post("/notifications/{uuid}/read", notificationAPI.MarkRead)
 			r.With(authGuard).Post("/notifications/{uuid}/unread", notificationAPI.MarkUnread)
 			r.With(authGuard).Post("/notifications/read-all", notificationAPI.MarkAllRead)
+			if subscriptionsAPI, ok := notificationAPI.(interface {
+				GetSubscriptions(http.ResponseWriter, *http.Request)
+				PutSubscriptions(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/notification-subscriptions", subscriptionsAPI.GetSubscriptions)
+				r.With(authGuard).Put("/notification-subscriptions", subscriptionsAPI.PutSubscriptions)
+			}
 
 			//BILLING
 			r.Get("/plans", billingAPI.ListPlans)

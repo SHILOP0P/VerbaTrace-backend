@@ -76,6 +76,7 @@ import (
 	callSubjectService "verbatrace/monolit/internal/service/callsubject"
 	companyService "verbatrace/monolit/internal/service/company"
 	contactService "verbatrace/monolit/internal/service/contact"
+	deliveryService "verbatrace/monolit/internal/service/delivery"
 	departmentService "verbatrace/monolit/internal/service/department"
 	growthService "verbatrace/monolit/internal/service/growth"
 	integrationService "verbatrace/monolit/internal/service/integration"
@@ -349,6 +350,16 @@ func main() {
 	})
 	analysisSvc.SetFactsProjector(factsSvc)
 	analysisSvc.SetGrowth(growthSvc)
+	// Digests and alerts go to the bell for real; mail and Telegram only reach
+	// the queue, whose one sender for now logs the message.
+	teamAnalyticsSvc := teamAnalyticsService.NewService(sqlDB, appLogger)
+	deliverySvc := deliveryService.NewService(sqlDB, appLogger, config.AppConfig().Notify.PublicAppURL())
+	notificationSender, err := deliveryService.NewSender(config.AppConfig().Notify.Sender(), appLogger)
+	if err != nil {
+		appLogger.Error(ctx, "invalid notification sender", zap.Error(err))
+		return
+	}
+	analysisSvc.SetAlerts(deliverySvc)
 	processingSvc.SetSubjectRefresher(callSubjectSvc)
 	transcriptionEditor := transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository)
 	transcriptionEditor.SetSubjectResolver(callSubjectSvc)
@@ -370,11 +381,13 @@ func main() {
 	analysisSvc.SetScorecardPlanner(scorecardSvc)
 	scorecardHandler := scorecardAPI.NewHandler(scorecardSvc)
 	// Compiling spends credits, so it runs only where calls are processed.
-	var scorecardWorkerDone, factsWorkerDone <-chan struct{}
+	var scorecardWorkerDone, factsWorkerDone, outboxWorkerDone, digestWorkerDone <-chan struct{}
 	scorecardSvc.SetAliasHook(analyticsFactsService.Rekey)
 	if config.AppConfig().Worker.Enabled() {
 		scorecardWorkerDone = scorecardService.NewWorker(scorecardSvc, 0).Run(ctx)
 		factsWorkerDone = analyticsFactsService.NewWorker(factsSvc, callSubjectSvc, 0, 0).Run(ctx)
+		outboxWorkerDone = deliveryService.NewWorker(sqlDB, notificationSender, appLogger, 0, 0).Run(ctx)
+		digestWorkerDone = deliveryService.NewDigests(deliverySvc, teamAnalyticsSvc).Run(ctx, 0)
 	}
 	analysisContextHandler := analysisContextAPI.NewHandler(analysisContextSvc)
 	analysisHandler := analysisAPI.NewHandler(analysisSvc)
@@ -396,7 +409,7 @@ func main() {
 	reportHandler := reportAPI.NewHandler(reportSvc)
 	billingHandler := billingAPI.NewHandler(billingSvc)
 	analyticsHandler := analyticsAPI.NewHandler(analyticsSvc)
-	analyticsHandler.SetTeamAnalytics(teamAnalyticsService.NewService(sqlDB, appLogger))
+	analyticsHandler.SetTeamAnalytics(teamAnalyticsSvc)
 	analyticsHandler.SetGrowth(growthSvc)
 	monitoringHandler := monitoringAPI.NewHandler(monitoringSvc)
 	searchHandler := searchAPI.NewHandler(searchSvc)
@@ -414,6 +427,7 @@ func main() {
 		assistantIndexWorkerDone = assistantSvc.RunIndexWorker(ctx)
 	}
 	notificationHandler := notificationAPI.NewHandler(notificationSvc)
+	notificationHandler.SetSubscriptions(deliverySvc)
 	var integrationCipher *integrationcrypto.Cipher
 	if rawKey := os.Getenv("INTEGRATION_MASTER_KEY_BASE64"); rawKey != "" {
 		integrationCipher, err = integrationcrypto.NewFromBase64(rawKey, 1)
@@ -526,6 +540,8 @@ func main() {
 		"membership maintenance worker": membershipMaintenanceWorkerDone,
 		"scorecard worker":              scorecardWorkerDone,
 		"analytics facts worker":        factsWorkerDone,
+		"outbound message worker":       outboxWorkerDone,
+		"weekly digest worker":          digestWorkerDone,
 	} {
 		if workerDone == nil {
 			continue

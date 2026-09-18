@@ -313,6 +313,35 @@ func (s *Service) CallProgress(ctx context.Context, viewer, callID uuid.UUID) (C
 	return out, nil
 }
 
+// WeekVerdicts counts the verdicts of an employee's calls in [from, to): how
+// many criteria were fixed, repeated or newly failed. The weekly digest shows
+// it; company is empty for a personal account.
+func (s *Service) WeekVerdicts(ctx context.Context, company uuid.NullUUID, subject uuid.UUID, from, to time.Time) (ProgressCounts, error) {
+	q := &query{}
+	chainOwner{company: company, user: subject}.chainCalls(q)
+	start, end := q.arg(from), q.arg(to)
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`SELECT r.prev_score, r.score FROM (%s) r WHERE r.occurred_at >= %s AND r.occurred_at < %s`,
+		chainRows(q.sql()), start, end), q.args...)
+	if err != nil {
+		return ProgressCounts{}, fmt.Errorf("read week verdicts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var counts ProgressCounts
+	for rows.Next() {
+		var previous sql.NullInt64
+		var score int
+		if err := rows.Scan(&previous, &score); err != nil {
+			return ProgressCounts{}, err
+		}
+		var prev *ProgressPrevious
+		if previous.Valid {
+			prev = &ProgressPrevious{Score: int(previous.Int64)}
+		}
+		counts.add(verdict(prev, score))
+	}
+	return counts, rows.Err()
+}
+
 func verdict(previous *ProgressPrevious, score int) string {
 	switch {
 	case previous == nil:

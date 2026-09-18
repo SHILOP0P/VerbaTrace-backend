@@ -375,6 +375,10 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 	}
 	if s.facts != nil {
 		s.facts.Refresh(ctx, call.ID)
+		// The alert reads the facts just projected.
+		if s.alerts != nil {
+			s.alerts.CallAnalyzed(ctx, call.ID)
+		}
 	}
 
 	s.log.Info(ctx, "call analyzed", zap.String("call_id", call.ID.String()), zap.String("provider", activeAnalyzer.Provider()), zap.Duration("analysis_duration", time.Since(analysisStartedAt)))

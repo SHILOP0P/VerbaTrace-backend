@@ -175,6 +175,8 @@ const (
 	CodeGrowthAreaNotFound               = "growth_area_not_found"
 	CodeInvalidGrowthAreaReason          = "invalid_growth_area_reason"
 	CodeGrowthAreaNotDismissed           = "growth_area_not_dismissed"
+	CodeInvalidNotificationSubscription  = "invalid_notification_subscription"
+	CodeNotificationChannelUnavailable   = "notification_channel_unavailable"
 	CodeInvalidCompanyUUID               = "invalid_company_uuid"
 	CodeCallEditForbidden                = "call_edit_forbidden"
 	CodeInvalidCallSubjects              = "invalid_call_subjects"

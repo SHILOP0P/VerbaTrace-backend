@@ -85,7 +85,8 @@ func TruncateTables(t *testing.T, db *sql.DB) {
 	    departments,
 	    company_members,
 	    companies,
-	    users
+	    users,
+	    delivery_marks
 	RESTART IDENTITY CASCADE
 	`
 
