@@ -186,6 +186,51 @@ func TestEachRoleSeesWhatItShould(t *testing.T) {
 	require.Len(t, matrix.Rows, 3)
 }
 
+// A call in the bin leaves every number at once and comes back with a restore;
+// its facts are kept for that.
+func TestCallsInTheBinLeaveTheAnalytics(t *testing.T) {
+	tm := newTeam(t, "business_plus")
+	ctx := context.Background()
+	kept := tm.call(1, tm.sales, 80, 100, tm.ivan)
+	binned := tm.call(2, tm.sales, 10, 0, tm.ivan)
+	bin := func(deleted bool) {
+		if deleted {
+			tm.exec(`UPDATE calls SET deleted_at = now(), purge_after = now() + interval '30 days' WHERE call_uuid = $1`, binned)
+			return
+		}
+		tm.exec(`UPDATE calls SET deleted_at = NULL, purge_after = NULL WHERE call_uuid = $1`, binned)
+	}
+	counts := func() (summaryCalls, employeeCalls, criterionCalls, worth int) {
+		summary, err := tm.service.Summary(ctx, tm.req(tm.owner))
+		require.NoError(t, err)
+		employees, err := tm.service.Employees(ctx, tm.req(tm.owner))
+		require.NoError(t, err)
+		for _, row := range employees.Employees {
+			employeeCalls += row.Calls
+		}
+		calls, err := tm.service.CriterionCalls(ctx, tm.req(tm.owner), tm.budget, "", "score", 10, 0)
+		require.NoError(t, err)
+		return summary.CallsAnalyzed, employeeCalls, calls.Total, len(summary.WorthListening)
+	}
+
+	s, e, c, w := counts()
+	require.Equal(t, []int{2, 2, 2, 2}, []int{s, e, c, w})
+
+	bin(true)
+	s, e, c, w = counts()
+	require.Equal(t, []int{1, 1, 1, 1}, []int{s, e, c, w}, "the binned call is gone from the summary, the table, the drill-down and the list to listen to")
+	profile, err := tm.service.Profile(ctx, tm.req(tm.ivan), uuid.Nil)
+	require.NoError(t, err)
+	require.Equal(t, 1, profile.Totals.Calls, "and from the employee's own profile")
+	var facts int
+	require.NoError(t, tm.db.QueryRow(`SELECT count(*) FROM analytics_call_facts WHERE call_uuid IN ($1, $2)`, kept, binned).Scan(&facts))
+	require.Equal(t, 2, facts, "facts stay until the call is purged")
+
+	bin(false)
+	s, e, c, w = counts()
+	require.Equal(t, []int{2, 2, 2, 2}, []int{s, e, c, w}, "a restore brings it back")
+}
+
 func TestAPlanWithoutTeamAnalyticsKeepsOwnNumbersOnly(t *testing.T) {
 	tm := newTeam(t, "business_start")
 	ctx := context.Background()

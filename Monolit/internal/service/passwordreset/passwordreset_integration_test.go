@@ -57,6 +57,9 @@ func TestAResetLinkWorksOnceAndEndsEverySession(t *testing.T) {
 	service.Request(ctx, email, "10.0.0.1")
 	second := lastToken(t, db, user)
 	require.NotEqual(t, first, second)
+	var ip string
+	require.NoError(t, db.QueryRow(`SELECT requested_ip FROM password_reset_tokens WHERE user_uuid = $1 AND used_at IS NULL`, user).Scan(&ip))
+	require.Equal(t, "10.0.0.1", ip, "the token remembers where it was asked for")
 	require.ErrorIs(t, service.Confirm(ctx, first, "new-password-1"), ErrInvalidToken, "a new request voids the old link")
 
 	require.NoError(t, service.Confirm(ctx, second, "new-password-1"))

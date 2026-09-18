@@ -111,6 +111,105 @@ func TestCompanyFreezeBlocksInstructionChanges(t *testing.T) {
 	}
 }
 
+// Spec section 9: every changing route added for scorecards, call employees,
+// analytics, growth areas, delivery and the CRM note is listed here with what
+// the guard must do with it in a frozen company. A new route belongs in this
+// list, or it may slip past the freeze unnoticed.
+func TestCompanyFreezeCoversTheScorecardAndAnalyticsRoutes(t *testing.T) {
+	db := repositorytest.OpenTestDB(t)
+	repositorytest.RunMigrations(t, db)
+	repositorytest.TruncateTables(t, db)
+	ctx := context.Background()
+	guard := middleware.CompanyFreeze(db)
+
+	ownerID := repositorytest.CreateUser(t, db)
+	frozen := seedCompany(t, db, ownerID, "frozen")
+	_, err := db.ExecContext(ctx, `UPDATE companies SET lifecycle_state='frozen', freeze_reason='downgrade' WHERE company_uuid=$1`, frozen)
+	require.NoError(t, err)
+	frozenCompany := uuid.NullUUID{UUID: frozen, Valid: true}
+	call := seedCall(t, db, ownerID, frozenCompany)
+	personalCall := seedCall(t, db, ownerID, uuid.NullUUID{})
+	instruction := seedInstruction(t, db, ownerID, frozenCompany)
+	personalInstruction := seedInstruction(t, db, ownerID, uuid.NullUUID{})
+	area := seedGrowthArea(t, db, ownerID, frozenCompany)
+	personalArea := seedGrowthArea(t, db, ownerID, uuid.NullUUID{})
+	connection := seedConnection(t, db, ownerID, frozen)
+	criterion := uuid.New().String()
+
+	routes := []struct {
+		method, pattern, path, personalPath string
+	}{
+		{http.MethodPut, "/calls/{uuid}/transcription/speakers", "/calls/" + call.String() + "/transcription/speakers", "/calls/" + personalCall.String() + "/transcription/speakers"},
+		{http.MethodPut, "/calls/{uuid}/subjects", "/calls/" + call.String() + "/subjects", ""},
+		{http.MethodPatch, "/companies/{uuid}/analytics-settings", "/companies/" + frozen.String() + "/analytics-settings", ""},
+		{http.MethodPost, "/growth-areas/{area_uuid}/dismiss", "/growth-areas/" + area.String() + "/dismiss", "/growth-areas/" + personalArea.String() + "/dismiss"},
+		{http.MethodPost, "/growth-areas/{area_uuid}/reopen", "/growth-areas/" + area.String() + "/reopen", "/growth-areas/" + personalArea.String() + "/reopen"},
+		{http.MethodPut, "/integrations/{connection_uuid}/crm-notes", "/integrations/" + connection.String() + "/crm-notes", ""},
+		{http.MethodPatch, "/instructions/{uuid}/scorecard", "/instructions/" + instruction.String() + "/scorecard", "/instructions/" + personalInstruction.String() + "/scorecard"},
+		{http.MethodPost, "/instructions/{uuid}/scorecard/ensure", "/instructions/" + instruction.String() + "/scorecard/ensure", "/instructions/" + personalInstruction.String() + "/scorecard/ensure"},
+		{http.MethodPost, "/instructions/{uuid}/scorecard/recompile", "/instructions/" + instruction.String() + "/scorecard/recompile", "/instructions/" + personalInstruction.String() + "/scorecard/recompile"},
+		{http.MethodPost, "/instructions/{uuid}/scorecard/confirm", "/instructions/" + instruction.String() + "/scorecard/confirm", "/instructions/" + personalInstruction.String() + "/scorecard/confirm"},
+		{http.MethodPost, "/instructions/{uuid}/scorecard/criteria/{criterion_key}/same-as", "/instructions/" + instruction.String() + "/scorecard/criteria/" + criterion + "/same-as", ""},
+		{http.MethodPost, "/instructions/{uuid}/scorecard/criteria/{criterion_key}/split", "/instructions/" + instruction.String() + "/scorecard/criteria/" + criterion + "/split", ""},
+	}
+	// These belong to a person, not to a company, so a frozen company has no say.
+	personalRoutes := []struct{ method, path string }{
+		{http.MethodPatch, "/analytics/personal-settings"},
+		{http.MethodPut, "/notification-subscriptions"},
+		{http.MethodPost, "/auth/password-reset/request"},
+		{http.MethodPost, "/auth/password-reset/confirm"},
+	}
+
+	router := chi.NewRouter()
+	reached := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }
+	router.Route("/api/v1", func(r chi.Router) {
+		for _, route := range routes {
+			r.With(guard).MethodFunc(route.method, route.pattern, reached)
+		}
+		for _, route := range personalRoutes {
+			r.With(guard).MethodFunc(route.method, route.path, reached)
+		}
+	})
+	serve := func(method, path string) int {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(method, "/api/v1"+path, nil))
+		return recorder.Code
+	}
+
+	for _, route := range routes {
+		require.Equal(t, http.StatusConflict, serve(route.method, route.path), route.method+" "+route.pattern)
+		if route.personalPath != "" {
+			require.Equal(t, http.StatusNoContent, serve(route.method, route.personalPath), "personal "+route.method+" "+route.pattern)
+		}
+	}
+	for _, route := range personalRoutes {
+		require.Equal(t, http.StatusNoContent, serve(route.method, route.path), route.method+" "+route.path)
+	}
+}
+
+func seedGrowthArea(t *testing.T, db *sql.DB, userID uuid.UUID, companyID uuid.NullUUID) uuid.UUID {
+	t.Helper()
+	areaID := uuid.New()
+	_, err := db.ExecContext(context.Background(), `INSERT INTO growth_areas (area_uuid, company_uuid, subject_user_uuid, title, description) VALUES ($1, $2, $3, 'Цена', 'Называет цену без выгоды')`, areaID, companyID, userID)
+	require.NoError(t, err)
+	return areaID
+}
+
+func seedConnection(t *testing.T, db *sql.DB, userID, companyID uuid.UUID) uuid.UUID {
+	t.Helper()
+	ctx := context.Background()
+	billingID, applicationID, connectionID := uuid.New(), uuid.New(), uuid.New()
+	_, err := db.ExecContext(ctx, `INSERT INTO billing_accounts (billing_account_uuid, owner_type, company_uuid) VALUES ($1, 'company', $2)`, billingID, companyID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO developer_applications (application_uuid, owner_type, company_uuid, billing_account_uuid, name, environment, status)
+		VALUES ($1, 'company', $2, $3, 'Freeze app', 'sandbox', 'active')`, applicationID, companyID, billingID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO integration_connections (connection_uuid, application_uuid, company_uuid, created_by_user_uuid, name, provider, status)
+		VALUES ($1, $2, $3, $4, 'Bitrix24', 'bitrix24', 'draft')`, connectionID, applicationID, companyID, userID)
+	require.NoError(t, err)
+	return connectionID
+}
+
 func seedInstruction(t *testing.T, db *sql.DB, ownerID uuid.UUID, companyID uuid.NullUUID) uuid.UUID {
 	t.Helper()
 	instructionID := uuid.New()

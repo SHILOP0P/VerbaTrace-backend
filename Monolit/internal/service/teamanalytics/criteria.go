@@ -75,21 +75,31 @@ func (s *Service) criterionStats(ctx context.Context, scope Scope, from, to time
 	if scope.Instruction.Valid {
 		q.add(fmt.Sprintf("cf.instruction_uuid = %s", q.arg(scope.Instruction.UUID)))
 	}
+	// Grouping by criterion and card first keeps the aggregate a hash over a few
+	// groups: a DISTINCT inside the aggregate sorted every fact and spilled to
+	// disk at 100 thousand facts. The status is worked out once per fact.
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT cf.criterion_key, count(cf.score), avg(cf.score)::float8, COALESCE(var_samp(cf.score), 0)::float8,
-		       count(*) FILTER (WHERE `+effectiveStatus+` = 'not_applicable'),
-		       count(*) FILTER (WHERE cf.score IS NULL AND `+effectiveStatus+` IN ('unclear','conflict','not_assessed')),
-		       count(*) FILTER (WHERE cf.score >= 75),
-		       count(*) FILTER (WHERE cf.score IS NOT NULL AND `+effectiveStatus+` = 'met'),
-		       count(*) FILTER (WHERE cf.score IS NOT NULL AND `+effectiveStatus+` = 'mostly_met'),
-		       count(*) FILTER (WHERE cf.score IS NOT NULL AND `+effectiveStatus+` = 'partially_met'),
-		       count(*) FILTER (WHERE cf.score IS NOT NULL AND `+effectiveStatus+` = 'minimally_met'),
-		       count(*) FILTER (WHERE cf.score IS NOT NULL AND `+effectiveStatus+` = 'missed'),
-		       string_agg(DISTINCT cf.scorecard_uuid::text, ',')
-		FROM analytics_criterion_facts cf
-		JOIN analytics_call_facts f ON f.call_uuid = cf.call_uuid JOIN calls c ON c.call_uuid = f.call_uuid
-		WHERE `+q.sql()+`
-		GROUP BY cf.criterion_key`, q.args...)
+		SELECT g.criterion_key, sum(g.n)::int, sum(g.total)::float8, sum(g.squares)::float8,
+		       sum(g.na)::int, sum(g.unassessed)::int, sum(g.passed)::int,
+		       sum(g.met)::int, sum(g.mostly)::int, sum(g.partially)::int, sum(g.minimally)::int, sum(g.missed)::int,
+		       string_agg(g.scorecard_uuid::text, ',')
+		FROM (
+			SELECT cf.criterion_key, cf.scorecard_uuid, count(cf.score) AS n, sum(cf.score) AS total, sum(cf.score::bigint * cf.score) AS squares,
+			       count(*) FILTER (WHERE e.status = 'not_applicable') AS na,
+			       count(*) FILTER (WHERE cf.score IS NULL AND e.status IN ('unclear','conflict','not_assessed')) AS unassessed,
+			       count(*) FILTER (WHERE cf.score >= 75) AS passed,
+			       count(*) FILTER (WHERE cf.score IS NOT NULL AND e.status = 'met') AS met,
+			       count(*) FILTER (WHERE cf.score IS NOT NULL AND e.status = 'mostly_met') AS mostly,
+			       count(*) FILTER (WHERE cf.score IS NOT NULL AND e.status = 'partially_met') AS partially,
+			       count(*) FILTER (WHERE cf.score IS NOT NULL AND e.status = 'minimally_met') AS minimally,
+			       count(*) FILTER (WHERE cf.score IS NOT NULL AND e.status = 'missed') AS missed
+			FROM analytics_criterion_facts cf
+			JOIN analytics_call_facts f ON f.call_uuid = cf.call_uuid JOIN calls c ON c.call_uuid = f.call_uuid
+			CROSS JOIN LATERAL (SELECT `+effectiveStatus+` AS status) e
+			WHERE `+q.sql()+`
+			GROUP BY cf.criterion_key, cf.scorecard_uuid
+		) g
+		GROUP BY g.criterion_key`, q.args...)
 	if err != nil {
 		return nil, fmt.Errorf("read criterion stats: %w", err)
 	}
@@ -98,15 +108,13 @@ func (s *Service) criterionStats(ctx context.Context, scope Scope, from, to time
 	for rows.Next() {
 		var key uuid.UUID
 		var st criterionStats
-		var mean sql.NullFloat64
+		var total, squares sql.NullFloat64
 		var cards sql.NullString
-		if err := rows.Scan(&key, &st.n, &mean, &st.variance, &st.na, &st.unassessed, &st.passed,
+		if err := rows.Scan(&key, &st.n, &total, &squares, &st.na, &st.unassessed, &st.passed,
 			&st.dist.Met, &st.dist.MostlyMet, &st.dist.PartiallyMet, &st.dist.MinimallyMet, &st.dist.Missed, &cards); err != nil {
 			return nil, err
 		}
-		if mean.Valid {
-			st.mean = &mean.Float64
-		}
+		st.mean, st.variance = meanAndVariance(st.n, total.Float64, squares.Float64)
 		st.scorecards = map[string]bool{}
 		for _, id := range strings.Split(cards.String, ",") {
 			if id != "" {
@@ -117,6 +125,24 @@ func (s *Service) criterionStats(ctx context.Context, scope Scope, from, to time
 		result[key] = &copied
 	}
 	return result, rows.Err()
+}
+
+// meanAndVariance is the mean and the sample variance of n scores from their sum
+// and the sum of their squares, as var_samp would give them.
+func meanAndVariance(n int, total, squares float64) (*float64, float64) {
+	if n == 0 {
+		return nil, 0
+	}
+	mean := total / float64(n)
+	if n < 2 {
+		return &mean, 0
+	}
+	variance := (squares - total*total/float64(n)) / float64(n-1)
+	if variance < 0 {
+		// Rounding can leave a hair below zero when every score is the same.
+		variance = 0
+	}
+	return &mean, variance
 }
 
 // Criteria is the table of criteria, weakest first among those with enough data.
@@ -245,12 +271,21 @@ func (s *Service) criterionTrends(ctx context.Context, scope Scope, keys []uuid.
 	}
 	q := &query{}
 	scope.callsOf(q, scope.Period.From, scope.Period.To)
-	q.add(fmt.Sprintf("cf.criterion_key = ANY(%s::uuid[])", q.arg(uuidStrings(keys))))
 	bucket := bucketExpr(q, scope, "f.occurred_at")
+	calls := q.sql()
+	keysArg := q.arg(uuidStrings(keys))
+	// The bucket is worked out once per call rather than once per fact, and the
+	// planner, not knowing how many buckets there are, hashes instead of sorting
+	// every fact.
 	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
-		SELECT cf.criterion_key, %s, avg(cf.score)::float8, count(cf.score)
-		FROM analytics_criterion_facts cf JOIN analytics_call_facts f ON f.call_uuid = cf.call_uuid JOIN calls c ON c.call_uuid = f.call_uuid
-		WHERE %s GROUP BY 1, 2 ORDER BY 1, 2`, bucket, q.sql()), q.args...)
+		WITH scoped AS MATERIALIZED (
+			SELECT f.call_uuid, %s AS bucket
+			FROM analytics_call_facts f JOIN calls c ON c.call_uuid = f.call_uuid
+			WHERE %s)
+		SELECT cf.criterion_key, s.bucket, avg(cf.score)::float8, count(cf.score)
+		FROM analytics_criterion_facts cf JOIN scoped s ON s.call_uuid = cf.call_uuid
+		WHERE cf.criterion_key = ANY(%s::uuid[])
+		GROUP BY 1, 2 ORDER BY 1, 2`, bucket, calls, keysArg), q.args...)
 	if err != nil {
 		return nil, fmt.Errorf("read criterion trends: %w", err)
 	}

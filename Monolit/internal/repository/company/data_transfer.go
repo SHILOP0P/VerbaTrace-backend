@@ -151,7 +151,18 @@ func transferCalls(ctx context.Context, tx *sql.Tx, input model.TransferCompanyD
 
 	// Who a call counts for was found among the employees of the old company.
 	// Dropping it lets the analytics worker resolve it again among the new
-	// company's employees and re-project the facts.
+	// company's employees and re-project the facts. The audit keeps what was
+	// dropped and why; no actor, because nobody chose these people by hand.
+	if _, err = tx.ExecContext(ctx, `
+		INSERT INTO call_subject_events (event_uuid, call_uuid, actor_user_uuid, before, after, cause)
+		SELECT gen_random_uuid(), s.call_uuid, NULL,
+		       jsonb_agg(jsonb_build_object('user_uuid', s.user_uuid, 'source', s.source, 'is_primary', s.is_primary, 'grants_access', s.grants_access) ORDER BY s.is_primary DESC, s.user_uuid),
+		       '[]'::jsonb, $2
+		FROM call_subjects s
+		WHERE s.call_uuid = ANY(string_to_array($1, ',')::uuid[])
+		GROUP BY s.call_uuid`, movedIDs, model.CallSubjectCauseCompanyTransfer); err != nil {
+		return 0, fmt.Errorf("record dropped call subjects: %w", err)
+	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM call_subjects WHERE call_uuid = ANY(string_to_array($1, ',')::uuid[])`, movedIDs); err != nil {
 		return 0, fmt.Errorf("reset moved call subjects: %w", err)
 	}

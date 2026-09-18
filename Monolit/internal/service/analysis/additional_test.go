@@ -56,6 +56,18 @@ func TestAnalyzeCallValidationAndStatus(t *testing.T) {
 	}
 }
 
+// A marked employee reads the call but does not start its analysis: the right
+// is checked by the edit predicate before anything else is read.
+func TestAnalyzeCallNeedsTheRightToChangeTheCall(t *testing.T) {
+	callID, userID := uuid.New(), uuid.New()
+	callRepo := repositoryMocks.NewCallRepository(t)
+	callRepo.EXPECT().GetEditableByUUID(mock.Anything, callID, userID).Return(models.Call{}, models.ErrForbidden).Once()
+	service := NewService(callRepo, repositoryMocks.NewTranscriptionRepository(t), nil, repositoryMocks.NewAnalysisRepository(t), nil, nil, nil)
+	if _, err := service.AnalyzeCall(context.Background(), models.AnalyzeCallInput{CallUUID: callID, UserUUID: userID}); !errors.Is(err, models.ErrForbidden) {
+		t.Fatalf("analyze by a marked employee = %v", err)
+	}
+}
+
 func TestProcessAnalyzeCallValidation(t *testing.T) {
 	service := NewService(nil, nil, nil, nil, nil, nil, nil)
 	if err := service.ProcessAnalyzeCall(context.Background(), uuid.Nil); !errors.Is(err, models.ErrCallNotFound) {

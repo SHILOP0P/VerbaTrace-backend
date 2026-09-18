@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"verbatrace/monolit/internal/logger"
@@ -34,7 +35,7 @@ type Sender interface {
 }
 
 // MockSender stands in for mail and Telegram until they are connected: it logs
-// that a message would have gone and counts it as sent.
+// the letter it would have sent and counts it as sent.
 type MockSender struct{ log logger.Logger }
 
 func NewMockSender(log logger.Logger) *MockSender {
@@ -47,9 +48,27 @@ func NewMockSender(log logger.Logger) *MockSender {
 func (m *MockSender) Name() string { return "mock" }
 
 func (m *MockSender) Send(ctx context.Context, message Message) error {
+	title, text := mockLetter(message.Payload)
 	m.log.Info(ctx, "outbound message (mock sender)", zap.String("message_id", message.ID.String()),
-		zap.String("channel", message.Channel), zap.String("kind", message.Kind), zap.Int("payload_bytes", len(message.Payload)))
+		zap.String("channel", message.Channel), zap.String("kind", message.Kind), zap.String("address", message.Address),
+		zap.String("title", title), zap.String("text", text))
 	return nil
+}
+
+// secretInLink is the one-time token of a link, such as a password reset.
+var secretInLink = regexp.MustCompile(`([?&]token=)[A-Za-z0-9_%\-]+`)
+
+// mockLetter is the letter as the log shows it: whole, so the text and the
+// links can be checked before real mail exists, but with every link token
+// hidden. The reset page is public, and a readable token would let anyone who
+// reads the logs set a new password on any account.
+func mockLetter(payload json.RawMessage) (title, text string) {
+	var letter struct {
+		Title string `json:"title"`
+		Text  string `json:"text"`
+	}
+	_ = json.Unmarshal(payload, &letter)
+	return letter.Title, secretInLink.ReplaceAllString(letter.Text, "${1}[скрыто]")
 }
 
 // NewSender picks the sender named by NOTIFY_SENDER. Only the mock exists.

@@ -76,12 +76,12 @@ func (s *Service) Request(ctx context.Context, email, ip string) {
 	}
 	s.count(ctx, AccountRateLimit, email)
 	s.count(ctx, IPRateLimit, ip)
-	if err := s.request(ctx, email); err != nil {
+	if err := s.request(ctx, email, ip); err != nil {
 		s.log.Warn(ctx, "password reset not requested", zap.Error(err))
 	}
 }
 
-func (s *Service) request(ctx context.Context, email string) error {
+func (s *Service) request(ctx context.Context, email, ip string) error {
 	var user uuid.UUID
 	var address string
 	err := s.db.QueryRowContext(ctx, `SELECT user_uuid, email FROM users WHERE lower(email) = $1`, email).Scan(&user, &address)
@@ -106,7 +106,9 @@ func (s *Service) request(ctx context.Context, email string) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE password_reset_tokens SET used_at = now() WHERE user_uuid = $1 AND used_at IS NULL`, user); err != nil {
 		return fmt.Errorf("void previous reset tokens: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO password_reset_tokens (token_hash, user_uuid, expires_at) VALUES ($1, $2, $3)`, hash, user, s.now().Add(tokenTTL)); err != nil {
+	// The address the request came from is kept beside the token, so a reset the
+	// owner did not ask for can be traced.
+	if _, err := tx.ExecContext(ctx, `INSERT INTO password_reset_tokens (token_hash, user_uuid, expires_at, requested_ip) VALUES ($1, $2, $3, NULLIF($4, ''))`, hash, user, s.now().Add(tokenTTL), ip); err != nil {
 		return fmt.Errorf("store reset token: %w", err)
 	}
 	link := s.publicURL + "/reset-password?token=" + url.QueryEscape(token)
