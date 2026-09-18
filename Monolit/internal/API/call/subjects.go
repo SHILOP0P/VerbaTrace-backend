@@ -23,6 +23,46 @@ type CallAccessReader interface {
 type CallSubjectsService interface {
 	Get(ctx context.Context, callID uuid.UUID) (models.CallSubjects, error)
 	SetManual(ctx context.Context, input models.SetCallSubjectsInput) (models.CallSubjects, error)
+	Candidates(ctx context.Context, callID uuid.UUID) ([]models.CallSubjectCandidate, error)
+}
+
+// ListSubjectCandidates is GET /calls/{uuid}/subject-candidates: the employees
+// of the call's company, for those who may mark speakers. The members list of a
+// company is for management; this is only what marking a speaker needs.
+func (h *CallHandler) ListSubjectCandidates(w http.ResponseWriter, r *http.Request) {
+	userID, ok := userIDFromRequest(r)
+	if !ok {
+		response.WriteError(w, http.StatusUnauthorized, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+	callID, err := uuid.Parse(chi.URLParam(r, "uuid"))
+	if err != nil {
+		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidCallUUID, "invalid call uuid")
+		return
+	}
+	if h.subjects == nil || h.access == nil {
+		response.WriteError(w, http.StatusNotImplemented, response.CodeNotImplemented, "call subjects are not configured")
+		return
+	}
+	access, err := h.access.GetAccess(r.Context(), callID, userID)
+	if err != nil {
+		response.WriteError(w, http.StatusNotFound, response.CodeCallNotFound, "call not found")
+		return
+	}
+	if !access.CanEdit {
+		response.WriteError(w, http.StatusForbidden, response.CodeCallEditForbidden, "call is read-only for you")
+		return
+	}
+	candidates, err := h.subjects.Candidates(r.Context(), callID)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToFindCall, "failed to list call subject candidates")
+		return
+	}
+	items := make([]map[string]string, 0, len(candidates))
+	for _, c := range candidates {
+		items = append(items, map[string]string{"user_uuid": c.UserID.String(), "full_name": c.FullName, "username": c.Username})
+	}
+	_ = response.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func (h *CallHandler) SetCallAccessReader(reader CallAccessReader)        { h.access = reader }

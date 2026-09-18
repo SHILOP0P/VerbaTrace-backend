@@ -121,6 +121,31 @@ func manualDecision(ctx context.Context, q querier, call callRow, input models.S
 	return result, nil
 }
 
+// Candidates lists the active employees of the call's company, for marking
+// speakers. A personal call has none.
+func (s *Service) Candidates(ctx context.Context, callID uuid.UUID) ([]models.CallSubjectCandidate, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT m.user_uuid, COALESCE(btrim(p.full_name || ' ' || p.full_surname), ''), COALESCE(p.username, '')
+		FROM calls c
+		JOIN company_members m ON m.company_uuid = c.company_uuid AND m.status = 'active'
+		LEFT JOIN user_profiles p ON p.user_uuid = m.user_uuid
+		WHERE c.call_uuid = $1
+		ORDER BY 2, m.user_uuid`, callID)
+	if err != nil {
+		return nil, fmt.Errorf("list call subject candidates: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	result := []models.CallSubjectCandidate{}
+	for rows.Next() {
+		var item models.CallSubjectCandidate
+		if err := rows.Scan(&item.UserID, &item.FullName, &item.Username); err != nil {
+			return nil, fmt.Errorf("scan call subject candidate: %w", err)
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
 func uuidStrings(ids []uuid.UUID) []string {
 	result := make([]string, len(ids))
 	for i, id := range ids {

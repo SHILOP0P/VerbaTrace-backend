@@ -72,6 +72,13 @@ type CallSubjects struct {
 	SubjectsChangedManually bool
 }
 
+// CallSubjectCandidate is an employee who may be marked as a speaker of a call.
+type CallSubjectCandidate struct {
+	UserID   uuid.UUID
+	FullName string
+	Username string
+}
+
 // SetCallSubjectsInput replaces the automatic composition by hand. An empty
 // list hands the call back to automatic resolution.
 type SetCallSubjectsInput struct {

@@ -153,7 +153,11 @@ func TestOnlyManagementSetsSubjectsByHandAndItHolds(t *testing.T) {
 	ctx := context.Background()
 	w.service.Refresh(ctx, w.call, uuid.NullUUID{}, models.CallSubjectCauseTranscription)
 
-	_, err := w.service.SetManual(ctx, models.SetCallSubjectsInput{CallID: w.call, ActorID: w.olga, UserIDs: []uuid.UUID{w.olga}})
+	candidates, err := w.service.Candidates(ctx, w.call)
+	require.NoError(t, err)
+	require.Len(t, candidates, 3, "the active employees of the call's company, not the client")
+
+	_, err = w.service.SetManual(ctx, models.SetCallSubjectsInput{CallID: w.call, ActorID: w.olga, UserIDs: []uuid.UUID{w.olga}})
 	require.ErrorIs(t, err, models.ErrForbidden)
 	_, err = w.service.SetManual(ctx, models.SetCallSubjectsInput{CallID: w.call, ActorID: w.owner, UserIDs: []uuid.UUID{w.client}})
 	require.ErrorIs(t, err, models.ErrInvalidCallSubjects, "only employees of the call's company")
