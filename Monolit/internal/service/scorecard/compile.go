@@ -121,6 +121,10 @@ func (s *Service) compile(ctx context.Context, cardID uuid.UUID) error {
 		}
 	}
 	result, err := scorecardflow.Compile(ctx, s.executor(card, instruction.owner()), input)
+	// Every rejected answer was a paid call; the reasons show what to tune.
+	for i, rejection := range result.Rejections {
+		s.log.Warn(ctx, "scorecard compile answer rejected", zap.String("scorecard_id", card.ID.String()), zap.Int("attempt", i+1), zap.String("problems", rejection))
+	}
 	switch {
 	case err == nil:
 	case errors.Is(err, scorecardflow.ErrInvalidOutput):

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -67,6 +68,44 @@ func TestValidateOnLastAttemptKeepsCriterionWithUnverifiedExcerpt(t *testing.T) 
 	require.Equal(t, []string{WarningExcerptUnverified}, checked.Criteria[0].Warnings)
 }
 
+// Seen on a live compile: the model misspelt one word of a quote and changed a
+// sign in another, and the whole paid compile was asked again twice.
+func TestValidateRepairsAnAlmostVerbatimExcerptWithTheInstructionText(t *testing.T) {
+	text := "### Подготовь три технические истории\n\nОбязательно уточни верхнюю границу диапазона: должно выполняться `0 <= n <= max`; иначе цикл может не завершиться."
+	output, err := Validate(Output{Criteria: []Criterion{
+		{Title: "Истории", Requirement: "x", SourceExcerpt: "Подготовь три техничесные истории"},
+		{Title: "Граница", Requirement: "x", SourceExcerpt: "уточни верхнюю границу диапазона: должно выполняться 0 <= n < max"},
+	}}, Input{InstructionText: text}, false)
+	require.NoError(t, err)
+	require.Equal(t, "Подготовь три технические истории", output.Criteria[0].SourceExcerpt)
+	require.Equal(t, "уточни верхнюю границу диапазона: должно выполняться `0 <= n <= max", output.Criteria[1].SourceExcerpt)
+	for _, criterion := range output.Criteria {
+		require.Empty(t, criterion.Warnings)
+		require.Contains(t, collapseSpaces(text), criterion.SourceExcerpt, "a repaired excerpt is the instruction's own text")
+	}
+}
+
+func TestValidateToleratesAFewUnverifiableExcerptsInsteadOfAskingAgain(t *testing.T) {
+	var lines []string
+	var criteria []Criterion
+	for i := 0; i < 10; i++ {
+		requirement := fmt.Sprintf("пункт номер %d проверяется отдельно", i)
+		lines = append(lines, "- "+requirement)
+		criteria = append(criteria, Criterion{Title: fmt.Sprintf("Пункт %d", i), Requirement: "x", SourceExcerpt: requirement})
+	}
+	input := Input{InstructionText: strings.Join(lines, "\n")}
+	criteria[4].SourceExcerpt = "совсем другой текст, которого нет"
+
+	output, err := Validate(Output{Criteria: criteria}, input, false)
+	require.NoError(t, err, "one in ten may stay unverified")
+	require.Empty(t, output.Criteria[4].SourceExcerpt)
+	require.Equal(t, []string{WarningExcerptUnverified}, output.Criteria[4].Warnings)
+
+	criteria[7].SourceExcerpt = "и ещё одна выдуманная цитата"
+	_, err = Validate(Output{Criteria: criteria}, input, false)
+	require.EqualError(t, err, "criteria[4].source_excerpt не найден в instruction_text дословно; criteria[7].source_excerpt не найден в instruction_text дословно")
+}
+
 func TestValidateTreatsEmptyCriteriaWithReasonAsAnAnswer(t *testing.T) {
 	output, err := Validate(Output{NoCriteriaReason: " Это справка о продукте "}, Input{InstructionText: "справка"}, false)
 	require.NoError(t, err)
@@ -98,6 +137,7 @@ func TestCompileRetriesWithValidationErrorsAndStopsOnProviderErrors(t *testing.T
 	require.Equal(t, "m", result.Model)
 	require.Empty(t, seen[0].ValidationErrors)
 	require.Equal(t, "criteria[0].source_excerpt не найден в instruction_text дословно", seen[1].ValidationErrors)
+	require.Equal(t, []string{seen[1].ValidationErrors}, result.Rejections)
 
 	boom := errors.New("provider down")
 	_, err = Compile(context.Background(), func(context.Context, string, models.AnalysisTask) (models.AnalysisResult, error) {

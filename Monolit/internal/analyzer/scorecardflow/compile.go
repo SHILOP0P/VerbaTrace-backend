@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"verbatrace/monolit/internal/models"
@@ -20,7 +21,7 @@ const (
 	// StepCompile names the task, so a deterministic analyzer can answer it.
 	StepCompile = "scorecard_compile"
 	// CompilerVersion changes whenever the prompt, the schema or the checks do.
-	CompilerVersion = "scorecard-v1"
+	CompilerVersion = "scorecard-v2"
 	// MaxEnabled is how many criteria may be switched on in one scorecard.
 	MaxEnabled    = 40
 	MaxAttempts   = 3
@@ -88,6 +89,9 @@ type Result struct {
 	Output   Output
 	Model    string
 	Attempts int
+	// Rejections are the validation errors of the attempts that were asked
+	// again, in order; each one cost a full provider call.
+	Rejections []string
 }
 
 // Executor runs one provider request. The caller meters it; key identifies the
@@ -113,13 +117,15 @@ func Task(input Input) models.AnalysisTask {
 // criteria list with a reason is a valid answer, not an error.
 func Compile(ctx context.Context, execute Executor, input Input) (Result, error) {
 	var last error
+	var rejections []string
 	for attempt := 0; attempt < MaxAttempts; attempt++ {
 		if last != nil {
 			input.ValidationErrors = last.Error()
+			rejections = append(rejections, last.Error())
 		}
 		result, err := execute(ctx, fmt.Sprintf("try%d", attempt), Task(input))
 		if err != nil {
-			return Result{Attempts: attempt + 1}, err
+			return Result{Attempts: attempt + 1, Rejections: rejections}, err
 		}
 		model := ""
 		if result.Model != nil {
@@ -132,17 +138,22 @@ func Compile(ctx context.Context, execute Executor, input Input) (Result, error)
 		}
 		checked, err := Validate(output, input, attempt == MaxAttempts-1)
 		if err == nil {
-			return Result{Output: checked, Model: model, Attempts: attempt + 1}, nil
+			return Result{Output: checked, Model: model, Attempts: attempt + 1, Rejections: rejections}, nil
 		}
 		last = err
 	}
-	return Result{Attempts: MaxAttempts}, fmt.Errorf("%w: %v", ErrInvalidOutput, last)
+	rejections = append(rejections, last.Error())
+	return Result{Attempts: MaxAttempts, Rejections: rejections}, fmt.Errorf("%w: %v", ErrInvalidOutput, last)
 }
 
-// Validate applies the server checks. On the last attempt an excerpt that
-// cannot be found no longer fails the compile: text extracted from a PDF is
-// often too dirty for the model to quote exactly, and losing a whole scorecard
-// over that would be worse than keeping the criterion without a quote.
+// Validate applies the server checks. An excerpt the model quoted almost word
+// for word (a typo, a changed sign, a dropped word) is replaced by the text it
+// was quoting. One that still cannot be found fails the attempt only when it is
+// more than a few: every attempt repeats the whole paid compile, and asking
+// again for 43 criteria over two bad quotes costs more than it gives, while the
+// criterion keeps its warning for the owner to see. On the last attempt no
+// excerpt fails the compile: text extracted from a PDF is often too dirty to
+// quote exactly, and losing a whole scorecard over that would be worse.
 func Validate(output Output, input Input, lastAttempt bool) (Output, error) {
 	reason := strings.TrimSpace(output.NoCriteriaReason)
 	if len(output.Criteria) == 0 {
@@ -157,6 +168,10 @@ func Validate(output Output, input Input, lastAttempt bool) (Output, error) {
 		problems = append(problems, "no_criteria_reason заполнен при непустом criteria")
 	}
 	text := collapseSpaces(input.InstructionText)
+	var textWords []wordSpan
+	// Excerpt problems are tracked apart: alone and few, they do not fail the
+	// attempt.
+	excerptProblem := map[int]bool{}
 	previous := map[string]bool{}
 	for _, criterion := range input.PreviousCriteria {
 		previous[criterion.Key] = true
@@ -199,12 +214,17 @@ func Validate(output Output, input Input, lastAttempt bool) (Output, error) {
 				problems = append(problems, fmt.Sprintf("criteria[%d].source_excerpt короче 10 символов", n))
 			}
 		case !strings.Contains(text, collapseSpaces(c.SourceExcerpt)):
-			if lastAttempt {
-				c.SourceExcerpt = ""
-				c.Warnings = appendWarning(c.Warnings, WarningExcerptUnverified)
-			} else {
-				problems = append(problems, fmt.Sprintf("criteria[%d].source_excerpt не найден в instruction_text дословно", n))
+			if textWords == nil {
+				textWords = splitWords(input.InstructionText)
 			}
+			if repaired, ok := repairExcerpt(input.InstructionText, textWords, c.SourceExcerpt); ok {
+				c.SourceExcerpt = collapseSpaces(repaired)
+				break
+			}
+			c.SourceExcerpt = ""
+			c.Warnings = appendWarning(c.Warnings, WarningExcerptUnverified)
+			excerptProblem[len(problems)] = true
+			problems = append(problems, fmt.Sprintf("criteria[%d].source_excerpt не найден в instruction_text дословно", n))
 		}
 		if c.SameAs != nil {
 			key := strings.TrimSpace(*c.SameAs)
@@ -227,6 +247,16 @@ func Validate(output Output, input Input, lastAttempt bool) (Output, error) {
 		}
 		checked[n] = c
 	}
+	onlyExcerpts := len(excerptProblem) == len(problems)
+	if lastAttempt || (onlyExcerpts && len(excerptProblem) <= tolerableUnverified(len(output.Criteria))) {
+		kept := problems[:0]
+		for i, problem := range problems {
+			if !excerptProblem[i] {
+				kept = append(kept, problem)
+			}
+		}
+		problems = kept
+	}
 	if len(problems) > 0 {
 		return output, errors.New(strings.Join(problems, "; "))
 	}
@@ -243,6 +273,142 @@ func NormalizeTitle(value string) string {
 }
 
 func collapseSpaces(value string) string { return strings.Join(strings.Fields(value), " ") }
+
+// tolerableUnverified is how many criteria may keep an unverified excerpt
+// without asking the model again: one in ten.
+func tolerableUnverified(criteria int) int { return criteria / 10 }
+
+const (
+	// repairMinWords keeps short quotes out of the repair: with few words a
+	// near match says little about where the quote came from.
+	repairMinWords = 4
+	// repairMinShare is the share of the quote's words that must appear, in
+	// order, in the span it is replaced with.
+	repairMinShare = 0.8
+)
+
+// wordSpan is one word of a text in comparison form, with its place in the
+// original.
+type wordSpan struct {
+	norm       string
+	start, end int
+}
+
+func splitWords(text string) []wordSpan {
+	var words []wordSpan
+	start := -1
+	flush := func(end int) {
+		if start >= 0 {
+			words = append(words, wordSpan{norm: strings.ReplaceAll(strings.ToLower(text[start:end]), "ё", "е"), start: start, end: end})
+			start = -1
+		}
+	}
+	for i, r := range text {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			if start < 0 {
+				start = i
+			}
+			continue
+		}
+		flush(i)
+	}
+	flush(len(text))
+	return words
+}
+
+// repairExcerpt finds the span of the instruction the model was quoting when
+// its quote is not verbatim. Words are compared without case, punctuation and
+// markup, and the span must hold most of the quote's words in the same order.
+// What is returned is the instruction's own text, so a repaired excerpt is
+// still a verbatim quote.
+func repairExcerpt(text string, textWords []wordSpan, excerpt string) (string, bool) {
+	quoted := splitWords(excerpt)
+	if len(quoted) < repairMinWords {
+		return "", false
+	}
+	// A span starts where one of the first words of the quote does, so a typo in
+	// the very first word does not lose the match.
+	starters := map[string]bool{}
+	for _, word := range quoted[:min(3, len(quoted))] {
+		if utf8.RuneCountInString(word.norm) >= 3 {
+			starters[word.norm] = true
+		}
+	}
+	bestShare, bestStart, bestEnd := 0.0, -1, -1
+	window := len(quoted) + len(quoted)/5 + 2
+	for j := range textWords {
+		if !starters[textWords[j].norm] {
+			continue
+		}
+		candidate := textWords[j:min(len(textWords), j+window)]
+		matched, last := inOrder(quoted, candidate)
+		share := float64(matched) / float64(len(quoted))
+		if share > bestShare {
+			bestShare, bestStart, bestEnd = share, textWords[j].start, candidate[last].end
+		}
+	}
+	if bestShare < repairMinShare {
+		return "", false
+	}
+	return text[bestStart:bestEnd], true
+}
+
+// sameWord forgives a typo: a word of four letters or more matches one that
+// differs in at most a quarter of its letters and starts the same way.
+func sameWord(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ra, rb := []rune(a), []rune(b)
+	limit := min(len(ra), len(rb)) / 4
+	if limit == 0 || ra[0] != rb[0] || len(ra)-len(rb) > limit || len(rb)-len(ra) > limit {
+		return false
+	}
+	previous := make([]int, len(rb)+1)
+	current := make([]int, len(rb)+1)
+	for k := range previous {
+		previous[k] = k
+	}
+	for i := 1; i <= len(ra); i++ {
+		current[0] = i
+		for k := 1; k <= len(rb); k++ {
+			cost := 1
+			if ra[i-1] == rb[k-1] {
+				cost = 0
+			}
+			current[k] = min(previous[k]+1, current[k-1]+1, previous[k-1]+cost)
+		}
+		previous, current = current, previous
+	}
+	return previous[len(rb)] <= limit
+}
+
+// inOrder is the longest common subsequence of two word lists, with the index
+// in the second list of the last word it uses.
+func inOrder(quoted, candidate []wordSpan) (int, int) {
+	previous := make([]int, len(candidate)+1)
+	current := make([]int, len(candidate)+1)
+	for _, word := range quoted {
+		for k := range candidate {
+			switch {
+			case sameWord(word.norm, candidate[k].norm):
+				current[k+1] = previous[k] + 1
+			case previous[k+1] >= current[k]:
+				current[k+1] = previous[k+1]
+			default:
+				current[k+1] = current[k]
+			}
+		}
+		previous, current = current, previous
+	}
+	best := previous[len(candidate)]
+	for k := 1; k <= len(candidate); k++ {
+		if previous[k] == best {
+			return best, k - 1
+		}
+	}
+	return 0, 0
+}
 
 func knownWarnings(values []string) []string {
 	result := []string{}
