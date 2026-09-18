@@ -39,13 +39,17 @@ func (r *Repository) UpdateCallTitle(ctx context.Context, id uuid.UUID, userID u
 	          transcription_only,
 	          EXISTS (SELECT 1 FROM ingest_items i JOIN developer_applications a USING(application_uuid) WHERE i.ingest_item_uuid=c.ingest_item_uuid AND a.environment='sandbox') AS is_test,
 	          created_at
-	`, visibleToUserCondition("c", "$2"))
+	`, editableByUserCondition("c", "$2"))
 
 	row := r.db.QueryRowContext(ctx, queryUpdate, id, userID, title)
 
 	repoCall, err := scaner.ScanCall(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			// A call the user sees but may not change is refused, not hidden.
+			if _, visibleErr := r.GetByUUID(ctx, id, userID); visibleErr == nil {
+				return models.Call{}, models.ErrForbidden
+			}
 			return models.Call{}, models.ErrCallNotFound
 		}
 		return models.Call{}, fmt.Errorf("update call title failed: %w", err)

@@ -31,6 +31,7 @@ type Service struct {
 
 type callRepository interface {
 	GetByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error)
+	GetEditableByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error)
 }
 
 type companyRepository interface {
@@ -175,7 +176,7 @@ func (s *Service) AssignCall(ctx context.Context, input models.AssignCallToFolde
 	if err := s.authorizeManageFolder(ctx, folder, input.UserID); err != nil {
 		return err
 	}
-	call, err := s.callRepository.GetByUUID(ctx, input.CallUUID, input.UserID)
+	call, err := s.callRepository.GetEditableByUUID(ctx, input.CallUUID, input.UserID)
 	if err != nil {
 		return err
 	}

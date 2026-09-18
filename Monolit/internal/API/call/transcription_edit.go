@@ -181,6 +181,8 @@ func writeTranscriptionEditError(w http.ResponseWriter, err error) {
 		response.WriteError(w, http.StatusConflict, response.CodeTranscriptionRevisionConflict, "transcription revision conflict")
 	case errors.Is(err, models.ErrTranscriptionEditForbidden):
 		response.WriteError(w, http.StatusForbidden, response.CodeTranscriptionEditForbidden, "transcription edit forbidden")
+	case errors.Is(err, models.ErrForbidden):
+		response.WriteError(w, http.StatusForbidden, response.CodeCallEditForbidden, "call is read-only for you")
 	case errors.Is(err, models.ErrRedactedWordEditForbidden):
 		response.WriteError(w, http.StatusUnprocessableEntity, response.CodeRedactedWordEditForbidden, "Скрытые данные изменяются только через проверку маски")
 	case errors.Is(err, models.ErrTranscriptionLockedByReview):

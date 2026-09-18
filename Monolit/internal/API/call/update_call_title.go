@@ -45,6 +45,10 @@ func (h *CallHandler) UpdateCallTitle(w http.ResponseWriter, r *http.Request) {
 			response.WriteError(w, http.StatusNotFound, response.CodeCallNotFound, "call not found")
 			return
 		}
+		if errors.Is(err, models.ErrForbidden) {
+			response.WriteError(w, http.StatusForbidden, response.CodeCallEditForbidden, "call is read-only for you")
+			return
+		}
 		response.WriteError(w, http.StatusInternalServerError, response.CodeFailedToUpdateCallTitle, "failed to update call title")
 		return
 	}

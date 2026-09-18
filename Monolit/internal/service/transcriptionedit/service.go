@@ -13,6 +13,7 @@ import (
 	"verbatrace/monolit/internal/companystate"
 	"verbatrace/monolit/internal/models"
 	repo "verbatrace/monolit/internal/repository"
+	"verbatrace/monolit/internal/service/callsubject"
 
 	"github.com/google/uuid"
 )
@@ -78,9 +79,9 @@ func (s *Service) Restore(ctx context.Context, callID, userID uuid.UUID, expecte
 	if targetRevision < 1 {
 		return models.Transcription{}, Revision{}, models.ErrInvalidTranscriptionEdit
 	}
-	// Everybody who may read the call may correct its transcript; the read
-	// itself is the permission check.
-	if _, err := s.callRepository.GetByUUID(ctx, callID, userID); err != nil {
+	// Reading a call is not enough to change its transcript: an employee marked
+	// in the call only reads it.
+	if _, err := s.callRepository.GetEditableByUUID(ctx, callID, userID); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
 	if err := s.ensureCompanyActive(ctx, callID); err != nil {
@@ -169,6 +170,7 @@ func (s *Service) Restore(ctx context.Context, callID, userID uuid.UUID, expecte
 	if err = tx.Commit(); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
+	s.refreshSubjects(ctx, callID, userID)
 	updated, err := s.transcription.GetByCallUUID(ctx, callID)
 	rev.CallUUID, rev.Revision, rev.IsCurrent = callID, targetRevision, true
 	return updated, rev, err
@@ -178,6 +180,24 @@ type Service struct {
 	db             *sql.DB
 	callRepository repo.CallRepository
 	transcription  repo.TranscriptionRepository
+	subjects       SubjectResolver
+}
+
+// SubjectResolver decides again whom a call counts for when its speakers or
+// their words change. Speaker roles are resolved in the transaction that saves
+// them; transcript edits afterwards.
+type SubjectResolver interface {
+	ResolveTx(ctx context.Context, tx *sql.Tx, callID uuid.UUID, actor uuid.NullUUID, cause string) (callsubject.Change, error)
+	After(ctx context.Context, change callsubject.Change)
+	Refresh(ctx context.Context, callID uuid.UUID, actor uuid.NullUUID, cause string)
+}
+
+func (s *Service) SetSubjectResolver(resolver SubjectResolver) { s.subjects = resolver }
+
+func (s *Service) refreshSubjects(ctx context.Context, callID, userID uuid.UUID) {
+	if s.subjects != nil {
+		s.subjects.Refresh(ctx, callID, uuid.NullUUID{UUID: userID, Valid: true}, models.CallSubjectCauseTranscriptionEdit)
+	}
 }
 
 // ensureNotUnderReview keeps the transcript frozen while a quality review is
@@ -248,7 +268,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 	if err := validateReason(input.Reason); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
-	if _, err := s.callRepository.GetByUUID(ctx, input.CallUUID, input.UserUUID); err != nil {
+	if _, err := s.callRepository.GetEditableByUUID(ctx, input.CallUUID, input.UserUUID); err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
 	if err := s.ensureCompanyActive(ctx, input.CallUUID); err != nil {
@@ -412,6 +432,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (models.Transcr
 	if err != nil {
 		return models.Transcription{}, Revision{}, err
 	}
+	s.refreshSubjects(ctx, input.CallUUID, input.UserUUID)
 	return updated, Revision{ID: revisionID, CallUUID: input.CallUUID, Revision: newRevision, Reason: strings.TrimSpace(input.Reason), ChangedWordIndexes: changed, CreatedBy: &input.UserUUID, CreatedAt: time.Now().UTC(), IsCurrent: true}, nil
 }
 

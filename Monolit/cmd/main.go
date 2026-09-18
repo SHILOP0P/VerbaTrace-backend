@@ -72,6 +72,7 @@ import (
 	bitrix24Service "verbatrace/monolit/internal/service/bitrix24"
 	callService "verbatrace/monolit/internal/service/call"
 	callFolderService "verbatrace/monolit/internal/service/call_folder"
+	callSubjectService "verbatrace/monolit/internal/service/callsubject"
 	companyService "verbatrace/monolit/internal/service/company"
 	contactService "verbatrace/monolit/internal/service/contact"
 	departmentService "verbatrace/monolit/internal/service/department"
@@ -328,9 +329,18 @@ func main() {
 	// Undoing a company deletion is the superadmin's own section of the panel,
 	// and the only place the operation is reachable from.
 	adminHandler.SetCompanyLifecycleService(companySvc)
+	// Whom a call counts for is decided again whenever its speakers can have
+	// changed: after transcription, on role and transcript edits, before analysis.
+	callSubjectSvc := callSubjectService.NewService(sqlDB, appLogger)
+	callSubjectSvc.SetNotificationService(notificationSvc)
+	processingSvc.SetSubjectRefresher(callSubjectSvc)
+	transcriptionEditor := transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository)
+	transcriptionEditor.SetSubjectResolver(callSubjectSvc)
 	callHandler := call.NewCallHandler(callSvc)
-	callHandler.SetTranscriptionEditor(transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository))
+	callHandler.SetTranscriptionEditor(transcriptionEditor)
 	callHandler.SetPrivacyService(privacySvc)
+	callHandler.SetCallAccessReader(callRepository)
+	callHandler.SetCallSubjectsService(callSubjectSvc)
 	callFolderHandler := callFolderAPI.NewHandler(callFolderSvc)
 	contactHandler := contactAPI.NewHandler(contactSvc)
 	authHandler := authAPI.NewAuthHandler(authSvc, config.AppConfig().Auth.AccessTokenTTL(), config.AppConfig().Auth.RefreshTokenTTL())

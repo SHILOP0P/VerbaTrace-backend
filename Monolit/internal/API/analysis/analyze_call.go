@@ -54,6 +54,10 @@ func writeAnalyzeError(w http.ResponseWriter, err error) {
 		response.WriteError(w, http.StatusBadRequest, response.CodeInvalidAnalysisInput, "invalid analysis input")
 		return
 	}
+	if errors.Is(err, models.ErrForbidden) {
+		response.WriteError(w, http.StatusForbidden, response.CodeCallEditForbidden, "call is read-only for you")
+		return
+	}
 	if errors.Is(err, models.ErrAnalyzerNotConfigured) {
 		response.WriteError(w, http.StatusServiceUnavailable, response.CodeAnalyzerNotConfigured, "analyzer not configured")
 		return

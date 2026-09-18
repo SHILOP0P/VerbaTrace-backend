@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"verbatrace/monolit/internal/models"
+	"verbatrace/monolit/internal/service/callsubject"
+
 	"github.com/google/uuid"
 )
 
@@ -43,7 +46,10 @@ func (s *Service) ReplaceSpeakerAssignments(ctx context.Context, callID, userID 
 	if len(input) > 32 {
 		return nil, ErrInvalidSpeakerAssignments
 	}
-	if _, err := s.callRepository.GetByUUID(ctx, callID, userID); err != nil {
+	// Marking an employee in a call shares it with them, so only those who may
+	// change the call may mark.
+	call, err := s.callRepository.GetEditableByUUID(ctx, callID, userID)
+	if err != nil {
 		return nil, err
 	}
 	if err := s.ensureCompanyActive(ctx, callID); err != nil {
@@ -66,8 +72,11 @@ func (s *Service) ReplaceSpeakerAssignments(ctx context.Context, callID, userID 
 			return nil, ErrInvalidSpeakerAssignments
 		}
 		if input[index].ContactUserUUID != nil {
+			// A speaker may be one of the editor's contacts or an employee of the
+			// call's company: marking employees is how a call is shared with them.
 			var allowed bool
-			if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM user_contacts WHERE user_uuid=$1 AND contact_user_uuid=$2)`, userID, *input[index].ContactUserUUID).Scan(&allowed); err != nil || !allowed {
+			if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM user_contacts WHERE user_uuid=$1 AND contact_user_uuid=$2)
+				OR EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$3 AND user_uuid=$2 AND status='active')`, userID, *input[index].ContactUserUUID, call.CompanyUUID).Scan(&allowed); err != nil || !allowed {
 				return nil, ErrInvalidSpeakerAssignments
 			}
 		}
@@ -97,8 +106,19 @@ func (s *Service) ReplaceSpeakerAssignments(ctx context.Context, callID, userID 
 			return nil, fmt.Errorf("mark analysis stale: %w", err)
 		}
 	}
+	// Who spoke decides whom the call counts for and who may read it; that
+	// commits together with the roles that say so.
+	var change callsubject.Change
+	if s.subjects != nil {
+		if change, err = s.subjects.ResolveTx(ctx, tx, callID, uuid.NullUUID{UUID: userID, Valid: true}, models.CallSubjectCauseSpeakerAssignments); err != nil {
+			return nil, fmt.Errorf("resolve call subjects: %w", err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit speaker assignments: %w", err)
+	}
+	if s.subjects != nil {
+		s.subjects.After(ctx, change)
 	}
 	return input, nil
 }

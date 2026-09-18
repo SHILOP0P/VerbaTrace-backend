@@ -788,3 +788,11 @@ func (r *analysisRepository) MarkFailed(ctx context.Context, id uuid.UUID, error
 		UpdatedAt:    time.Now().UTC(),
 	}, nil
 }
+
+func (r *analysisCallRepository) GetEditableByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error) {
+	return r.GetByUUID(ctx, id, userID)
+}
+
+func (r *analysisCallRepository) GetAccess(context.Context, uuid.UUID, uuid.UUID) (models.CallAccess, error) {
+	return models.CallAccess{CanEdit: true, Via: models.CallAccessViaUploader}, nil
+}

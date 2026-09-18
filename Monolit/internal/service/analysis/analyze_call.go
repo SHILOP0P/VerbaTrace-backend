@@ -23,7 +23,7 @@ func (s *Service) AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput
 		return models.CallAnalysis{}, models.ErrInvalidAnalysisInput
 	}
 
-	call, err := s.callRepository.GetByUUID(ctx, input.CallUUID, input.UserUUID)
+	call, err := s.callRepository.GetEditableByUUID(ctx, input.CallUUID, input.UserUUID)
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("get call: %w", err)
 	}

@@ -46,7 +46,7 @@ func TestAnalyzeCallValidationAndStatus(t *testing.T) {
 	userID := uuid.New()
 	callRepo := repositoryMocks.NewCallRepository(t)
 	transcriptionRepo := repositoryMocks.NewTranscriptionRepository(t)
-	callRepo.EXPECT().GetByUUID(mock.Anything, callID, userID).Return(models.Call{ID: callID}, nil).Once()
+	callRepo.EXPECT().GetEditableByUUID(mock.Anything, callID, userID).Return(models.Call{ID: callID}, nil).Once()
 	transcriptionRepo.EXPECT().GetByCallUUID(mock.Anything, callID).Return(models.Transcription{
 		CallUUID: callID, Status: models.TranscriptionStatusProcessing,
 	}, nil).Once()

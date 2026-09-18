@@ -220,6 +220,9 @@ func (s *Service) processTranscribeCallWithMode(ctx context.Context, call models
 		}
 	}
 
+	if s.subjects != nil {
+		s.subjects.Refresh(ctx, call.ID, uuid.NullUUID{}, models.CallSubjectCauseTranscription)
+	}
 	if !call.TranscriptionOnly {
 		if err = s.enqueueAnalyzeJob(ctx, call.ID); err != nil {
 			return fmt.Errorf("enqueue analysis job: %w", err)
@@ -265,6 +268,11 @@ func (s *Service) ProcessAnalyzeCall(ctx context.Context, callID uuid.UUID) erro
 		return models.ErrAnalyzerNotConfigured
 	}
 
+	// Roles may have been fixed since the transcript was made: the analysis is
+	// counted for the people the call is about now.
+	if s.subjects != nil {
+		s.subjects.Refresh(ctx, callID, uuid.NullUUID{}, models.CallSubjectCauseAnalysis)
+	}
 	return s.analysisProcessor.ProcessAnalyzeCall(ctx, callID)
 }
 

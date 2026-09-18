@@ -200,6 +200,11 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Post("/calls/{uuid}/transcription/revisions/{revision}/restore", callAPI.RestoreTranscriptionRevision)
 			r.With(authGuard).Get("/calls/{uuid}/transcription/speakers", callAPI.ListTranscriptionSpeakerAssignments)
 			r.With(authGuard).Put("/calls/{uuid}/transcription/speakers", callAPI.ReplaceTranscriptionSpeakerAssignments)
+			if subjectsAPI, ok := callAPI.(interface {
+				SetSubjects(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Put("/calls/{uuid}/subjects", subjectsAPI.SetSubjects)
+			}
 			if privacyAPI, ok := callAPI.(interface {
 				GetPersonalPrivacyPolicy(http.ResponseWriter, *http.Request)
 				GetCompanyPrivacyPolicy(http.ResponseWriter, *http.Request)

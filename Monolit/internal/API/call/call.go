@@ -15,6 +15,9 @@ type CallHandler struct {
 	service service.CallService
 	editor  *transcriptionedit.Service
 	privacy *privacyservice.Service
+	// access and subjects fill a single call's response; both are optional.
+	access   CallAccessReader
+	subjects CallSubjectsService
 }
 
 func NewCallHandler(service service.CallService) *CallHandler {

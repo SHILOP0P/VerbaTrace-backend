@@ -281,3 +281,7 @@ func (r *departmentRepoStub) ListVisibleCompanyDepartments(context.Context, uuid
 func strPtr(value string) *string {
 	return &value
 }
+
+func (r *callRepoStub) GetEditableByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error) {
+	return r.GetByUUID(ctx, id, userID)
+}

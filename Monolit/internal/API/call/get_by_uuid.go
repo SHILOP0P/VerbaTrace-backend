@@ -44,6 +44,7 @@ func (h *CallHandler) GetByUUID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.enrichCallPrivacy(r, call, userID, &resp)
+	h.enrichCallAccess(r, call.ID, userID, &resp)
 
 	if err := response.WriteJSON(w, http.StatusOK, resp); err != nil {
 		return
