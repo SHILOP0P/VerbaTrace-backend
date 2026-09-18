@@ -224,7 +224,7 @@ func scorecardUnit(id string, requirement models.AnalysisRequirement) Unit {
 	if requirement.IsCritical {
 		parts = append(parts, "Критичное требование")
 	}
-	return Unit{ID: id, Kind: "requirement", Title: requirement.Title, Topic: requirement.InstructionTitle, SegmentIDs: []string{}, Parts: parts, RequiredQuestion: requirement.RequiredQuestion}
+	return Unit{ID: id, Kind: "requirement", Title: requirement.Title, Topic: requirement.InstructionTitle, SegmentIDs: []string{}, Parts: parts, RequiredQuestion: requirement.RequiredQuestion, PromptOnlyParts: true}
 }
 
 func valueOr(value, fallback string) string {
@@ -755,7 +755,7 @@ func (r *Runner) validateItems(items []map[string]any, units []Unit) error {
 		normalizeSpeakerMarkers(item, r.Segments)
 		item["title"] = u.Title
 		item["topic"] = u.Topic
-		item["question_parts"] = u.Parts
+		item["question_parts"] = u.shownParts()
 		item["required_question"] = u.RequiredQuestion
 		item["question_speaker"] = u.QuestionSpeaker
 		if u.Kind == "question" {
@@ -839,7 +839,15 @@ func (r *Runner) validateItems(items []map[string]any, units []Unit) error {
 				validSources = append(validSources, requirement.InstructionID.String())
 			}
 		}
+		if u.Kind == "requirement" && len(validSources) == 0 {
+			// A requirement the model broke out of an instruction without a
+			// scorecard comes from one of those instructions, and the model
+			// sometimes forgets to say which. Failing the call for that threw the
+			// whole analysis back to the start on every retry.
+			validSources = r.adhocSources()
+		}
 		item["instruction_sources"] = validSources
+		item["instruction_titles"] = r.instructionTitles(validSources)
 		if u.Kind == "requirement" && len(validSources) == 0 {
 			return errors.New("invalid requirement without instruction source")
 		}
@@ -1022,8 +1030,50 @@ func (r *Runner) result(summary map[string]any) map[string]any {
 	summary["overall_score_label"] = "Разбор не завершён"
 	return summary
 }
+
+// shownParts are the parts a card shows: the parts of a question, never the
+// description a scorecard requirement gives the model.
+func (u Unit) shownParts() []string {
+	if u.PromptOnlyParts {
+		return []string{}
+	}
+	return u.Parts
+}
+
+// adhocSources are the instructions the model broke into requirements itself:
+// those without a ready scorecard, or every instruction without scorecards.
+func (r *Runner) adhocSources() []any {
+	adhoc := map[string]bool{}
+	if r.Request.Scorecards != nil {
+		for _, id := range r.Request.Scorecards.AdhocInstructions {
+			adhoc[id.String()] = true
+		}
+	}
+	sources := []any{}
+	for _, instruction := range r.Request.Instructions {
+		if r.Request.Scorecards == nil || adhoc[instruction.ID.String()] {
+			sources = append(sources, instruction.ID.String())
+		}
+	}
+	return sources
+}
+
+// instructionTitles names the sources of a card, so it shows the instruction
+// by its title and never by its identifier.
+func (r *Runner) instructionTitles(sources []any) []any {
+	titles := make([]any, 0, len(sources))
+	for _, source := range sources {
+		for _, instruction := range r.Request.Instructions {
+			if instruction.ID.String() == text(source) {
+				titles = append(titles, instruction.Title)
+				break
+			}
+		}
+	}
+	return titles
+}
 func placeholder(u Unit, order int) map[string]any {
-	return map[string]any{"id": u.ID, "kind": u.Kind, "title": u.Title, "topic": u.Topic, "order": order, "asked": u.Kind == "question", "question_speaker": u.QuestionSpeaker, "question_parts": u.Parts, "processing_status": "pending", "status": "not_assessed", "weight": 1, "score": nil, "explanation": "Ответ и оценка появятся после обработки этого вопроса.", "strengths": []any{}, "gaps": []any{}, "improvement_kind": "not_needed", "evidence": []any{}, "instruction_sources": []any{}}
+	return map[string]any{"id": u.ID, "kind": u.Kind, "title": u.Title, "topic": u.Topic, "order": order, "asked": u.Kind == "question", "question_speaker": u.QuestionSpeaker, "question_parts": u.shownParts(), "processing_status": "pending", "status": "not_assessed", "weight": 1, "score": nil, "explanation": "Ответ и оценка появятся после обработки этого вопроса.", "strengths": []any{}, "gaps": []any{}, "improvement_kind": "not_needed", "evidence": []any{}, "instruction_sources": []any{}}
 }
 func requirementUnits(units []Unit) []Unit {
 	result := []Unit{}

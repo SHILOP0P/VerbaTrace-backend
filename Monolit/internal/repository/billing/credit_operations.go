@@ -40,7 +40,8 @@ func (r *Repository) IsSandboxMockCall(ctx context.Context, callID uuid.UUID) (b
 }
 
 // ReserveCredits reserves the full disclosed maximum before a provider call.
-// It never performs a partial reserve.
+// It never performs a partial reserve. The reservation is idempotent by its key,
+// so running it again after a serialization conflict is safe.
 func (r *Repository) ReserveCredits(ctx context.Context, subscription models.Subscription, input models.ReserveCreditsInput, now time.Time) (models.CreditOperation, error) {
 	if input.OperationUUID == uuid.Nil || strings.TrimSpace(input.IdempotencyKey) == "" || input.MaximumCharge < 0 {
 		return models.CreditOperation{}, models.ErrInvalidBillingInput
@@ -51,7 +52,12 @@ func (r *Repository) ReserveCredits(ctx context.Context, subscription models.Sub
 	if _, err := r.EnsureCurrentCreditUsage(ctx, subscription, now); err != nil {
 		return models.CreditOperation{}, err
 	}
+	return retrySerializable(ctx, "reserve credits", func() (models.CreditOperation, error) {
+		return r.reserveCreditsOnce(ctx, subscription, input, now)
+	})
+}
 
+func (r *Repository) reserveCreditsOnce(ctx context.Context, subscription models.Subscription, input models.ReserveCreditsInput, now time.Time) (models.CreditOperation, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return models.CreditOperation{}, fmt.Errorf("begin credit reserve: %w", err)
@@ -295,7 +301,12 @@ func (r *Repository) SettleCredits(ctx context.Context, input models.SettleCredi
 	if !json.Valid(usageJSON) {
 		return models.CreditOperation{}, models.ErrInvalidBillingInput
 	}
+	return retrySerializable(ctx, "settle credits", func() (models.CreditOperation, error) {
+		return r.settleCreditsOnce(ctx, input, usageJSON, now)
+	})
+}
 
+func (r *Repository) settleCreditsOnce(ctx context.Context, input models.SettleCreditsInput, usageJSON json.RawMessage, now time.Time) (models.CreditOperation, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return models.CreditOperation{}, fmt.Errorf("begin credit settlement: %w", err)

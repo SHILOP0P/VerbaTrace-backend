@@ -48,6 +48,11 @@ type Unit struct {
 	Parts            []string `json:"parts"`
 	RequiredQuestion bool     `json:"required_question"`
 	QuestionSpeaker  string   `json:"question_speaker,omitempty"`
+	// PromptOnlyParts marks parts that describe a scorecard requirement to the
+	// model (its wording, source, weight). They are no parts of a question and
+	// never reach a card; the field stays out of JSON, so provider input and the
+	// step cache do not change.
+	PromptOnlyParts bool `json:"-"`
 }
 
 type Inventory struct {

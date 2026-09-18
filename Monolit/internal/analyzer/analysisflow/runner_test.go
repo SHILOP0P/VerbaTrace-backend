@@ -424,6 +424,45 @@ func TestInstructionRequirementsOverlapInventoryAndShareAssessmentContext(t *tes
 	require.Contains(t, contexts["assess/u1.1/repair0/try0"], "Поздороваться", "every assessment sees all requirements")
 }
 
+// A requirement the model broke out of an instruction comes back without its
+// source now and then. The source is filled in from the instructions the model
+// was decomposing, instead of failing the call and starting it again, and the
+// card names the instruction by its title.
+func TestRequirementWithoutSourceTakesTheDecomposedInstruction(t *testing.T) {
+	provider, _ := openrouter.New("test", "test")
+	instruction := models.AnalysisInstructionContent{ID: uuid.New(), Title: "Приветствие", Content: "Поздороваться"}
+	fixture := fixtureExecutor(t, false, false)
+	runner := analysisflow.Runner{
+		Request:  models.AnalysisRequest{Instructions: []models.AnalysisInstructionContent{instruction}},
+		Segments: []analysisflow.Segment{{ID: "s0", Speaker: "A", Text: "Вопрос 0?"}},
+		Schema:   provider.AnalysisSchema(),
+	}
+	runner.Execute = func(ctx context.Context, key string, task models.AnalysisTask) (models.AnalysisResult, error) {
+		switch {
+		case key == "requirements/try0":
+			raw, _ := json.Marshal(map[string]any{"units": []any{map[string]any{"id": "req", "kind": "requirement", "title": "Поздороваться", "topic": "Приветствие", "segment_ids": []any{}, "parts": []any{"Поздороваться"}, "required_question": false}}, "excluded": []any{}})
+			return models.AnalysisResult{ResultJSON: raw}, nil
+		case strings.HasPrefix(key, "assess/r1/repair"):
+			raw, _ := json.Marshal(map[string]any{"items": []any{map[string]any{"id": "r1", "kind": "requirement", "explanation": "Приветствие прозвучало", "status": "met", "weight": 1, "strengths": []any{}, "gaps": []any{}, "improvement_kind": "not_needed", "evidence": []any{}, "instruction_sources": []any{}}}})
+			return models.AnalysisResult{ResultJSON: raw}, nil
+		}
+		return fixture(ctx, key, task)
+	}
+	result, err := runner.Run(context.Background())
+	require.NoError(t, err)
+	var final map[string]any
+	require.NoError(t, json.Unmarshal(result.ResultJSON, &final))
+	var requirement map[string]any
+	for _, item := range final["items"].([]any) {
+		if item.(map[string]any)["id"] == "r1" {
+			requirement = item.(map[string]any)
+		}
+	}
+	require.NotNil(t, requirement)
+	require.Equal(t, []any{instruction.ID.String()}, requirement["instruction_sources"])
+	require.Equal(t, []any{"Приветствие"}, requirement["instruction_titles"])
+}
+
 func fixtureExecutor(t *testing.T, badQuote, missingSource bool) func(context.Context, string, models.AnalysisTask) (models.AnalysisResult, error) {
 	return func(_ context.Context, key string, task models.AnalysisTask) (models.AnalysisResult, error) {
 		var input map[string]json.RawMessage
