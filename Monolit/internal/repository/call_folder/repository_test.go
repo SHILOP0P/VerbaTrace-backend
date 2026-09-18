@@ -176,3 +176,47 @@ func (s *RepositorySuite) TestListFolderCallsHidesForeignAndDeletedCalls() {
 	s.Require().NoError(err)
 	s.Require().Len(managerCalls.Items, 2)
 }
+
+// A call that came through a sandbox application is a test call in a folder
+// too: the list used to leave the flag out, and the call showed a processing
+// status instead of «Тестовый».
+func (s *RepositorySuite) TestListFolderCallsMarksSandboxCalls() {
+	manager := s.createUser(uuid.NewString() + "@example.com")
+	companyID, billingID, applicationID, connectionID, eventID, itemID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	exec := func(query string, args ...any) {
+		_, err := s.db.ExecContext(s.ctx, query, args...)
+		s.Require().NoError(err)
+	}
+	exec(`INSERT INTO companies (company_uuid, name, tag, manager_user_uuid, member_limit) VALUES ($1, 'Sandbox company', $2, $3, 10)`, companyID, "@sandbox_"+companyID.String()[:8], manager.ID)
+	exec(`INSERT INTO company_members (company_uuid, user_uuid, role, status) VALUES ($1, $2, 'company_manager', 'active')`, companyID, manager.ID)
+	exec(`INSERT INTO billing_accounts (billing_account_uuid, owner_type, company_uuid) VALUES ($1, 'company', $2)`, billingID, companyID)
+	exec(`INSERT INTO developer_applications (application_uuid, owner_type, company_uuid, billing_account_uuid, name, environment, status) VALUES ($1, 'company', $2, $3, 'Sandbox app', 'sandbox', 'active')`, applicationID, companyID, billingID)
+	exec(`INSERT INTO integration_connections (connection_uuid, application_uuid, company_uuid, created_by_user_uuid, name, provider, status) VALUES ($1, $2, $3, $4, 'API', 'generic_api', 'active')`, connectionID, applicationID, companyID, manager.ID)
+	exec(`INSERT INTO ingest_events (event_uuid, connection_uuid, external_event_id, event_type, schema_version, payload_sha256, accepted) VALUES ($1, $2, 'e1', 'call.completed', 1, '\x00'::bytea, true)`, eventID, connectionID)
+	exec(`INSERT INTO ingest_items (ingest_item_uuid, connection_uuid, event_uuid, external_call_id, idempotency_key, request_sha256, source_kind, title, status, stage, application_uuid, billing_account_uuid, destination_scope, destination_company_uuid, source_ref)
+		VALUES ($1, $2, $3, 'c1', 'k1', '\x00'::bytea, 'upload', 'Test', 'completed', 'completed', $4, $5, 'company', $6, 'r1')`, itemID, connectionID, eventID, applicationID, billingID, companyID)
+
+	folder, err := s.repository.Create(s.ctx, models.CallFolder{
+		ID: uuid.New(), Scope: models.CallFolderScopeCompany,
+		CompanyUUID: uuid.NullUUID{UUID: companyID, Valid: true},
+		Name:        "Тестовые звонки", CreatedByUserUUID: manager.ID,
+	})
+	s.Require().NoError(err)
+	sandboxCall, uploadedCall := uuid.New(), uuid.New()
+	for _, item := range []struct {
+		id     uuid.UUID
+		ingest any
+	}{{sandboxCall, itemID}, {uploadedCall, nil}} {
+		exec(`INSERT INTO calls (call_uuid, title, status, audio_path, original_filename, mime_type, size_bytes, duration_seconds, uploaded_by_user_uuid, company_uuid, visibility_scope, ingest_item_uuid, created_at)
+			VALUES ($1, 'Call', 'new', 'uploads/a.wav', 'a.wav', 'audio/wav', 10, 5, $2, $3, 'company', $4, now())`, item.id, manager.ID, companyID, item.ingest)
+		exec(`INSERT INTO call_folder_assignments (folder_uuid, call_uuid, assigned_by_user_uuid) VALUES ($1, $2, $3)`, folder.ID, item.id, manager.ID)
+	}
+
+	listed, err := s.repository.ListFolderCalls(s.ctx, models.ListFolderCallsInput{UserID: manager.ID, FolderUUID: folder.ID, Limit: 50})
+	s.Require().NoError(err)
+	flags := map[uuid.UUID]bool{}
+	for _, item := range listed.Items {
+		flags[item.ID] = item.IsTest
+	}
+	s.Require().Equal(map[uuid.UUID]bool{sandboxCall: true, uploadedCall: false}, flags)
+}

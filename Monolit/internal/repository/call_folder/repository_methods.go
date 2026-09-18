@@ -216,6 +216,7 @@ SELECT c.call_uuid,
        c.visibility_scope,
        c.skip_custom_instructions,
        c.transcription_only,
+       %s AS is_test,
        c.created_at,
        COUNT(*) OVER() AS total
 FROM calls c
@@ -225,7 +226,7 @@ WHERE f.folder_uuid = $1
   AND f.deleted_at IS NULL
   AND %s
 ORDER BY a.created_at DESC
-LIMIT $3 OFFSET $4`, call.VisibleToUserCondition("c", "$2"))
+LIMIT $3 OFFSET $4`, call.IsTestExpr("c"), call.VisibleToUserCondition("c", "$2"))
 
 	rows, err := r.db.QueryContext(ctx, query, input.FolderUUID, input.UserID, limit, offset)
 	if err != nil {
@@ -252,6 +253,7 @@ LIMIT $3 OFFSET $4`, call.VisibleToUserCondition("c", "$2"))
 			&call.VisibilityScope,
 			&call.SkipCustomInstructions,
 			&call.TranscriptionOnly,
+			&call.IsTest,
 			&call.CreatedAt,
 			&total,
 		)
