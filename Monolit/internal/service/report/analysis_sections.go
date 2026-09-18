@@ -35,6 +35,8 @@ type analysisReport struct {
 }
 
 type universalItem struct {
+	Kind               string              `json:"kind"`
+	Weight             *float64            `json:"weight"`
 	Title              string              `json:"title"`
 	Topic              string              `json:"topic"`
 	AnswerSummary      *string             `json:"answer_summary"`

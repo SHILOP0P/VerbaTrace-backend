@@ -80,6 +80,15 @@ func generateXLSXReport(data ReportData) ([]byte, error) {
 			setRows(file, criteriaSheet, rows)
 		}
 
+		// Schema v3 keeps every question and requirement as a card in items[];
+		// criteria_results above is empty for it.
+		if analysis.SchemaVersion == 3 && len(analysis.Items) > 0 {
+			itemsSheet := "Карточки"
+			if _, err := file.NewSheet(itemsSheet); err != nil {
+				return nil, fmt.Errorf("create items sheet: %w", err)
+			}
+			setRows(file, itemsSheet, universalItemRows(analysis.Items))
+		}
 	}
 	if data.TranscriptionText != "" {
 		transcriptionSheet := "Транскрипция"
@@ -143,6 +152,49 @@ func sectionRows(sections []reportSection) [][]any {
 		}
 	}
 	return rows
+}
+
+func universalItemRows(items []universalItem) [][]any {
+	rows := [][]any{{"Вид", "Пункт", "Статус", "Оценка", "Вес", "Разбор", "Цитаты"}}
+	for index, item := range items {
+		title := item.Title
+		if title == "" {
+			title = item.Topic
+		}
+		if title == "" {
+			title = fmt.Sprintf("Пункт %d", index+1)
+		}
+		score, weight := any(""), any("")
+		if item.Score != nil {
+			score = *item.Score
+		}
+		if item.Weight != nil {
+			weight = *item.Weight
+		}
+		quotes := make([]string, 0, len(item.Evidence))
+		for _, proof := range item.Evidence {
+			text := proof.Quote
+			if proof.Speaker != "" {
+				text = proof.Speaker + ": " + text
+			}
+			quotes = append(quotes, text)
+		}
+		rows = append(rows, []any{itemKindLabel(item.Kind), title, criterionStatusLabel(item.Status), score, weight, item.Explanation, strings.Join(quotes, "\n")})
+	}
+	return rows
+}
+
+func itemKindLabel(kind string) string {
+	switch kind {
+	case "question":
+		return "Вопрос"
+	case "episode":
+		return "Эпизод"
+	case "requirement":
+		return "Требование"
+	default:
+		return kind
+	}
 }
 
 func optionalString(value *string) string {
