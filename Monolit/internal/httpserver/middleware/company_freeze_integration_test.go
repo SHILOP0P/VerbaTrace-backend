@@ -70,6 +70,63 @@ func TestCompanyFreezeBlocksMutationsAndLetsReadingThrough(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, call(http.MethodPatch, "/api/v1/calls/"+personalCall.String()))
 }
 
+// Instruction routes carry the instruction rather than the company in the
+// path, so the guard has to find the company through the instruction.
+func TestCompanyFreezeBlocksInstructionChanges(t *testing.T) {
+	db := repositorytest.OpenTestDB(t)
+	repositorytest.RunMigrations(t, db)
+	repositorytest.TruncateTables(t, db)
+	guard := middleware.CompanyFreeze(db)
+
+	ownerID := repositorytest.CreateUser(t, db)
+	frozen := seedCompany(t, db, ownerID, "frozen")
+	active := seedCompany(t, db, ownerID, "active")
+	_, err := db.ExecContext(context.Background(), `UPDATE companies SET lifecycle_state='frozen', freeze_reason='downgrade' WHERE company_uuid=$1`, frozen)
+	require.NoError(t, err)
+	frozenInstruction := seedInstruction(t, db, ownerID, uuid.NullUUID{UUID: frozen, Valid: true})
+	activeInstruction := seedInstruction(t, db, ownerID, uuid.NullUUID{UUID: active, Valid: true})
+	personalInstruction := seedInstruction(t, db, ownerID, uuid.NullUUID{})
+
+	router := chi.NewRouter()
+	reached := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }
+	router.Route("/api/v1", func(r chi.Router) {
+		r.With(guard).Get("/instructions/{uuid}", reached)
+		r.With(guard).Patch("/instructions/{uuid}", reached)
+		r.With(guard).Put("/instructions/{uuid}/file", reached)
+		r.With(guard).Delete("/instructions/{uuid}", reached)
+	})
+	call := func(method, path string) int {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(method, path, nil))
+		return recorder.Code
+	}
+
+	require.Equal(t, http.StatusNoContent, call(http.MethodGet, "/api/v1/instructions/"+frozenInstruction.String()))
+	for _, request := range []struct{ method, suffix string }{
+		{http.MethodPatch, ""}, {http.MethodPut, "/file"}, {http.MethodDelete, ""},
+	} {
+		require.Equal(t, http.StatusConflict, call(request.method, "/api/v1/instructions/"+frozenInstruction.String()+request.suffix), request.method+request.suffix)
+		require.Equal(t, http.StatusNoContent, call(request.method, "/api/v1/instructions/"+activeInstruction.String()+request.suffix), request.method+request.suffix)
+		require.Equal(t, http.StatusNoContent, call(request.method, "/api/v1/instructions/"+personalInstruction.String()+request.suffix), request.method+request.suffix)
+	}
+}
+
+func seedInstruction(t *testing.T, db *sql.DB, ownerID uuid.UUID, companyID uuid.NullUUID) uuid.UUID {
+	t.Helper()
+	instructionID := uuid.New()
+	scope, userID := "company", uuid.NullUUID{}
+	if !companyID.Valid {
+		scope, userID = "personal", uuid.NullUUID{UUID: ownerID, Valid: true}
+	}
+	_, err := db.ExecContext(context.Background(), `
+		INSERT INTO analysis_instructions (instruction_uuid, scope, user_uuid, company_uuid, title, original_filename, file_path, mime_type, size_bytes, content_sha256, sort_order, is_active, created_by_user_uuid, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 'Стандарт', 'standard.md', 'standard.md', 'text/markdown', 1, 'hash', 0, true, $5, now(), now())
+	`, instructionID, scope, userID, companyID, ownerID)
+	require.NoError(t, err)
+
+	return instructionID
+}
+
 func seedCompany(t *testing.T, db *sql.DB, ownerID uuid.UUID, name string) uuid.UUID {
 	t.Helper()
 	companyID := uuid.New()

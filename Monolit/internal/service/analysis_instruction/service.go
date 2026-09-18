@@ -3,6 +3,7 @@ package analysis_instruction
 import (
 	"context"
 
+	"verbatrace/monolit/internal/companystate"
 	"verbatrace/monolit/internal/logger"
 	"verbatrace/monolit/internal/models"
 	repo "verbatrace/monolit/internal/repository"
@@ -23,7 +24,15 @@ type Service struct {
 	departmentRepository repo.DepartmentRepository
 	instructionStorage   storage.InstructionStorage
 	billingLimiter       BillingLimiter
+	companyState         companystate.Querier
 	log                  logger.Logger
+}
+
+// SetCompanyStateReader lets the service refuse changes in a frozen company for
+// the requests that carry the company in their body: creating and reordering.
+// The route guard covers every request that names an instruction in its path.
+func (s *Service) SetCompanyStateReader(q companystate.Querier) {
+	s.companyState = q
 }
 
 func NewService(

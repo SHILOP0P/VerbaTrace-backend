@@ -147,6 +147,8 @@ func writeInstructionError(w http.ResponseWriter, err error, fallbackCode string
 		response.WriteError(w, http.StatusNotFound, response.CodeDepartmentNotFound, "department not found")
 	case errors.Is(err, models.ErrForbidden):
 		response.WriteError(w, http.StatusForbidden, response.CodeForbidden, "forbidden")
+	case errors.Is(err, models.ErrCompanyFrozen):
+		response.WriteError(w, http.StatusConflict, response.CodeCompanyFrozen, "company is frozen")
 	default:
 		response.WriteError(w, http.StatusInternalServerError, fallbackCode, fallbackMessage)
 	}

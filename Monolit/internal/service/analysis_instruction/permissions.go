@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"verbatrace/monolit/internal/companystate"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
@@ -21,12 +22,12 @@ func (s *Service) authorizeCreate(ctx context.Context, input models.CreateAnalys
 		if !member.Role.ManagesCompany() {
 			return models.ErrForbidden
 		}
-		return nil
+		return companystate.EnsureActive(ctx, s.companyState, input.CompanyUUID.UUID)
 	case models.AnalysisInstructionScopeDepartment:
 		if err := s.authorizeDepartmentManage(ctx, input.CompanyUUID.UUID, input.DepartmentUUID.UUID, input.CreatedByUserUUID); err != nil {
 			return err
 		}
-		return nil
+		return companystate.EnsureActive(ctx, s.companyState, input.CompanyUUID.UUID)
 	default:
 		return models.ErrInvalidAnalysisInstructionInput
 	}
@@ -93,9 +94,12 @@ func (s *Service) authorizeEditScope(ctx context.Context, input models.ReorderAn
 		if !member.Role.ManagesCompany() {
 			return models.ErrForbidden
 		}
-		return nil
+		return companystate.EnsureActive(ctx, s.companyState, input.CompanyUUID.UUID)
 	case models.AnalysisInstructionScopeDepartment:
-		return s.authorizeDepartmentManage(ctx, input.CompanyUUID.UUID, input.DepartmentUUID.UUID, input.UserUUID)
+		if err := s.authorizeDepartmentManage(ctx, input.CompanyUUID.UUID, input.DepartmentUUID.UUID, input.UserUUID); err != nil {
+			return err
+		}
+		return companystate.EnsureActive(ctx, s.companyState, input.CompanyUUID.UUID)
 	default:
 		return models.ErrInvalidAnalysisInstructionInput
 	}

@@ -24,6 +24,7 @@ type AnalyticsOverviewResponse struct {
 	RisksCount             *int                        `json:"risks_count"`
 	RecommendationsCount   *int                        `json:"recommendations_count"`
 	Charts                 AnalyticsCharts             `json:"charts"`
+	TeamAnalyticsEnabled   bool                        `json:"team_analytics_enabled"`
 }
 
 type AnalyticsScoreDistribution struct {

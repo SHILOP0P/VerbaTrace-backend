@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	model "verbatrace/monolit/internal/models"
+
+	"github.com/google/uuid"
 )
 
 func (r *Repository) GetAnalyticsOverview(ctx context.Context, input model.AnalyticsOverviewInput) (model.AnalyticsOverview, error) {
@@ -68,6 +71,20 @@ func (r *Repository) GetAnalyticsOverview(ctx context.Context, input model.Analy
 	}
 
 	return overview, nil
+}
+
+// DepartmentCompany answers uuid.Nil for a department that does not exist, so
+// an unknown filter is treated like no company filter and simply finds nothing.
+func (r *Repository) DepartmentCompany(ctx context.Context, departmentID uuid.UUID) (uuid.UUID, error) {
+	var companyID uuid.UUID
+	err := r.db.QueryRowContext(ctx, `SELECT company_uuid FROM departments WHERE department_uuid=$1`, departmentID).Scan(&companyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("get department company: %w", err)
+	}
+	return companyID, nil
 }
 
 type analyticsCallRow struct {

@@ -894,6 +894,8 @@ Notifications:
 
 Все analytics-фильтры применяются только поверх звонков, которые видны текущему пользователю по общей модели видимости. `folder_uuid` дополнительно ограничивает выборку звонками, назначенными в видимую активную папку, и не обходит проверку видимости самих звонков. Backend считает `calls_total`, breakdown по статусам и `average_duration_seconds` SQL-агрегацией, а quality/topics/risks/recommendations и free analytics v2 агрегирует из сохраненных `call_analyses.result_json`. Endpoint не вызывает AI и не запускает новый анализ.
 
+Командная аналитика зависит от тарифа. Если выборка ограничена одной компанией (`company_uuid` или `department_uuid`), а тариф её владельца не включает командную аналитику (`plans.team_analytics_enabled`), ответ сохраняет счётчики, средний балл, распределение оценок и дневные графики, а разрезы (`criteria_summary`, `top_weak_criteria`, `top_issue_codes`, `business_outcomes`, `next_step_summary`, `top_topics`, `risks_count`, `recommendations_count`, `charts.risks_by_day`) приходят пустыми; `team_analytics_enabled` в ответе равен `false`. Запрос без фильтра компании работает как раньше.
+
 Ответ:
 
 ```json
@@ -1633,6 +1635,22 @@ GET анализа возвращает сохранённый `result_json` б�
 используется детерминированный mock-анализатор, а анализ sandbox-звонков,
 созданный до миграции `202608240003`, удалён.
 
+Каждый шаг пайплайна передаёт свой вид в `AnalysisTask.Name` (`inventory`,
+`inventory_audit`, `inventory_recovery`, `requirements`, `assessment`,
+`assessment_audit`, `summary`); OpenRouter использует его как имя JSON-схемы.
+
+Для локальной проверки изменений анализа без платных вызовов есть
+`ANALYZER_PROVIDER=mock_staged`: он проходит тот же поэтапный пайплайн и отвечает
+на каждый шаг детерминированно — один и тот же звонок всегда получает одни и те же
+статусы, разные звонки — разные. Маркер в тексте расшифровки
+`[[missed: Выяснил бюджет]]` задаёт статус карточки с таким названием (вместо
+`missed` подходит любой статус). Результат — `schema_version=3`.
+
+Текст версии инструкции извлекается из файла один раз и хранится в
+`analysis_instruction_versions.content_text`; снимок инструкции в анализе ссылается
+на ту версию, которую анализ прочитал, даже если инструкцию успели изменить до
+записи снимка.
+
 ### Legacy-контракт (schema v2)
 
 Mock-анализатор и старые записи используют `schema_version=2`. Результаты не-v3
@@ -1805,7 +1823,7 @@ workflow, `CI Gate` и pre-commit build.
 | Workers | `WORKER_ENABLED` (`true`), `WORKER_POLL_INTERVAL` (`2s`), `WORKER_LIMIT` (`1`), `WORKER_RETRY_DELAY` (`1m`), `WORKER_STALE_AFTER` (`30m`), `WORKER_MAX_ATTEMPTS` (`5`) |
 | Retention | `CALL_RETENTION_INTERVAL` (`24h`), `CALL_RETENTION_BATCH` (`100`), `INSTRUCTION_RETENTION_INTERVAL` (`25h`, после worker звонков), `INSTRUCTION_RETENTION_BATCH` (`50`) |
 | Транскрибация | `TRANSCRIBER_PROVIDER` (`assemblyai` или `mock`), `ASSEMBLYAI_API_KEY` |
-| Анализ | `ANALYZER_PROVIDER` (`openrouter` или `mock`; по умолчанию `mock`), `ANALYZER_API_KEY`, `ANALYZER_MODEL` — обязательно для `openrouter`, в `.env.example` и compose — `openai/gpt-5-mini` |
+| Анализ | `ANALYZER_PROVIDER` (`openrouter`, `mock` или `mock_staged`; по умолчанию `mock`), `ANALYZER_API_KEY`, `ANALYZER_MODEL` — обязательно для `openrouter`, в `.env.example` и compose — `openai/gpt-5-mini`. `mock_staged` — поэтапный пайплайн без сети для локальной проверки |
 | Поиск и ассистент | `EMBEDDING_API_KEY` (по умолчанию `ANALYZER_API_KEY`), `EMBEDDING_MODEL` (`openai/text-embedding-3-small`), `ASSISTANT_API_KEY` (по умолчанию `ANALYZER_API_KEY`), `ASSISTANT_MODEL` (по умолчанию `ANALYZER_MODEL`). Без ключа поиск работает лексически, ассистент отключён. `EMBEDDING_PROVIDER`, `EMBEDDING_DIMENSIONS` и `ASSISTANT_PROVIDER` из `.env.example` кодом пока не читаются (размерность фиксирована — 1536) |
 | Auth | `PASSWORD_PEPPER`, `JWT_SECRET`, `JWT_ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_SECRET`, `REFRESH_TOKEN_TTL` — обязательно (секреты можно задавать с префиксом `base64:`); `AUTH_SESSION_TRUST_AGE` (`24h`) |
 | Интеграции | `INTEGRATION_MASTER_KEY_BASE64` (без него ingest и Bitrix24 workers выключены), `PUBLIC_APP_URL`, `BITRIX24_CLIENT_ID`, `BITRIX24_CLIENT_SECRET`, `BITRIX24_REDIRECT_URI`, `BITRIX24_TOKEN_URL` (необязательно; по умолчанию официальный OAuth endpoint), `BITRIX24_APPLICATION_TOKEN` (нужен для проверки входящих Bitrix24 events). В `.env.example` их нет — см. `deploy/docker-compose.yaml` |
