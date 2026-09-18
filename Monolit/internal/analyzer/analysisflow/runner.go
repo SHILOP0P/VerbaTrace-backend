@@ -92,7 +92,7 @@ func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 	for _, key := range []string{"summary", "purpose", "outcome", "conversation_types", "strengths", "work_on", "recommendations", "priority_recommendation_ids"} {
 		summaryProps[key] = props[key]
 	}
-	if err := r.step(ctx, nil, "summary", summaryPrompt, "", map[string]any{"assessed_items": summaryItems(r.items)}, object(summaryProps), &summary, func() error {
+	if err := r.step(ctx, nil, StepSummary, "summary", summaryPrompt, "", map[string]any{"assessed_items": summaryItems(r.items)}, object(summaryProps), &summary, func() error {
 		if !nonempty(text(summary["summary"])) {
 			return errors.New("empty summary")
 		}
@@ -133,7 +133,7 @@ func (r *Runner) Run(ctx context.Context) (models.AnalysisResult, error) {
 
 func (r *Runner) decomposeInstructions(ctx context.Context) error {
 	var req Inventory
-	if err := r.step(ctx, nil, "requirements", requirementsPrompt, "", map[string]any{"instructions": r.Request.Instructions}, inventorySchema(), &req, func() error {
+	if err := r.step(ctx, nil, StepRequirements, "requirements", requirementsPrompt, "", map[string]any{"instructions": r.Request.Instructions}, inventorySchema(), &req, func() error {
 		for _, u := range req.Units {
 			if u.Kind != "requirement" || !nonempty(u.Title) || len(u.Parts) == 0 {
 				return errors.New("invalid instruction requirement")
@@ -352,12 +352,12 @@ func (r *Runner) extractWindow(ctx context.Context, key string, owned []Segment)
 		normalizeInventoryOwnership(&candidate, owned)
 		return validateInventoryStructure(candidate, owned, r.index)
 	}
-	err := r.step(ctx, r.inventorySlots, key+"/extract", inventoryPrompt, windowContext, map[string]any{"owned_segment_ids": ids}, inventorySchema(), &candidate, validate)
+	err := r.step(ctx, r.inventorySlots, StepInventory, key+"/extract", inventoryPrompt, windowContext, map[string]any{"owned_segment_ids": ids}, inventorySchema(), &candidate, validate)
 	if err == nil {
 		// Freeze the candidate: the audit output is decoded into the same value.
 		auditInput := map[string]any{"owned_segment_ids": ids, "candidate_inventory": json.RawMessage(asJSON(candidate))}
 		candidate = Inventory{}
-		err = r.step(ctx, r.inventorySlots, key+"/audit", inventoryAuditPrompt, windowContext, auditInput, inventorySchema(), &candidate, validate)
+		err = r.step(ctx, r.inventorySlots, StepInventoryAudit, key+"/audit", inventoryAuditPrompt, windowContext, auditInput, inventorySchema(), &candidate, validate)
 	}
 	if err != nil {
 		return nil, err
@@ -370,7 +370,7 @@ func (r *Runner) extractWindow(ctx context.Context, key string, owned []Segment)
 		}
 		var recovered Inventory
 		recoveryContext := asJSON(map[string]any{"context_segments": compactSegments(missing)})
-		if err = r.step(ctx, r.inventorySlots, key+"/recover", inventoryRecoveryPrompt, recoveryContext, map[string]any{"owned_segment_ids": missingIDs}, inventorySchema(), &recovered, func() error {
+		if err = r.step(ctx, r.inventorySlots, StepInventoryRecovery, key+"/recover", inventoryRecoveryPrompt, recoveryContext, map[string]any{"owned_segment_ids": missingIDs}, inventorySchema(), &recovered, func() error {
 			return validateInventory(recovered, missing, r.index)
 		}); err != nil {
 			return nil, err
@@ -539,7 +539,7 @@ func (r *Runner) assess(ctx context.Context, units []Unit) error {
 		var output struct {
 			Items []map[string]any `json:"items"`
 		}
-		if err := r.step(ctx, r.assessSlots, fmt.Sprintf("%s/repair%d", key, round), assessmentPrompt, r.assessmentContext, input, schema, &output, func() error {
+		if err := r.step(ctx, r.assessSlots, StepAssessment, fmt.Sprintf("%s/repair%d", key, round), assessmentPrompt, r.assessmentContext, input, schema, &output, func() error {
 			return r.validateItems(output.Items, current)
 		}); err != nil {
 			if round == 0 {
@@ -613,7 +613,7 @@ func (r *Runner) auditAssessment(ctx context.Context, key string, units []Unit, 
 	}
 	schema := object(map[string]any{"issues": array(object(map[string]any{"id": str(), "category": enum(auditCategories...), "reason": str(), "must_fix": map[string]any{"type": "boolean"}}))})
 	input := map[string]any{"assigned_units": units, "candidate_result": map[string]any{"items": items}}
-	if err := r.step(ctx, r.assessSlots, key, assessmentAuditPrompt, r.assessmentContext, input, schema, &audit, func() error { return nil }); err != nil {
+	if err := r.step(ctx, r.assessSlots, StepAssessmentAudit, key, assessmentAuditPrompt, r.assessmentContext, input, schema, &audit, func() error { return nil }); err != nil {
 		return nil, err
 	}
 	assigned := make(map[string]bool, len(units))
@@ -786,7 +786,7 @@ func summaryItems(items []map[string]any) []map[string]any {
 
 // step runs one structured provider request with validation retries. A nil
 // slots channel leaves the request outside the concurrency lanes.
-func (r *Runner) step(ctx context.Context, slots chan struct{}, key, prompt, sharedContext string, input map[string]any, schema map[string]any, out any, validate func() error) error {
+func (r *Runner) step(ctx context.Context, slots chan struct{}, kind, key, prompt, sharedContext string, input map[string]any, schema map[string]any, out any, validate func() error) error {
 	input["input_version"] = Version
 	var last error
 	for attempt := 0; attempt < 3; attempt++ {
@@ -796,7 +796,7 @@ func (r *Runner) step(ctx context.Context, slots chan struct{}, key, prompt, sha
 		if last != nil {
 			input["validation_errors"] = last.Error()
 		}
-		task := models.AnalysisTask{Name: "analysis_step", System: commonPrompt + "\n" + prompt, Context: sharedContext, Input: asJSON(input), Schema: schema, MaxTokens: 12288}
+		task := models.AnalysisTask{Name: kind, System: commonPrompt + "\n" + prompt, Context: sharedContext, Input: asJSON(input), Schema: schema, MaxTokens: 12288}
 		if slots != nil {
 			select {
 			case slots <- struct{}{}:

@@ -41,6 +41,19 @@ type AnalysisInstructionContent struct {
 	Title         string
 	Content       string
 	ContentSHA256 string
+	// VersionID is the stored version whose file was read. It is empty only when
+	// the version could not be resolved; the snapshot then falls back to the
+	// latest version, as it did before versions were resolved at read time. It
+	// stays out of JSON because instructions are serialized into provider input,
+	// which must not change when only the storage bookkeeping does.
+	VersionID uuid.UUID `json:"-"`
+}
+
+// InstructionVersionText is the version an analysis reads and, when it has
+// been extracted before, its text.
+type InstructionVersionText struct {
+	VersionID uuid.UUID
+	Text      *string
 }
 
 type AnalysisRequest struct {

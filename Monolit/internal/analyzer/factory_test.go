@@ -22,6 +22,14 @@ func TestNewFromConfig(t *testing.T) {
 		}
 	}
 
+	staged, err := NewFromConfig(testConfig{provider: " mock_staged "})
+	if err != nil || staged.Provider() != "mock_staged" {
+		t.Fatalf("mock_staged: analyzer=%v err=%v", staged, err)
+	}
+	if _, progressive := staged.(interface{ AnalysisSchema() map[string]any }); !progressive {
+		t.Fatal("mock_staged must run the staged pipeline")
+	}
+
 	if _, err := NewFromConfig(testConfig{provider: "openai"}); err == nil {
 		t.Fatal("expected not implemented error")
 	}

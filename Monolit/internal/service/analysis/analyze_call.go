@@ -514,33 +514,61 @@ func (s *Service) selectInstructions(ctx context.Context, call models.Call, user
 }
 
 func (s *Service) readInstructionContent(ctx context.Context, instruction models.AnalysisInstruction) (models.AnalysisInstructionContent, error) {
-	content, err := s.instructionStorage.Open(ctx, instruction.FilePath)
+	result := models.AnalysisInstructionContent{
+		ID:            instruction.ID,
+		Scope:         instruction.Scope,
+		Title:         instruction.Title,
+		ContentSHA256: instruction.ContentSHA256,
+	}
+	cache, cached := s.instructionRepository.(instructionTextCache)
+	if cached {
+		version, err := cache.ReadableVersion(ctx, instruction)
+		switch {
+		case err == nil:
+			result.VersionID = version.VersionID
+			if version.Text != nil {
+				result.Content = *version.Text
+				return result, nil
+			}
+		case errors.Is(err, models.ErrAnalysisInstructionNotFound):
+			// A row without a matching version predates versioning; read the
+			// file and let the snapshot pick the latest version as before.
+		default:
+			return models.AnalysisInstructionContent{}, err
+		}
+	}
+
+	extracted, err := s.extractInstructionFile(ctx, instruction)
 	if err != nil {
 		return models.AnalysisInstructionContent{}, err
+	}
+	result.Content = extracted
+	if cached && result.VersionID != uuid.Nil {
+		if err := cache.SaveVersionText(ctx, result.VersionID, extracted); err != nil {
+			// The cache only saves work; the analysis already has the text.
+			s.log.Warn(ctx, "instruction version text not cached", zap.String("instruction_version_id", result.VersionID.String()), zap.Error(err))
+		}
+	}
+	return result, nil
+}
+
+func (s *Service) extractInstructionFile(ctx context.Context, instruction models.AnalysisInstruction) (string, error) {
+	content, err := s.instructionStorage.Open(ctx, instruction.FilePath)
+	if err != nil {
+		return "", err
 	}
 	defer func() { _ = content.Close() }()
 
 	data, err := io.ReadAll(content)
 	if err != nil {
-		return models.AnalysisInstructionContent{}, err
+		return "", err
 	}
 
 	filename := instruction.OriginalFilename
 	if strings.TrimSpace(filename) == "" {
 		filename = instruction.FilePath
 	}
-	extracted, err := instructioncontent.Extract(filename, data)
-	if err != nil {
-		return models.AnalysisInstructionContent{}, err
-	}
-
-	return models.AnalysisInstructionContent{
-		ID:            instruction.ID,
-		Scope:         instruction.Scope,
-		Title:         instruction.Title,
-		Content:       extracted,
-		ContentSHA256: instruction.ContentSHA256,
-	}, nil
+	return instructioncontent.Extract(filename, data)
 }
 
 func normalizeAnalysisResult(result models.AnalysisResult) (models.AnalysisResult, error) {

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	mockAnalyzer "verbatrace/monolit/internal/analyzer/mock"
+	"verbatrace/monolit/internal/analyzer/mockstaged"
 	openrouterAnalyzer "verbatrace/monolit/internal/analyzer/openrouter"
 )
 
@@ -20,6 +21,8 @@ func NewFromConfig(cfg Config) (Analyzer, error) {
 	switch provider {
 	case "", "mock":
 		return mockAnalyzer.New(cfg.Model()), nil
+	case mockstaged.ProviderName:
+		return mockstaged.New(cfg.Model()), nil
 	case "openrouter":
 		return openrouterAnalyzer.New(cfg.APIKey(), cfg.Model())
 	case "openai":
