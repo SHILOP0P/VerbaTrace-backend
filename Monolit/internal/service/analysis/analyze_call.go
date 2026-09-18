@@ -359,6 +359,9 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 	if _, err = s.callRepository.UpdateCallStatus(ctx, call.ID, models.CallStatusAnalyzed); err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("mark call analyzed: %w", err)
 	}
+	if s.facts != nil {
+		s.facts.Refresh(ctx, call.ID)
+	}
 
 	s.log.Info(ctx, "call analyzed", zap.String("call_id", call.ID.String()), zap.String("provider", activeAnalyzer.Provider()), zap.Duration("analysis_duration", time.Since(analysisStartedAt)))
 

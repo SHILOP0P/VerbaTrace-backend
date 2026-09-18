@@ -76,9 +76,18 @@ type Service struct {
 	privacyContextReader     PrivacyContextReader
 	notifications            NotificationSender
 	scorecards               ScorecardPlanner
+	facts                    FactsProjector
 }
 
 func (s *Service) SetScorecardPlanner(planner ScorecardPlanner) { s.scorecards = planner }
+
+// FactsProjector re-projects the analytics facts of a call once its analysis is
+// done.
+type FactsProjector interface {
+	Refresh(ctx context.Context, callID uuid.UUID)
+}
+
+func (s *Service) SetFactsProjector(projector FactsProjector) { s.facts = projector }
 
 // SetMembershipRepositories enables the rerun rules: without them the service
 // only knows about personal calls.

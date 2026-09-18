@@ -149,6 +149,16 @@ func transferCalls(ctx context.Context, tx *sql.Tx, input model.TransferCompanyD
 	}
 	movedIDs := joinUUIDs(moved)
 
+	// Who a call counts for was found among the employees of the old company.
+	// Dropping it lets the analytics worker resolve it again among the new
+	// company's employees and re-project the facts.
+	if _, err = tx.ExecContext(ctx, `DELETE FROM call_subjects WHERE call_uuid = ANY(string_to_array($1, ',')::uuid[])`, movedIDs); err != nil {
+		return 0, fmt.Errorf("reset moved call subjects: %w", err)
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM call_subject_states WHERE call_uuid = ANY(string_to_array($1, ',')::uuid[])`, movedIDs); err != nil {
+		return 0, fmt.Errorf("reset moved call subject states: %w", err)
+	}
+
 	// Folder links from the source company stop making sense the moment the call
 	// leaves it.
 	if _, err = tx.ExecContext(ctx, `

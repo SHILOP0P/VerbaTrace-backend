@@ -67,6 +67,7 @@ import (
 	analysisContextService "verbatrace/monolit/internal/service/analysis_context"
 	analysisInstructionService "verbatrace/monolit/internal/service/analysis_instruction"
 	analyticsService "verbatrace/monolit/internal/service/analytics"
+	analyticsFactsService "verbatrace/monolit/internal/service/analyticsfacts"
 	authService "verbatrace/monolit/internal/service/auth"
 	billingService "verbatrace/monolit/internal/service/billing"
 	bitrix24Service "verbatrace/monolit/internal/service/bitrix24"
@@ -333,6 +334,11 @@ func main() {
 	// changed: after transcription, on role and transcript edits, before analysis.
 	callSubjectSvc := callSubjectService.NewService(sqlDB, appLogger)
 	callSubjectSvc.SetNotificationService(notificationSvc)
+	// Analytics reads facts projected from each call's effective analysis, never
+	// result_json. Every change that moves a number re-projects the call.
+	factsSvc := analyticsFactsService.NewService(sqlDB, appLogger)
+	callSubjectSvc.SetChangeHook(factsSvc.Refresh)
+	analysisSvc.SetFactsProjector(factsSvc)
 	processingSvc.SetSubjectRefresher(callSubjectSvc)
 	transcriptionEditor := transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository)
 	transcriptionEditor.SetSubjectResolver(callSubjectSvc)
@@ -354,13 +360,17 @@ func main() {
 	analysisSvc.SetScorecardPlanner(scorecardSvc)
 	scorecardHandler := scorecardAPI.NewHandler(scorecardSvc)
 	// Compiling spends credits, so it runs only where calls are processed.
-	var scorecardWorkerDone <-chan struct{}
+	var scorecardWorkerDone, factsWorkerDone <-chan struct{}
+	scorecardSvc.SetAliasHook(analyticsFactsService.Rekey)
 	if config.AppConfig().Worker.Enabled() {
 		scorecardWorkerDone = scorecardService.NewWorker(scorecardSvc, 0).Run(ctx)
+		factsWorkerDone = analyticsFactsService.NewWorker(factsSvc, callSubjectSvc, 0, 0).Run(ctx)
 	}
 	analysisContextHandler := analysisContextAPI.NewHandler(analysisContextSvc)
 	analysisHandler := analysisAPI.NewHandler(analysisSvc)
-	qualityReviewHandler := qualityReviewAPI.NewHandler(qualityReviewService.NewService(sqlDB))
+	qualityReviewSvc := qualityReviewService.NewService(sqlDB)
+	qualityReviewSvc.SetFactsProjector(factsSvc)
+	qualityReviewHandler := qualityReviewAPI.NewHandler(qualityReviewSvc)
 	actionSvc := actionService.NewService(sqlDB)
 	actionHandler := actionAPI.NewHandler(actionSvc)
 	actionWorkerDone := actionService.NewWorker(actionSvc, time.Hour, 500).Run(ctx)
@@ -503,6 +513,7 @@ func main() {
 		"department transfer worker":    departmentTransferWorkerDone,
 		"membership maintenance worker": membershipMaintenanceWorkerDone,
 		"scorecard worker":              scorecardWorkerDone,
+		"analytics facts worker":        factsWorkerDone,
 	} {
 		if workerDone == nil {
 			continue
