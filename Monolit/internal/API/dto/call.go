@@ -57,8 +57,9 @@ type CallResponse struct {
 }
 
 type CallAccessResponse struct {
-	CanEdit bool   `json:"can_edit"`
-	Via     string `json:"via"`
+	CanEdit           bool   `json:"can_edit"`
+	CanManageSubjects bool   `json:"can_manage_subjects"`
+	Via               string `json:"via"`
 }
 
 type CallSubjectResponse struct {

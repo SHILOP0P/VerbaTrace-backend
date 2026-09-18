@@ -788,6 +788,15 @@ Analytics and monitoring:
 | Method | Path | Auth | Описание |
 | --- | --- | --- | --- |
 | GET | `/api/v1/analytics/overview` | Да | KPI summary по видимым текущему пользователю звонкам |
+| GET | `/api/v1/analytics/capabilities` | Да | Роль зрителя в выбранной области, доступные отделы, флаги тарифа, срок хранения истории |
+| GET | `/api/v1/analytics/summary` | Да | Сводка периода: звонки с анализом, средний балл с дельтой, критичные пропуски, тренд, отметки смены инструкций, «Стоит послушать» |
+| GET | `/api/v1/analytics/criteria` | Да | Критерии: средний балл, дельта, распределение статусов, мини-тренд; `sort`, `order` |
+| GET | `/api/v1/analytics/criteria/{criterion_key}/calls` | Да | Раскрытие критерия: звонки с моментом в записи; `status`, `sort`, `limit` (≤100), `offset` |
+| GET | `/api/v1/analytics/employees` | Да | Сотрудники: средний балл, дельта, звонки, критичные пропуски; бывшие — с пометкой |
+| GET | `/api/v1/analytics/employees/{user_uuid}` | Да | Профиль сотрудника; `me` — свой профиль |
+| GET | `/api/v1/analytics/departments` | Да | Отделы компании и строка всей компании |
+| GET | `/api/v1/analytics/matrix` | Да | Матрица «сотрудник × критерий» одной инструкции (до 30 критериев) |
+| GET/PATCH | `/api/v1/companies/{uuid}/analytics-settings` | Да | Настройки аналитики компании (`critical_alert_threshold`, `growth_areas_enabled`, `lock_version`); владелец и заместитель |
 
 | GET | `/api/v1/monitoring/processing` | Да | Summary очереди обработки; требует permission `admin.monitoring.read` (`admin`/`superadmin`) |
 
@@ -893,7 +902,7 @@ Notifications:
 | `department_uuid` | UUID отдела |
 | `folder_uuid` | UUID активной видимой папки звонков |
 
-Все analytics-фильтры применяются только поверх звонков, которые видны текущему пользователю по общей модели видимости. `folder_uuid` дополнительно ограничивает выборку звонками, назначенными в видимую активную папку, и не обходит проверку видимости самих звонков. Backend считает `calls_total`, breakdown по статусам и `average_duration_seconds` SQL-агрегацией, а quality/topics/risks/recommendations и free analytics v2 агрегирует из сохраненных `call_analyses.result_json`. Endpoint не вызывает AI и не запускает новый анализ.
+Все analytics-фильтры применяются только поверх звонков, которые видны текущему пользователю по общей модели видимости. `folder_uuid` дополнительно ограничивает выборку звонками, назначенными в видимую активную папку, и не обходит проверку видимости самих звонков. Backend считает `calls_total`, breakdown по статусам и `average_duration_seconds` SQL-агрегацией по `calls`, а баллы, распределение оценок, дневной график балла, `criteria_summary` и `top_weak_criteria` — по таблицам фактов (`analytics_call_facts`, `analytics_criterion_facts`, см. «Командная аналитика»), одинаково для анализов v2 и v3. Поля, у которых в схеме v3 нет источника (`top_issue_codes`, `business_outcomes`, `next_step_summary`, `top_topics`, `risks_count`, `recommendations_count`, `charts.risks_by_day`), приходят пустыми. Endpoint не читает `result_json`, не вызывает AI и не запускает новый анализ.
 
 Командная аналитика зависит от тарифа. Если выборка ограничена одной компанией (`company_uuid` или `department_uuid`), а тариф её владельца не включает командную аналитику (`plans.team_analytics_enabled`), ответ сохраняет счётчики, средний балл, распределение оценок и дневные графики, а разрезы (`criteria_summary`, `top_weak_criteria`, `top_issue_codes`, `business_outcomes`, `next_step_summary`, `top_topics`, `risks_count`, `recommendations_count`, `charts.risks_by_day`) приходят пустыми; `team_analytics_enabled` в ответе равен `false`. Запрос без фильтра компании работает как раньше.
 
@@ -982,11 +991,38 @@ Notifications:
 }
 ```
 
-`average_score` всегда возвращается в шкале 0..100, `score_scale` всегда равен `100`. Для совместимости `average_quality_score` и `quality_by_day` остаются в шкале 1..5 и считаются как `average_score / 20` с округлением до 1 знака. Score извлекается сначала из v2-пары `score` + `score_scale`, затем из legacy-полей `quality_score`, `overall_score`, `manager_score`, `score`.
+`average_score` всегда возвращается в шкале 0..100, `score_scale` всегда равен `100`. Для совместимости `average_quality_score` и `quality_by_day` остаются в шкале 1..5 и считаются как `average_score / 20` с округлением до 1 знака. Балл звонка — итоговая оценка из фактов (человеческая, если Human QA её поставил, иначе оценка модели).
 
-`score_distribution` считает только analyzed calls с валидным `result_json`: `critical` = 0..49, `weak` = 50..64, `normal` = 65..79, `good` = 80..89, `excellent` = 90..100. `criteria_summary` и `top_weak_criteria` строятся из `criteria_results`; `not_applicable` учитывается в счетчике, но исключается из среднего score критерия. `top_issue_codes` строится из `issue_codes` с игнорированием пустых строк. `business_outcomes` использует `business_outcome.status`, неизвестные статусы попадают в `unclear`. `next_step_summary` использует `next_step_quality`, а если его нет, fallback смотрит `next_step` и `next_steps`.
+`score_distribution` считает звонки с баллом в фактах: `critical` = 0..49, `weak` = 50..64, `normal` = 65..79, `good` = 80..89, `excellent` = 90..100. `criteria_summary` и `top_weak_criteria` строятся по `criterion_key` (с учётом алиасов), название — из последнего факта критерия; `not_applicable` учитывается в счётчике, но исключается из среднего балла критерия. CRM-сущности, сделки, воронка продаж и клиентская база в analytics не добавляются.
 
-`risks_count` использует `risks`, `customer_objections`, `manager_quality.issues`. `recommendations_count` использует `manager_quality.recommendations`, `next_steps`, `recommendations`. `top_topics` использует `topics` и `top_topics`. CRM-сущности, сделки, воронка продаж и клиентская база в analytics не добавляются.
+### Сотрудники звонка
+
+Звонок компании засчитывается сотрудникам, которые в нём говорили (`call_subjects`), а не только загрузившему. Сервис `internal/service/callsubject` определяет их без модели по признакам: ручное назначение спикера на участника компании, заранее указанный участник, имя участника в расшифровке, самопредставление; загрузивший только усиливает кандидата с другим признаком. Спикер с ролью клиента, партнёра или «другое» сотрудником не становится. Никого не нашли — сотрудник звонка загрузивший. Состав пересчитывается после транскрипции, после правки ролей спикеров и перед анализом; каждое изменение пишется в `call_subject_events`, а лидер отдела получает `call_subjects_changed`, если сотрудник убрал из звонка себя.
+
+- *Совместный* звонок (`is_shared`) — в разговоре несколько сотрудников и есть внешний собеседник: балл засчитывается каждому.
+- *Внутренний* (`is_internal`) — все спикеры привязаны к участникам компании; по умолчанию в аналитику не входит (`include_internal=true`).
+
+Доступ: сотрудник, отмеченный сильным признаком (ручное назначение, указанный при загрузке участник, ручная правка состава), видит звонок на чтение, пока он активный участник компании; совпадение только по имени доступа не даёт. Менять звонок (расшифровку, роли, название, анализ, папки, удаление) может прежний круг — загрузивший, владелец, заместитель, лидер отдела (`editableByUserCondition`, `GetEditableByUUID`); отмеченному на такие операции приходит `403 call_edit_forbidden`. Отмеченный получает уведомление `call_subject_marked`.
+
+| Method | Path | Auth | Описание |
+| --- | --- | --- | --- |
+| PUT | `/api/v1/calls/{uuid}/subjects` | Да | Ручной состав `{user_uuids, primary_user_uuid?}`; пустой список возвращает автоматическое определение. Владелец, заместитель, лидер отдела звонка; только активные участники компании (`422 invalid_call_subjects`); личный звонок — `409 call_subjects_locked` |
+| GET | `/api/v1/calls/{uuid}/subject-candidates` | Да | Активные участники компании звонка — для назначения спикеров; тем, кто может менять звонок |
+
+`GET /api/v1/calls/{uuid}` дополнительно возвращает `access: {can_edit, can_manage_subjects, via}` (`via`: `uploader | management | subject`), `subjects[]`, `is_shared`, `is_internal`, `subjects_changed_manually`. Фронт скрывает органы правки по `access.can_edit`.
+
+### Командная аналитика
+
+Страница «Аналитика» читает только таблицы фактов, `result_json` в запросах не участвует. `internal/service/analyticsfacts` проецирует действующий анализ звонка в `analytics_call_facts` (строка на звонок) и `analytics_criterion_facts` (строка на критерий оценочной карты): рядом с оценкой модели хранится человеческая из Human QA, `score` — человеческая, если есть; решение человека «не применимо» убирает критерий из среднего. Ключи критериев приводятся к каноническим через `criterion_key_aliases`. Проекция запускается после анализа, публикации ревизии QA и решения по апелляции, смены состава сотрудников и создания алиаса; фоновой воркер раз в 10 минут дозаполняет пропущенное (advisory lock на выделенном соединении, поэтому при нескольких репликах работает один).
+
+Все маршруты `/analytics/*` (кроме `overview`) принимают `company_uuid` или `scope=personal`, `from`/`to` (RFC 3339), `department_uuid`, `employee_uuid`, `instruction_uuid`, `folder_uuid`, `include_internal`, `exclude_shared`. Фильтры, недоступные роли, не отклоняются, а заменяются теми, которыми роль ограничена:
+
+- владелец и заместитель — вся компания;
+- лидер отдела — свои отделы; в сводке дополнительно `company_avg_score`, в `departments` — его отделы и строка компании для сравнения;
+- сотрудник — только свои показатели (список сотрудников — одна его строка), независимо от тарифа; `departments` и `matrix` — `403`;
+- личный кабинет — свой профиль, если тариф включает `plans.personal_progress_enabled`, иначе `403 personal_progress_access_denied`.
+
+Разрезы по чужим показателям требуют `plans.team_analytics_enabled` у тарифа владельца компании (`403 team_analytics_access_denied`). Период ограничен `plans.history_retention_days`. Тренд строится по дням, неделям или месяцам в часовом поясе зрителя (`user_profiles.timezone`, по умолчанию `Europe/Moscow`). Выборка помечается `sample`: `none`, `low` (<5 оценок, значение скрыто), `thin` (<20, с пометкой), `ok`. Дельта к прошлому периоду той же длины значима, если превышает `1.96·√(s₁²/n₁ + s₂²/n₂)`. Сортировка сотрудников и критериев — по сглаженному среднему (априорный вес 10 к среднему команды), доля выполнения — по нижней границе Уилсона. Сравнение с отделом в профиле скрыто, если в нём меньше трёх человек со звонками. В раскрытии критерия звонок, который зрителю не виден, приходит с `can_open=false` и без названия.
 
 `GET /api/v1/monitoring/processing` принимает query-параметры:
 

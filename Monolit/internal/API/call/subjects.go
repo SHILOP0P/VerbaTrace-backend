@@ -74,7 +74,7 @@ func (h *CallHandler) SetCallSubjectsService(service CallSubjectsService) { h.su
 func (h *CallHandler) enrichCallAccess(r *http.Request, callID, userID uuid.UUID, resp *dto.CallResponse) {
 	if h.access != nil {
 		if access, err := h.access.GetAccess(r.Context(), callID, userID); err == nil {
-			resp.Access = &dto.CallAccessResponse{CanEdit: access.CanEdit, Via: access.Via}
+			resp.Access = &dto.CallAccessResponse{CanEdit: access.CanEdit, CanManageSubjects: access.CanManageSubjects, Via: access.Via}
 		}
 	}
 	if h.subjects != nil {

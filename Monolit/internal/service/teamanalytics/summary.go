@@ -30,6 +30,9 @@ type Summary struct {
 	Markers                    []Marker     `json:"markers"`
 	// For a department leader: the same average for the whole company.
 	CompanyAvgScore *int `json:"company_avg_score,omitempty"`
+	// The weakest calls of the period and those with a critical miss, for the
+	// overview.
+	WorthListening []WorthListening `json:"worth_listening"`
 }
 
 // callTotals is the call-level aggregate of one period.
@@ -108,6 +111,9 @@ func (s *Service) Summary(ctx context.Context, req Request) (Summary, error) {
 		return Summary{}, err
 	}
 	if out.Markers, err = s.markers(ctx, scope); err != nil {
+		return Summary{}, err
+	}
+	if out.WorthListening, err = s.worthListening(ctx, scope); err != nil {
 		return Summary{}, err
 	}
 	if scope.Role == roleLeader {

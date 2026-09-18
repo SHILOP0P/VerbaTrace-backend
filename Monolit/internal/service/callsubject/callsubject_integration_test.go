@@ -126,7 +126,7 @@ func TestAMarkedEmployeeReadsTheCallAndNothingMore(t *testing.T) {
 	require.Equal(t, models.CallAccess{CanEdit: false, Via: models.CallAccessViaSubject}, access)
 	access, err = w.calls.GetAccess(ctx, w.call, w.owner)
 	require.NoError(t, err)
-	require.Equal(t, models.CallAccess{CanEdit: true, Via: models.CallAccessViaUploader}, access)
+	require.Equal(t, models.CallAccess{CanEdit: true, CanManageSubjects: true, Via: models.CallAccessViaUploader}, access)
 	list, err := w.calls.List(ctx, w.olga)
 	require.NoError(t, err)
 	require.Len(t, list, 1, "the calls list uses the same predicate")

@@ -38,11 +38,13 @@ func (r *Repository) GetEditableByUUID(ctx context.Context, callUUID uuid.UUID, 
 func (r *Repository) GetAccess(ctx context.Context, callUUID uuid.UUID, userID uuid.UUID) (model.CallAccess, error) {
 	var access model.CallAccess
 	var uploader bool
+	// Whom a company call counts for is set by management alone, not by the
+	// uploader: otherwise one could move a weak call onto a colleague.
 	err := r.db.QueryRowContext(ctx, fmt.Sprintf(`
-	SELECT c.uploaded_by_user_uuid IS NOT DISTINCT FROM $2, %s
+	SELECT c.uploaded_by_user_uuid IS NOT DISTINCT FROM $2, %s, c.company_uuid IS NOT NULL AND %s
 	FROM calls c
-	WHERE c.call_uuid = $1 AND %s`, editableByUserCondition("c", "$2"), visibleToUserCondition("c", "$2")),
-		callUUID, userID).Scan(&uploader, &access.CanEdit)
+	WHERE c.call_uuid = $1 AND %s`, editableByUserCondition("c", "$2"), scopeManagementCondition("c", "$2"), visibleToUserCondition("c", "$2")),
+		callUUID, userID).Scan(&uploader, &access.CanEdit, &access.CanManageSubjects)
 	if errors.Is(err, sql.ErrNoRows) {
 		return model.CallAccess{}, fmt.Errorf("reading call access failed: %w", model.ErrCallNotFound)
 	}

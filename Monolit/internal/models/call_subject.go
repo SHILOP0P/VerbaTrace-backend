@@ -17,8 +17,9 @@ const (
 // CallAccess is what the call page needs to know about its viewer: whether to
 // offer editing at all, and why the call is visible.
 type CallAccess struct {
-	CanEdit bool
-	Via     string
+	CanEdit           bool
+	CanManageSubjects bool
+	Via               string
 }
 
 // Where a subject of a call came from.

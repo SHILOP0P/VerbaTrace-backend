@@ -114,6 +114,8 @@ func TestEachRoleSeesWhatItShould(t *testing.T) {
 	require.Equal(t, 1, summary.CallsShared)
 	require.Equal(t, "thin", summary.Sample, "19 scores: shown with a note")
 	require.NotNil(t, summary.AvgScore)
+	require.Len(t, summary.WorthListening, worthListeningCount)
+	require.True(t, summary.WorthListening[0].CanOpen)
 
 	criteria, err := tm.service.Criteria(ctx, tm.req(tm.owner), "", "")
 	require.NoError(t, err)
