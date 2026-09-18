@@ -333,9 +333,6 @@ func loadRows(ctx context.Context, q querier, callID uuid.UUID) ([]subjectRow, e
 
 func loadInput(ctx context.Context, q querier, callID uuid.UUID, call callRow) (decideInput, error) {
 	input := decideInput{Personal: !call.Company.Valid, Uploader: call.Uploader, Assignments: map[string]assignment{}, Members: map[uuid.UUID]member{}}
-	if input.Personal {
-		return input, nil
-	}
 	var segmentsRaw, wordsRaw []byte
 	err := q.QueryRowContext(ctx, `SELECT COALESCE(segments, '[]'::jsonb), COALESCE(words, '[]'::jsonb) FROM call_transcriptions WHERE call_uuid = $1 AND status = 'transcribed'`, callID).Scan(&segmentsRaw, &wordsRaw)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -376,10 +373,16 @@ func loadInput(ctx context.Context, q querier, callID uuid.UUID, call callRow) (
 	}
 	_ = rows.Close()
 
+	// A personal call has one possible employee, its owner; which speaker is
+	// them is found the same way as in a company.
 	rows, err = q.QueryContext(ctx, `
 		SELECT m.user_uuid, COALESCE(p.full_name, ''), COALESCE(p.full_surname, ''), COALESCE(p.username, '')
 		FROM company_members m LEFT JOIN user_profiles p ON p.user_uuid = m.user_uuid
-		WHERE m.company_uuid = $1 AND m.status = 'active'`, call.Company)
+		WHERE m.company_uuid = $1 AND m.status = 'active'
+		UNION
+		SELECT u.user_uuid, COALESCE(p.full_name, ''), COALESCE(p.full_surname, ''), COALESCE(p.username, '')
+		FROM users u LEFT JOIN user_profiles p ON p.user_uuid = u.user_uuid
+		WHERE $1::uuid IS NULL AND u.user_uuid = $2`, call.Company, call.Uploader)
 	if err != nil {
 		return decideInput{}, fmt.Errorf("read company members: %w", err)
 	}

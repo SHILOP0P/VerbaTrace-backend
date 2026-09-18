@@ -75,7 +75,9 @@ func (s *Service) ReplaceSpeakerAssignments(ctx context.Context, callID, userID 
 			// A speaker may be one of the editor's contacts or an employee of the
 			// call's company: marking employees is how a call is shared with them.
 			var allowed bool
-			if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM user_contacts WHERE user_uuid=$1 AND contact_user_uuid=$2)
+			// The editor may also say which speaker is themselves: in a personal
+			// call that is the only way to know whose work the call shows.
+			if err := s.db.QueryRowContext(ctx, `SELECT $2::uuid = $1::uuid OR EXISTS(SELECT 1 FROM user_contacts WHERE user_uuid=$1 AND contact_user_uuid=$2)
 				OR EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$3 AND user_uuid=$2 AND status='active')`, userID, *input[index].ContactUserUUID, call.CompanyUUID).Scan(&allowed); err != nil || !allowed {
 				return nil, ErrInvalidSpeakerAssignments
 			}

@@ -122,6 +122,34 @@ func TestDecideFindsTheEmployeesOfACall(t *testing.T) {
 	}
 }
 
+// The owner of a personal call is its only employee; marking "this is me" on a
+// speaker is what tells whose work the call shows.
+func TestDecideBindsThePersonalOwnerToTheirSpeaker(t *testing.T) {
+	owner := uuid.New()
+	uploader := uuid.NullUUID{UUID: owner, Valid: true}
+	me := map[uuid.UUID]member{owner: {UserID: owner, FirstName: "Дмитрий", LastName: "Иванов"}}
+	voices := []speaker{{Key: "A", Words: 100}, {Key: "B", Words: 300}}
+
+	unmarked := decide(decideInput{Personal: true, Uploader: uploader, Speakers: voices, Members: me})
+	require.Len(t, unmarked.Subjects, 1)
+	require.Nil(t, unmarked.Subjects[0].SpeakerKey, "nothing says which voice is the owner")
+
+	marked := decide(decideInput{Personal: true, Uploader: uploader, Speakers: voices, Members: me, Assignments: map[string]assignment{
+		"B": {Role: "manager", Contact: uuid.NullUUID{UUID: owner, Valid: true}}, "A": {Role: "client"},
+	}})
+	require.Len(t, marked.Subjects, 1)
+	require.Equal(t, owner, marked.Subjects[0].UserID)
+	require.Equal(t, "B", *marked.Subjects[0].SpeakerKey)
+	require.InDelta(t, 75.0, *marked.Subjects[0].TalkShare, 0.01)
+	require.False(t, marked.Internal, "a personal call is never internal")
+	require.False(t, marked.Shared)
+
+	asClient := decide(decideInput{Personal: true, Uploader: uploader, Speakers: voices, Members: me, Assignments: map[string]assignment{
+		"B": {Role: "client", Contact: uuid.NullUUID{UUID: owner, Valid: true}},
+	}})
+	require.Nil(t, asClient.Subjects[0].SpeakerKey, "the owner as a client is not the one being assessed")
+}
+
 func TestDecideMergesOnePersonSplitIntoTwoVoices(t *testing.T) {
 	ivan := uuid.New()
 	got := decide(decideInput{

@@ -78,7 +78,7 @@ var (
 // binds nobody. A speaker assigned to a person by hand is bound at once.
 func decide(in decideInput) decision {
 	if in.Personal {
-		return uploaderOnly(in.Uploader)
+		return personal(in)
 	}
 	totalWords := 0
 	for _, s := range in.Speakers {
@@ -134,6 +134,40 @@ func decide(in decideInput) decision {
 		result.Subjects = append(result.Subjects, b.row)
 	}
 	result.Shared = len(result.Subjects) > 1 && !result.Internal
+	return result
+}
+
+// personal is the owner of a personal call, bound to their speaker when the
+// owner marked it, named it at upload or introduced themselves. It is never
+// shared or internal: there is no company.
+func personal(in decideInput) decision {
+	result := uploaderOnly(in.Uploader)
+	if !in.Uploader.Valid || len(result.Subjects) == 0 {
+		return result
+	}
+	owner := &result.Subjects[0]
+	bestWords := -1
+	totalWords := 0
+	for _, s := range in.Speakers {
+		totalWords += s.Words
+	}
+	for _, s := range in.Speakers {
+		userID, signals, ok := bindSpeaker(s, in)
+		if !ok || userID != in.Uploader.UUID {
+			continue
+		}
+		owner.Signals = mergeSignals(owner.Signals, signals)
+		// Diarization sometimes splits one person into two voices.
+		if s.Words > bestWords {
+			key := s.Key
+			owner.SpeakerKey, bestWords = &key, s.Words
+			owner.Source = models.CallSubjectSourceSpeakerMatch
+		}
+	}
+	if owner.SpeakerKey != nil && totalWords > 0 {
+		share := float64(int(float64(bestWords)*10000/float64(totalWords))) / 100
+		owner.TalkShare = &share
+	}
 	return result
 }
 
