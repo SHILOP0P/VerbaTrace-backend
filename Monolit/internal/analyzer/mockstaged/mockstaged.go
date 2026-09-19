@@ -11,7 +11,11 @@
 //	[[missed: Выяснил бюджет]]   status of the requirement titled "Выяснил бюджет"
 //
 // Any scoring status may be used instead of "missed", plus not_applicable and
-// unclear.
+// unclear. Growth areas, when the call keeps them:
+//
+//	[[growth:repeated: Отвечает общими словами]]   the open area of that title repeated
+//	[[growth:improved: Отвечает общими словами]]   the area improved
+//	[[growth:new: Перебивает клиента]]             a new area
 package mockstaged
 
 import (
@@ -22,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -300,16 +305,36 @@ func assessment(request models.AnalysisRequest, task *models.AnalysisTask) (any,
 		byID[s.ID()] = s
 	}
 	forced := forcedStatuses(shared.Segments)
+	growth := growthMarkers(shared.Segments)
 	items := make([]map[string]any, 0, len(input.Units))
 	for _, u := range input.Units {
 		status, ok := forced[NormalizeTitle(u.Title)]
 		if !ok {
 			status = scoringStatuses[Pick(request.CallUUID.String()+"/"+NormalizeTitle(u.Title), len(scoringStatuses))]
 		}
-		items = append(items, assessedItem(u, status, byID, shared.Segments, shared.Instructions))
+		item := assessedItem(u, status, byID, shared.Segments, shared.Instructions)
+		if len(growth) > 0 {
+			// The summary step sees cards, not the transcript: growth markers
+			// travel to it inside the explanation.
+			item["explanation"] = stringOf(item["explanation"]) + " " + strings.Join(growth, " ")
+		}
+		items = append(items, item)
 	}
 	return map[string]any{"items": items}, nil
 }
+
+var growthMarker = regexp.MustCompile(`\[\[\s*growth\s*:\s*(repeated|improved|new)\s*:\s*([^\]]+?)\s*\]\]`)
+
+// growthMarkers are the [[growth:verdict:title]] markers of the conversation.
+func growthMarkers(segments []Segment) []string {
+	var found []string
+	for _, s := range segments {
+		found = append(found, growthMarker.FindAllString(s.Text(), -1)...)
+	}
+	return found
+}
+
+func stringOf(value any) string { s, _ := value.(string); return s }
 
 func assessedItem(u analysisflow.Unit, status string, byID map[string]Segment, all []Segment, instructions []instructionInput) map[string]any {
 	item := map[string]any{
@@ -396,14 +421,74 @@ func assessmentAudit(models.AnalysisRequest, *models.AnalysisTask) (any, error) 
 
 func summary(_ models.AnalysisRequest, task *models.AnalysisTask) (any, error) {
 	var input struct {
-		Items []map[string]any `json:"assessed_items"`
+		Items  []map[string]any      `json:"assessed_items"`
+		Growth *models.GrowthContext `json:"growth_context"`
 	}
 	if err := decode(task.Input, &input); err != nil {
 		return nil, err
 	}
+	answer, err := summaryAnswer(input.Items)
+	if err != nil || input.Growth == nil {
+		return answer, err
+	}
+	growthAnswer(answer, input.Items, input.Growth)
+	return answer, nil
+}
+
+// growthAnswer judges every open area not_applicable unless a marker says
+// otherwise, citing the first question or episode card; [[growth:new:title]]
+// opens an area.
+func growthAnswer(answer map[string]any, items []map[string]any, growth *models.GrowthContext) {
+	verdicts := map[string]string{}
+	var created []string
+	for _, item := range items {
+		for _, match := range growthMarker.FindAllStringSubmatch(stringOf(item["explanation"]), -1) {
+			if match[1] == "new" {
+				if !slices.Contains(created, match[2]) {
+					created = append(created, match[2])
+				}
+				continue
+			}
+			verdicts[NormalizeTitle(match[2])] = match[1]
+		}
+	}
+	conversational := ""
+	for _, item := range items {
+		if stringOf(item["kind"]) != "requirement" {
+			conversational = stringOf(item["id"])
+			break
+		}
+	}
+	cited := conversational
+	if cited == "" && len(items) > 0 {
+		cited = stringOf(items[0]["id"])
+	}
+	if len(growth.OpenAreas) > 0 {
+		observations := []any{}
+		for _, area := range growth.OpenAreas {
+			verdict, ok := verdicts[NormalizeTitle(area.Title)]
+			ids := []any{cited}
+			if !ok || cited == "" {
+				verdict, ids = "not_applicable", []any{}
+			}
+			observations = append(observations, map[string]any{"area_id": area.ID, "verdict": verdict, "item_ids": ids, "note": "Тестовое наблюдение mock_staged."})
+		}
+		answer["growth_observations"] = observations
+	}
+	areas := []any{}
+	for _, title := range created {
+		if conversational == "" || len(areas) == 3 {
+			break
+		}
+		areas = append(areas, map[string]any{"title": title, "description": "Тестовая зона роста mock_staged.", "item_ids": []any{conversational}})
+	}
+	answer["new_growth_areas"] = areas
+}
+
+func summaryAnswer(items []map[string]any) (map[string]any, error) {
 	workOn := []any{}
 	recommendations := []any{}
-	for _, item := range input.Items {
+	for _, item := range items {
 		status, _ := item["status"].(string)
 		if status == "met" || status == "not_applicable" || status == "unclear" || status == "not_assessed" {
 			continue

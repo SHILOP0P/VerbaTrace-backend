@@ -37,9 +37,17 @@ type Service struct {
 		Create(ctx context.Context, input models.CreateNotificationInput) (models.Notification, error)
 	}
 	billingLimiter BillingLimiter
+	mailer         InvitationMailer
 	now            func() time.Time
 	log            logger.Logger
 }
+
+// InvitationMailer writes to an invited user at the account's address.
+type InvitationMailer interface {
+	InvitationCreated(ctx context.Context, invitationID uuid.UUID)
+}
+
+func (s *Service) SetMailer(mailer InvitationMailer) { s.mailer = mailer }
 
 func (s *Service) SetPreferencesReader(reader PreferencesReader) {
 	s.preferencesReader = reader

@@ -109,6 +109,7 @@ var companyEntityLookups = []struct {
 	{"action_uuid", `SELECT company_uuid FROM call_actions WHERE action_uuid=$1`},
 	{"review_uuid", `SELECT company_uuid FROM call_quality_reviews WHERE review_uuid=$1`},
 	{"connection_uuid", `SELECT company_uuid FROM integration_connections WHERE connection_uuid=$1`},
+	{"area_uuid", `SELECT company_uuid FROM growth_areas WHERE area_uuid=$1`},
 	{"call_uuid", `SELECT company_uuid FROM calls WHERE call_uuid=$1`},
 }
 

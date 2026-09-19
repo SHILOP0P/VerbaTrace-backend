@@ -16,7 +16,8 @@ import (
 )
 
 type Handler struct {
-	service service.NotificationService
+	service       service.NotificationService
+	subscriptions Subscriptions
 }
 
 func NewHandler(service service.NotificationService) *Handler {

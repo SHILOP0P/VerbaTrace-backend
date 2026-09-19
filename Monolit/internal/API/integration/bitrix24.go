@@ -282,6 +282,41 @@ func mappingChangeModels(items []bitrixMappingChangeRequest) []models.BitrixMapp
 	return result
 }
 
+// SetBitrix24CRMNotes is PUT /integrations/{connection_uuid}/crm-notes with
+// {"mode": "off" | "auto"} and If-Match: whether the summary of each analysed
+// call is written into its CRM card.
+func (h *Handler) SetBitrix24CRMNotes(w http.ResponseWriter, r *http.Request) {
+	actor, id, ok := bitrixActorAndConnection(w, r)
+	if !ok {
+		return
+	}
+	notes, ok := h.bitrix24.(interface {
+		SetCRMNoteMode(context.Context, uuid.UUID, uuid.UUID, string, int64) (models.BitrixConnectionHealth, error)
+	})
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "bitrix_connector_unavailable", true)
+		return
+	}
+	version, err := parseIfMatch(r)
+	if err != nil || version < 1 {
+		writeError(w, http.StatusPreconditionRequired, "if_match_required", false)
+		return
+	}
+	var body struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request_body", false)
+		return
+	}
+	item, err := notes.SetCRMNoteMode(r.Context(), id, actor, body.Mode, version)
+	if err != nil {
+		writeBitrixError(w, err)
+		return
+	}
+	_ = response.WriteJSON(w, http.StatusOK, item)
+}
+
 func (h *Handler) PauseBitrix24Connection(w http.ResponseWriter, r *http.Request) {
 	h.changeBitrix24Lifecycle(w, r, false)
 }

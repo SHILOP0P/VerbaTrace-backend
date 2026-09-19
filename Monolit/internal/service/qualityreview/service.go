@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"verbatrace/monolit/internal/analysistext"
 	"verbatrace/monolit/internal/companystate"
 	"verbatrace/monolit/internal/models"
 
@@ -37,9 +38,27 @@ var (
 	ErrAppealCeilingReached = errors.New("quality review appeal ceiling reached")
 )
 
-type Service struct{ db *sql.DB }
+type Service struct {
+	db *sql.DB
+	// facts re-projects a call's analytics once a human decision changed it.
+	facts interface {
+		Refresh(ctx context.Context, callID uuid.UUID)
+	}
+}
 
 func NewService(db *sql.DB) *Service { return &Service{db: db} }
+
+func (s *Service) SetFactsProjector(projector interface {
+	Refresh(ctx context.Context, callID uuid.UUID)
+}) {
+	s.facts = projector
+}
+
+func (s *Service) refreshFacts(ctx context.Context, callID uuid.UUID) {
+	if s.facts != nil {
+		s.facts.Refresh(ctx, callID)
+	}
+}
 
 type CreateInput struct {
 	CallUUID         uuid.UUID
@@ -169,6 +188,24 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (models.QualityRev
 	}
 	if !personal && uploaderID.Valid && uploaderID.UUID == in.ActorUserUUID {
 		return models.QualityReview{}, ErrConflictOfInterest
+	}
+	if !personal {
+		// Whoever the call counts for may not judge it: their own numbers would move.
+		var subject bool
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM call_subjects WHERE call_uuid=$1 AND user_uuid=$2)`, in.CallUUID, in.ActorUserUUID).Scan(&subject); err != nil {
+			return models.QualityReview{}, err
+		}
+		if subject {
+			return models.QualityReview{}, ErrConflictOfInterest
+		}
+		if !in.SubjectUserUUID.Valid {
+			// The one reviewed by default is the employee who spoke most.
+			var primary uuid.NullUUID
+			if err = tx.QueryRowContext(ctx, `SELECT user_uuid FROM call_subjects WHERE call_uuid=$1 AND is_primary`, in.CallUUID).Scan(&primary); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return models.QualityReview{}, err
+			}
+			in.SubjectUserUUID = primary
+		}
 	}
 	access, err := authorizeTx(ctx, tx, in.CallUUID, companyID, departmentID, in.ActorUserUUID)
 	if err != nil || !access.CanReview {
@@ -675,6 +712,7 @@ func (s *Service) Publish(ctx context.Context, id, draftID, actor uuid.UUID, exp
 	if err = tx.Commit(); err != nil {
 		return q, err
 	}
+	s.refreshFacts(ctx, q.CallUUID)
 	return s.Get(ctx, id, actor)
 }
 
@@ -793,8 +831,10 @@ func parseSourceCriteria(raw []byte) ([]sourceCriterion, error) {
 		return nil, ErrInvalidInput
 	}
 	items, ok := payload["criteria_results"].([]any)
+	cards := false
 	if !ok && numberValue(payload["schema_version"], 0) == 3 {
 		items, ok = payload["items"].([]any)
+		cards = ok
 	}
 	if !ok || len(items) == 0 {
 		return nil, ErrInvalidInput
@@ -820,6 +860,11 @@ func parseSourceCriteria(raw []byte) ([]sourceCriterion, error) {
 		title := stringValue(m["title"])
 		if title == "" {
 			title = stringValue(m["topic"])
+		}
+		// A card of an analysis made before its titles were cleaned may cite
+		// other cards by ID; a scorecard criterion keeps its author's title.
+		if cards && stringValue(m["criterion_key"]) == "" {
+			title = analysistext.StripReferenceIDs(title, nil)
 		}
 		if title == "" {
 			title = key

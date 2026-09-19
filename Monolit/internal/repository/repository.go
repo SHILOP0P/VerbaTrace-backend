@@ -18,6 +18,8 @@ type CallRepository interface {
 	ListFiltered(ctx context.Context, input models.ListCallsInput) (models.ListCallsResult, error)
 	GetFilterOptions(ctx context.Context, input models.CallFilterOptionsInput) (models.CallFilterOptions, error)
 	GetByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error)
+	GetEditableByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error)
+	GetAccess(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.CallAccess, error)
 	GetByUUIDForProcessing(ctx context.Context, id uuid.UUID) (models.Call, error)
 	CanManageCall(ctx context.Context, id uuid.UUID, userID uuid.UUID) (bool, error)
 	//UPDATE

@@ -39,7 +39,6 @@ func generatePDFReport(data ReportData) ([]byte, error) {
 	pdf.MultiCell(0, 10, data.Title(), "", "L", true)
 	pdf.Ln(5)
 	pdf.SetTextColor(70, 80, 95)
-	writePDFLine(pdf, 11, "ID звонка: "+data.Call.ID.String())
 	writePDFLine(pdf, 11, "Статус звонка: "+string(data.Call.Status))
 	writePDFLine(pdf, 11, fmt.Sprintf("Длительность: %d сек.", data.Call.DurationSeconds))
 	writePDFLine(pdf, 11, "Создан: "+data.Call.CreatedAt.Format(timeLayout))
@@ -48,14 +47,8 @@ func generatePDFReport(data ReportData) ([]byte, error) {
 
 	if !data.TranscriptionOnly {
 		writePDFLine(pdf, 14, "Анализ")
-		writePDFLine(pdf, 11, "ID анализа: "+data.Analysis.ID.String())
 		writePDFLine(pdf, 11, "Статус анализа: "+string(data.Analysis.Status))
-		writePDFLine(pdf, 11, "Провайдер: "+data.Analysis.Provider)
-		if data.Analysis.Model != nil {
-			writePDFLine(pdf, 11, "Модель: "+*data.Analysis.Model)
-		}
 		pdf.Ln(2)
-
 	}
 
 	for _, section := range data.Sections() {

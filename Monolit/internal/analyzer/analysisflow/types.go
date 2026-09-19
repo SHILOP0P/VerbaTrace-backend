@@ -48,6 +48,11 @@ type Unit struct {
 	Parts            []string `json:"parts"`
 	RequiredQuestion bool     `json:"required_question"`
 	QuestionSpeaker  string   `json:"question_speaker,omitempty"`
+	// PromptOnlyParts marks parts that describe a scorecard requirement to the
+	// model (its wording, source, weight). They are no parts of a question and
+	// never reach a card; the field stays out of JSON, so provider input and the
+	// step cache do not change.
+	PromptOnlyParts bool `json:"-"`
 }
 
 type Inventory struct {
@@ -74,8 +79,13 @@ type Runner struct {
 	Segments []Segment
 	Schema   map[string]any
 	// Execute durably caches and meters each distinct task before returning.
-	Execute  func(context.Context, string, models.AnalysisTask) (models.AnalysisResult, error)
-	Publish  func(context.Context, json.RawMessage) error
+	Execute func(context.Context, string, models.AnalysisTask) (models.AnalysisResult, error)
+	Publish func(context.Context, json.RawMessage) error
+	// OnGrowth receives what the summary step said about growth areas, when the
+	// request carried a growth context and the fields passed validation.
+	OnGrowth func(context.Context, models.GrowthOutcome)
+	// Warn reports what went wrong without failing the analysis.
+	Warn     func(context.Context, string)
 	items    []map[string]any
 	units    []Unit
 	progress Progress

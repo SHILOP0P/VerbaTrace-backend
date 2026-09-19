@@ -21,7 +21,7 @@ const (
 	// StepCompile names the task, so a deterministic analyzer can answer it.
 	StepCompile = "scorecard_compile"
 	// CompilerVersion changes whenever the prompt, the schema or the checks do.
-	CompilerVersion = "scorecard-v2"
+	CompilerVersion = "scorecard-v3"
 	// MaxEnabled is how many criteria may be switched on in one scorecard.
 	MaxEnabled    = 40
 	MaxAttempts   = 3

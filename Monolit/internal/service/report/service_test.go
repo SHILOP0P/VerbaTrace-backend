@@ -488,3 +488,10 @@ func (f *fakeBillingLimiter) CanExportReports(context.Context, uuid.UUID) error 
 func (f *fakeBillingLimiter) GetPersonalSubscription(context.Context, uuid.UUID) (models.Subscription, error) {
 	return f.subscription, nil
 }
+
+func (f *fakeCallRepository) GetEditableByUUID(context.Context, uuid.UUID, uuid.UUID) (models.Call, error) {
+	return f.call, nil
+}
+func (f *fakeCallRepository) GetAccess(context.Context, uuid.UUID, uuid.UUID) (models.CallAccess, error) {
+	return models.CallAccess{CanEdit: true, Via: models.CallAccessViaUploader}, nil
+}

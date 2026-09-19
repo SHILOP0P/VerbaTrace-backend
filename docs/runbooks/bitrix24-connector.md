@@ -1,6 +1,6 @@
 # Runbook: Bitrix24 connector
 
-Дата проверки документа: 2026-08-28.
+Дата проверки документа: 2026-09-18.
 
 Этот runbook относится к company-scoped Bitrix24 connection. Он не является
 доказательством работы на реальном портале: результат pilot фиксируется отдельно
@@ -107,6 +107,29 @@ ingest item, call provenance и billing operation. Не удалять одну 
 частично применённый результат считается дефектом и требует остановки mapping
 updates до проверки транзакции и audit event `mapping.bulk_updated`.
 
+### Комментарии с итогом звонка в CRM не появляются
+
+Запись итога в карточку CRM включается переключателем «Писать итог звонка в
+карточку CRM» (`settings.crm_note_mode = auto`, по умолчанию `off`); включает
+владелец или зам. Нужно право `crm`: добавить его в настройках локального
+приложения Bitrix24 и переподключить портал — подключения, авторизованные раньше,
+показывают capability «Комментарии в CRM: нужна переавторизация»
+(`crm_notes_writable=false`). Поток: анализ `done` или публикация ревизии QA →
+строка `integration_crm_notes` в `pending` → воркер сверки раз в 30 секунд берёт
+её с арендой → `crm.activity.get` по `crm_activity_id` звонка → владелец
+активности (сделка, лид, контакт, компания) → `crm.timeline.comment.add`. Повтор
+анализа обновляет тот же комментарий `crm.timeline.comment.update`; если
+комментарий удалили в карточке, пишется новый. Пять неудачных попыток — `failed`
+с `last_error`; выключенный переключатель, пауза подключения или заморозка
+компании — `skipped`. Текст — шаблон: оценка, итог до 300 символов, два пункта
+«над чем поработать», критичные пропуски, ссылка на звонок; без цитат разговора.
+
+```sql
+SELECT status, count(*), min(available_at) AS oldest_available_at
+FROM integration_crm_notes
+GROUP BY status;
+```
+
 ### Task изменилась или удалена в Bitrix24
 
 VerbaTrace не перезаписывает action автоматически. Manager/leader выбирает:
@@ -135,6 +158,9 @@ HTTP/result без secrets и ссылку на call/action/audit:
 - backfill preview, pause/resume и завершение;
 - user mapping и атомарный bulk conflict;
 - task approval/add/get/update, изменение/completion/deletion и ручное решение;
+- комментарий с итогом звонка в CRM: появление после анализа, обновление того же
+  комментария после повторного анализа и ревизии QA, повторная запись после
+  удаления в карточке;
 - timeout после remote commit с поиском marker без слепого повтора;
 - light/dark/mobile/keyboard проверка основного пути;
 - queue/lag/failure alerts и rollback exercise.

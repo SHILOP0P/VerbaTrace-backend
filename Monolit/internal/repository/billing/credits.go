@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"verbatrace/monolit/internal/models"
@@ -16,24 +17,43 @@ import (
 // EnsureCurrentCreditUsage lazily opens the calendar-month allowance. The whole
 // grant and its two double-entry postings are committed atomically.
 func (r *Repository) EnsureCurrentCreditUsage(ctx context.Context, subscription models.Subscription, now time.Time) (models.CreditUsage, error) {
+	return retrySerializable(ctx, "ensure current credit usage", func() (models.CreditUsage, error) {
+		return r.ensureCurrentCreditUsageOnce(ctx, subscription, now)
+	})
+}
+
+const serializableAttempts = 8
+
+// retrySerializable runs a serializable transaction again when the database
+// refuses it for a concurrent update. The steps of one analysis, and several
+// analyses of one account, reserve and settle credits at the same moment; such
+// a refusal is expected and must not fail the analysis that ran into it.
+func retrySerializable[T any](ctx context.Context, what string, run func() (T, error)) (T, error) {
+	var zero T
 	var lastErr error
-	for attempt := 0; attempt < 6; attempt++ {
-		usage, err := r.ensureCurrentCreditUsageOnce(ctx, subscription, now)
+	for attempt := 0; attempt < serializableAttempts; attempt++ {
+		result, err := run()
 		if err == nil {
-			return usage, nil
+			return result, nil
 		}
 		lastErr = err
-		var pgErr *pgconn.PgError
-		if !errors.As(err, &pgErr) || (pgErr.Code != "40001" && pgErr.Code != "40P01") {
-			return models.CreditUsage{}, err
+		if !isSerializationFailure(err) {
+			return zero, err
 		}
+		// Jitter keeps the transactions that collided from colliding again.
+		base := (10 * time.Millisecond) << attempt
 		select {
 		case <-ctx.Done():
-			return models.CreditUsage{}, ctx.Err()
-		case <-time.After((10 * time.Millisecond) << attempt):
+			return zero, ctx.Err()
+		case <-time.After(base + rand.N(base)):
 		}
 	}
-	return models.CreditUsage{}, fmt.Errorf("ensure current credit usage retries exhausted: %w", lastErr)
+	return zero, fmt.Errorf("%s retries exhausted: %w", what, lastErr)
+}
+
+func isSerializationFailure(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && (pgErr.Code == "40001" || pgErr.Code == "40P01")
 }
 
 func (r *Repository) ensureCurrentCreditUsageOnce(ctx context.Context, subscription models.Subscription, now time.Time) (models.CreditUsage, error) {

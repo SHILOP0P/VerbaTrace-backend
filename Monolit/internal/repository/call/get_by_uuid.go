@@ -14,8 +14,55 @@ import (
 	"github.com/google/uuid"
 )
 
+// GetByUUID returns a call the user may see.
 func (r *Repository) GetByUUID(ctx context.Context, callUUID uuid.UUID, userID uuid.UUID) (model.Call, error) {
-	var repoCall repoModel.Call
+	return r.getWhere(ctx, callUUID, userID, visibleToUserCondition("c", "$2"))
+}
+
+// GetEditableByUUID returns a call the user may change. Every operation that
+// changes a call or its transcript checks it with this rather than with
+// visibility: an employee marked in a call reads it and nothing more.
+func (r *Repository) GetEditableByUUID(ctx context.Context, callUUID uuid.UUID, userID uuid.UUID) (model.Call, error) {
+	call, err := r.getWhere(ctx, callUUID, userID, editableByUserCondition("c", "$2"))
+	if errors.Is(err, model.ErrCallNotFound) {
+		// A call the user sees but may not change is refused, not hidden.
+		if _, visibleErr := r.GetByUUID(ctx, callUUID, userID); visibleErr == nil {
+			return model.Call{}, fmt.Errorf("editing call refused: %w", model.ErrForbidden)
+		}
+	}
+	return call, err
+}
+
+// GetAccess says how the user reaches a visible call and whether they may
+// change it.
+func (r *Repository) GetAccess(ctx context.Context, callUUID uuid.UUID, userID uuid.UUID) (model.CallAccess, error) {
+	var access model.CallAccess
+	var uploader bool
+	// Whom a company call counts for is set by management alone, not by the
+	// uploader: otherwise one could move a weak call onto a colleague.
+	err := r.db.QueryRowContext(ctx, fmt.Sprintf(`
+	SELECT c.uploaded_by_user_uuid IS NOT DISTINCT FROM $2, %s, c.company_uuid IS NOT NULL AND %s
+	FROM calls c
+	WHERE c.call_uuid = $1 AND %s`, editableByUserCondition("c", "$2"), scopeManagementCondition("c", "$2"), visibleToUserCondition("c", "$2")),
+		callUUID, userID).Scan(&uploader, &access.CanEdit, &access.CanManageSubjects)
+	if errors.Is(err, sql.ErrNoRows) {
+		return model.CallAccess{}, fmt.Errorf("reading call access failed: %w", model.ErrCallNotFound)
+	}
+	if err != nil {
+		return model.CallAccess{}, fmt.Errorf("reading call access failed: %w", err)
+	}
+	switch {
+	case uploader:
+		access.Via = model.CallAccessViaUploader
+	case access.CanEdit:
+		access.Via = model.CallAccessViaManagement
+	default:
+		access.Via = model.CallAccessViaSubject
+	}
+	return access, nil
+}
+
+func (r *Repository) getWhere(ctx context.Context, callUUID uuid.UUID, userID uuid.UUID, condition string) (model.Call, error) {
 	getQuery := fmt.Sprintf(`
 	SELECT c.call_uuid,
 	       title,
@@ -37,12 +84,12 @@ func (r *Repository) GetByUUID(ctx context.Context, callUUID uuid.UUID, userID u
 	FROM calls c
 	WHERE c.call_uuid = $1
 	  AND %s
-	`, visibleToUserCondition("c", "$2"))
+	`, condition)
 
 	row := r.db.QueryRowContext(ctx, getQuery, callUUID, userID)
 
+	var repoCall repoModel.Call
 	repoCall, err := scaner.ScanCall(row)
-
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return model.Call{}, fmt.Errorf("selecting call failed: %w", model.ErrCallNotFound)

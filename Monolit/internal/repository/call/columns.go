@@ -10,10 +10,17 @@ import (
 	"verbatrace/monolit/internal/repository/scaner"
 )
 
+// IsTestExpr is true for a call that came through a sandbox application. Every
+// list that shows calls selects it, so a test call is marked wherever it
+// appears, a folder included.
+func IsTestExpr(alias string) string {
+	return fmt.Sprintf(`EXISTS (SELECT 1 FROM ingest_items i JOIN developer_applications a USING(application_uuid) WHERE i.ingest_item_uuid=%s.ingest_item_uuid AND a.environment='sandbox')`, alias)
+}
+
 // callColumns is the projection every plain call read uses, so a new column is
 // added in one place instead of a dozen queries. It must stay in sync with
 // scaner.ScanCall.
-const callColumns = `c.call_uuid,
+var callColumns = `c.call_uuid,
 	       c.title,
 	       c.status,
 	       c.audio_path,
@@ -28,7 +35,7 @@ const callColumns = `c.call_uuid,
 	       c.visibility_scope,
 	       c.skip_custom_instructions,
 	       c.transcription_only,
-	       EXISTS (SELECT 1 FROM ingest_items i JOIN developer_applications a USING(application_uuid) WHERE i.ingest_item_uuid=c.ingest_item_uuid AND a.environment='sandbox') AS is_test,
+	       ` + IsTestExpr("c") + ` AS is_test,
 	       c.created_at`
 
 type rowScanner interface {

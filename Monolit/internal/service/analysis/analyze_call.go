@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/analysistext"
 	"verbatrace/monolit/internal/analyzer"
 	"verbatrace/monolit/internal/instructioncontent"
 	"verbatrace/monolit/internal/models"
@@ -23,7 +24,7 @@ func (s *Service) AnalyzeCall(ctx context.Context, input models.AnalyzeCallInput
 		return models.CallAnalysis{}, models.ErrInvalidAnalysisInput
 	}
 
-	call, err := s.callRepository.GetByUUID(ctx, input.CallUUID, input.UserUUID)
+	call, err := s.callRepository.GetEditableByUUID(ctx, input.CallUUID, input.UserUUID)
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("get call: %w", err)
 	}
@@ -281,6 +282,14 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 	}
 	var creditOperationID uuid.UUID
 	_, progressive := activeAnalyzer.(interface{ AnalysisSchema() map[string]any })
+	if progressive && s.growth != nil {
+		// Growth areas ride on the summary step; without them the step is as
+		// before, so a failure here only loses the areas, not the analysis.
+		if analysisRequest.Growth, err = s.growth.ContextFor(ctx, call.ID); err != nil {
+			s.log.Warn(ctx, "growth context not loaded", zap.String("call_id", call.ID.String()), zap.Error(err))
+			analysisRequest.Growth = nil
+		}
+	}
 	if s.creditMeter != nil && !progressive {
 		var billableInput strings.Builder
 		billableInput.WriteString(*transcription.Text)
@@ -326,6 +335,7 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 			return analysis, fmt.Errorf("settle analysis credits: %w", err)
 		}
 	}
+	growth := result.Growth
 
 	result, err = normalizeAnalysisResult(result)
 	if err != nil {
@@ -358,6 +368,19 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 
 	if _, err = s.callRepository.UpdateCallStatus(ctx, call.ID, models.CallStatusAnalyzed); err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("mark call analyzed: %w", err)
+	}
+	if growth != nil && s.growth != nil {
+		growth.ItemTitles = analysistext.ResultTitles(result.ResultJSON)
+		if err := s.growth.Record(ctx, call.ID, *growth); err != nil {
+			s.log.Warn(ctx, "growth areas not recorded", zap.String("call_id", call.ID.String()), zap.Error(err))
+		}
+	}
+	if s.facts != nil {
+		s.facts.Refresh(ctx, call.ID)
+		// The alert reads the facts just projected.
+		if s.alerts != nil {
+			s.alerts.CallAnalyzed(ctx, call.ID)
+		}
 	}
 
 	s.log.Info(ctx, "call analyzed", zap.String("call_id", call.ID.String()), zap.String("provider", activeAnalyzer.Provider()), zap.Duration("analysis_duration", time.Since(analysisStartedAt)))

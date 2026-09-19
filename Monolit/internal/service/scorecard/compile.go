@@ -260,7 +260,7 @@ func (s *Service) activate(ctx context.Context, card models.Scorecard, instructi
 	}
 	if waiting {
 		s.notify(ctx, instruction, models.NotificationTypeScorecardReviewNeeded, "Проверьте критерии инструкции",
-			fmt.Sprintf("Инструкция «%s» изменилась. Новые критерии начнут действовать после подтверждения", instruction.Title))
+			instruction.label()+" изменилась. Новые критерии начнут действовать после подтверждения")
 	}
 	return nil
 }
@@ -289,8 +289,27 @@ func (s *Service) fail(ctx context.Context, card models.Scorecard, instruction i
 		s.log.Warn(ctx, "scorecard compile gave up", zap.String("scorecard_id", card.ID.String()), zap.String("code", code), zap.Error(cause))
 	}
 	s.notify(ctx, instruction, models.NotificationTypeScorecardFailed, "Не удалось подготовить критерии",
-		fmt.Sprintf("Инструкция «%s»: %s. Откройте вкладку «Критерии оценки» и повторите", instruction.Title, message))
+		fmt.Sprintf("%s: %s. Откройте вкладку «Критерии оценки» и повторите", instruction.label(), readableReason(message)))
 	return nil
+}
+
+// label names the instruction in a notification. Two instructions may share a
+// title, so the file it came from tells them apart when it says more.
+func (i instructionRow) label() string {
+	label := fmt.Sprintf("Инструкция «%s»", i.Title)
+	file := strings.TrimSpace(i.FileName)
+	if file != "" && !strings.EqualFold(file, i.Title+".md") && !strings.EqualFold(file, i.Title) {
+		label += fmt.Sprintf(" (файл %s)", file)
+	}
+	return label
+}
+
+// readableReason keeps the model's explanation from leaking the name of its
+// input field into a message for people, and drops the final full stop the
+// sentence around it adds.
+func readableReason(message string) string {
+	message = strings.ReplaceAll(message, "instruction_text", "инструкции")
+	return strings.TrimRight(strings.TrimSpace(message), ".!;, ")
 }
 
 // notify tells the author of the instruction; an author who left the company is

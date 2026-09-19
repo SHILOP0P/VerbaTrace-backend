@@ -12,17 +12,21 @@ type BitrixOAuthStart struct {
 }
 
 type BitrixConnectionHealth struct {
-	ConnectionID      uuid.UUID  `json:"connection_uuid"`
-	Status            string     `json:"status"`
-	PortalDomain      string     `json:"portal_domain"`
-	CallsReadable     bool       `json:"calls_readable"`
-	TasksWritable     bool       `json:"tasks_writable"`
-	UsersReadable     bool       `json:"users_readable"`
-	ReconnectRequired bool       `json:"reconnect_required"`
-	OAuthConfigured   bool       `json:"oauth_configured"`
-	ConnectorVerified bool       `json:"connector_verified"`
-	LastSuccessAt     *time.Time `json:"last_success_at,omitempty"`
-	LastErrorCode     *string    `json:"last_error_code,omitempty"`
+	ConnectionID      uuid.UUID `json:"connection_uuid"`
+	Status            string    `json:"status"`
+	PortalDomain      string    `json:"portal_domain"`
+	CallsReadable     bool      `json:"calls_readable"`
+	TasksWritable     bool      `json:"tasks_writable"`
+	UsersReadable     bool      `json:"users_readable"`
+	ReconnectRequired bool      `json:"reconnect_required"`
+	OAuthConfigured   bool      `json:"oauth_configured"`
+	ConnectorVerified bool      `json:"connector_verified"`
+	// CRMNotesWritable needs the crm scope; connections authorised before it
+	// was asked for have to authorise again.
+	CRMNotesWritable bool       `json:"crm_notes_writable"`
+	CRMNoteMode      string     `json:"crm_note_mode"`
+	LastSuccessAt    *time.Time `json:"last_success_at,omitempty"`
+	LastErrorCode    *string    `json:"last_error_code,omitempty"`
 }
 
 type BitrixExternalUser struct {

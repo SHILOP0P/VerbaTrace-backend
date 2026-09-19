@@ -26,7 +26,6 @@ func generateMarkdownReport(data ReportData) []byte {
 	var b bytes.Buffer
 
 	fmt.Fprintf(&b, "# %s\n\n", data.Title())
-	fmt.Fprintf(&b, "- ID звонка: `%s`\n", data.Call.ID.String())
 	fmt.Fprintf(&b, "- Статус звонка: `%s`\n", data.Call.Status)
 	fmt.Fprintf(&b, "- Длительность: %d сек.\n", data.Call.DurationSeconds)
 	fmt.Fprintf(&b, "- Создан: %s\n", data.Call.CreatedAt.Format(timeLayout))
@@ -34,14 +33,8 @@ func generateMarkdownReport(data ReportData) []byte {
 
 	if !data.TranscriptionOnly {
 		fmt.Fprintf(&b, "## Анализ\n\n")
-		fmt.Fprintf(&b, "- ID анализа: `%s`\n", data.Analysis.ID.String())
 		fmt.Fprintf(&b, "- Статус анализа: `%s`\n", data.Analysis.Status)
-		fmt.Fprintf(&b, "- Провайдер: `%s`\n", data.Analysis.Provider)
-		if data.Analysis.Model != nil {
-			fmt.Fprintf(&b, "- Модель: `%s`\n", *data.Analysis.Model)
-		}
 		fmt.Fprintln(&b)
-
 	}
 
 	for _, section := range data.Sections() {

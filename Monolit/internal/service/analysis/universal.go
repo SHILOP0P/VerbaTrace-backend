@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"verbatrace/monolit/internal/analysistext"
 	"verbatrace/monolit/internal/models"
 )
 
@@ -101,6 +102,8 @@ func normalizeUniversalAnalysisResult(result models.AnalysisResult, payload map[
 	if err := normalizeUniversalRecommendations(payload, seenItems); err != nil {
 		return models.AnalysisResult{}, err
 	}
+	cleanUniversalText(payload, items)
+	summary = stringField(payload, "summary")
 	payload["schema_version"] = 3
 	payload["score"] = payload["overall_score"]
 	payload["score_scale"] = 100
@@ -111,6 +114,106 @@ func normalizeUniversalAnalysisResult(result models.AnalysisResult, payload map[
 	result.ResultJSON = encoded
 	result.ResultText = &summary
 	return result, nil
+}
+
+// cleanUniversalText takes the reference IDs out of every text a reader sees:
+// the model cites cards and recommendations by the IDs the pipeline gave them,
+// and names schema fields. A cited ID becomes the card's or recommendation's
+// title. The IDs stay wherever they are keys: items[].id, recommendations[].id,
+// item_ids, criterion_key, priority_recommendation_ids. Speaker markers stay
+// too; the reader's side names them.
+func cleanUniversalText(payload map[string]any, items []any) {
+	recommendations, _ := payload["recommendations"].([]any)
+	titles := make(map[string]string, len(items)+len(recommendations))
+	for _, raw := range items {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		// A scorecard criterion is titled by the scorecard's author, not by the
+		// model, and may legitimately read like an ID («Тариф S1»).
+		if stringField(item, "criterion_key") == "" {
+			cleanTextField(item, "title", nil)
+			cleanTextField(item, "topic", nil)
+		}
+		if id, title := stringField(item, "id"), stringField(item, "title"); id != "" && title != "" {
+			titles[id] = title
+		}
+	}
+	for _, raw := range recommendations {
+		if recommendation, ok := raw.(map[string]any); ok {
+			cleanTextField(recommendation, "title", nil)
+			if id, title := stringField(recommendation, "id"), stringField(recommendation, "title"); id != "" && title != "" {
+				titles[id] = title
+			}
+		}
+	}
+	for _, key := range []string{"summary", "purpose", "outcome"} {
+		cleanTextField(payload, key, titles)
+	}
+	for _, key := range []string{"conversation_types", "strengths", "work_on"} {
+		cleanTextList(payload, key, titles)
+	}
+	for _, raw := range recommendations {
+		if recommendation, ok := raw.(map[string]any); ok {
+			for _, key := range []string{"action", "reason", "expected_result"} {
+				cleanTextField(recommendation, key, titles)
+			}
+		}
+	}
+	for _, raw := range items {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, key := range []string{"answer_summary", "explanation", "improvement"} {
+			cleanTextField(item, key, titles)
+		}
+		for _, key := range []string{"question_parts", "strengths"} {
+			cleanTextList(item, key, titles)
+		}
+		gaps, _ := item["gaps"].([]any)
+		for _, rawGap := range gaps {
+			if gap, ok := rawGap.(map[string]any); ok {
+				cleanTextField(gap, "text", titles)
+				cleanTextField(gap, "explanation", titles)
+			}
+		}
+	}
+}
+
+// cleanTextField cleans a string field and leaves any other value alone. A
+// text that was nothing but IDs keeps them rather than turning empty: an empty
+// required field would fail an analysis that is already paid for.
+func cleanTextField(object map[string]any, key string, titles map[string]string) {
+	text, ok := object[key].(string)
+	if !ok {
+		return
+	}
+	if cleaned := analysistext.StripReferenceIDs(text, titles); cleaned != "" {
+		object[key] = cleaned
+	}
+}
+
+// cleanTextList cleans a list of strings; an entry that was only a list of IDs
+// says nothing and goes.
+func cleanTextList(object map[string]any, key string, titles map[string]string) {
+	values, ok := object[key].([]any)
+	if !ok {
+		return
+	}
+	out := make([]any, 0, len(values))
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			out = append(out, value)
+			continue
+		}
+		if cleaned := analysistext.StripReferenceIDs(text, titles); cleaned != "" {
+			out = append(out, cleaned)
+		}
+	}
+	object[key] = out
 }
 
 func stringsToAny(values []string) []any {

@@ -46,13 +46,25 @@ func TestAnalyzeCallValidationAndStatus(t *testing.T) {
 	userID := uuid.New()
 	callRepo := repositoryMocks.NewCallRepository(t)
 	transcriptionRepo := repositoryMocks.NewTranscriptionRepository(t)
-	callRepo.EXPECT().GetByUUID(mock.Anything, callID, userID).Return(models.Call{ID: callID}, nil).Once()
+	callRepo.EXPECT().GetEditableByUUID(mock.Anything, callID, userID).Return(models.Call{ID: callID}, nil).Once()
 	transcriptionRepo.EXPECT().GetByCallUUID(mock.Anything, callID).Return(models.Transcription{
 		CallUUID: callID, Status: models.TranscriptionStatusProcessing,
 	}, nil).Once()
 	service = NewService(callRepo, transcriptionRepo, nil, repositoryMocks.NewAnalysisRepository(t), nil, nil, nil)
 	if _, err := service.AnalyzeCall(context.Background(), models.AnalyzeCallInput{CallUUID: callID, UserUUID: userID}); !errors.Is(err, models.ErrInvalidAnalysisStatus) {
 		t.Fatalf("status error = %v", err)
+	}
+}
+
+// A marked employee reads the call but does not start its analysis: the right
+// is checked by the edit predicate before anything else is read.
+func TestAnalyzeCallNeedsTheRightToChangeTheCall(t *testing.T) {
+	callID, userID := uuid.New(), uuid.New()
+	callRepo := repositoryMocks.NewCallRepository(t)
+	callRepo.EXPECT().GetEditableByUUID(mock.Anything, callID, userID).Return(models.Call{}, models.ErrForbidden).Once()
+	service := NewService(callRepo, repositoryMocks.NewTranscriptionRepository(t), nil, repositoryMocks.NewAnalysisRepository(t), nil, nil, nil)
+	if _, err := service.AnalyzeCall(context.Background(), models.AnalyzeCallInput{CallUUID: callID, UserUUID: userID}); !errors.Is(err, models.ErrForbidden) {
+		t.Fatalf("analyze by a marked employee = %v", err)
 	}
 }
 

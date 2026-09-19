@@ -33,6 +33,21 @@ func TestPersonalFolderCreateAssignAndDelete(t *testing.T) {
 	require.ErrorIs(t, svc.AssignCall(ctx, models.AssignCallToFolderInput{UserID: userID, FolderUUID: folder.ID, CallUUID: callID}), models.ErrCallFolderNotFound)
 }
 
+// A call is placed in a folder by those who may change it; an employee who only
+// reads it because they were marked in it gets a refusal, not a silent success.
+func TestAMarkedEmployeeDoesNotFileTheCall(t *testing.T) {
+	ctx := context.Background()
+	reader := uuid.New()
+	callID := uuid.New()
+	repo := newFolderRepoStub()
+	callRepo := &callRepoStub{calls: map[uuid.UUID]models.Call{callID: {ID: callID, VisibilityScope: models.CallVisibilityScopeCompany}}, readers: map[uuid.UUID]bool{reader: true}}
+	svc := NewService(repo, callRepo, &companyRepoStub{}, &departmentRepoStub{})
+
+	folder, err := svc.Create(ctx, models.CreateCallFolderInput{UserID: reader, Scope: models.CallFolderScopePersonal, Name: "Мои"})
+	require.NoError(t, err)
+	require.ErrorIs(t, svc.AssignCall(ctx, models.AssignCallToFolderInput{UserID: reader, FolderUUID: folder.ID, CallUUID: callID}), models.ErrForbidden)
+}
+
 func TestCompanyMemberCannotManageCompanyFolder(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()
@@ -214,6 +229,8 @@ func (r *folderRepoStub) ListFolderCalls(_ context.Context, input models.ListFol
 
 type callRepoStub struct {
 	calls map[uuid.UUID]models.Call
+	// readers see a call but may not change it, like an employee marked in it.
+	readers map[uuid.UUID]bool
 }
 
 func (r *callRepoStub) CreateCall(context.Context, models.Call) (models.Call, error) {
@@ -280,4 +297,12 @@ func (r *departmentRepoStub) ListVisibleCompanyDepartments(context.Context, uuid
 
 func strPtr(value string) *string {
 	return &value
+}
+
+func (r *callRepoStub) GetEditableByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error) {
+	call, err := r.GetByUUID(ctx, id, userID)
+	if err == nil && r.readers[userID] {
+		return models.Call{}, models.ErrForbidden
+	}
+	return call, err
 }

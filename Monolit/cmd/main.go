@@ -67,18 +67,23 @@ import (
 	analysisContextService "verbatrace/monolit/internal/service/analysis_context"
 	analysisInstructionService "verbatrace/monolit/internal/service/analysis_instruction"
 	analyticsService "verbatrace/monolit/internal/service/analytics"
+	analyticsFactsService "verbatrace/monolit/internal/service/analyticsfacts"
 	authService "verbatrace/monolit/internal/service/auth"
 	billingService "verbatrace/monolit/internal/service/billing"
 	bitrix24Service "verbatrace/monolit/internal/service/bitrix24"
 	callService "verbatrace/monolit/internal/service/call"
 	callFolderService "verbatrace/monolit/internal/service/call_folder"
+	callSubjectService "verbatrace/monolit/internal/service/callsubject"
 	companyService "verbatrace/monolit/internal/service/company"
 	contactService "verbatrace/monolit/internal/service/contact"
+	deliveryService "verbatrace/monolit/internal/service/delivery"
 	departmentService "verbatrace/monolit/internal/service/department"
+	growthService "verbatrace/monolit/internal/service/growth"
 	integrationService "verbatrace/monolit/internal/service/integration"
 	invitationService "verbatrace/monolit/internal/service/invitation"
 	monitoringService "verbatrace/monolit/internal/service/monitoring"
 	notificationService "verbatrace/monolit/internal/service/notification"
+	passwordResetService "verbatrace/monolit/internal/service/passwordreset"
 	privacyService "verbatrace/monolit/internal/service/privacy"
 	processingService "verbatrace/monolit/internal/service/processing"
 	qualityReviewService "verbatrace/monolit/internal/service/qualityreview"
@@ -86,7 +91,9 @@ import (
 	retentionService "verbatrace/monolit/internal/service/retention"
 	scorecardService "verbatrace/monolit/internal/service/scorecard"
 	searchService "verbatrace/monolit/internal/service/search"
+	speechService "verbatrace/monolit/internal/service/speech"
 	supportAccessService "verbatrace/monolit/internal/service/supportaccess"
+	teamAnalyticsService "verbatrace/monolit/internal/service/teamanalytics"
 	transcriptionEditService "verbatrace/monolit/internal/service/transcriptionedit"
 	"verbatrace/monolit/internal/storage/audio"
 	avatarStorage "verbatrace/monolit/internal/storage/avatar"
@@ -95,6 +102,7 @@ import (
 	"verbatrace/monolit/internal/transcriber"
 	transcriberMock "verbatrace/monolit/internal/transcriber/mock"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
@@ -328,12 +336,50 @@ func main() {
 	// Undoing a company deletion is the superadmin's own section of the panel,
 	// and the only place the operation is reachable from.
 	adminHandler.SetCompanyLifecycleService(companySvc)
+	// Whom a call counts for is decided again whenever its speakers can have
+	// changed: after transcription, on role and transcript edits, before analysis.
+	callSubjectSvc := callSubjectService.NewService(sqlDB, appLogger)
+	callSubjectSvc.SetNotificationService(notificationSvc)
+	// Analytics reads facts projected from each call's effective analysis, never
+	// result_json. Every change that moves a number re-projects the call.
+	factsSvc := analyticsFactsService.NewService(sqlDB, appLogger)
+	// Growth areas ride on the summary step of the analysis; a call that changes
+	// hands or becomes shared loses the observations it gave.
+	growthSvc := growthService.NewService(sqlDB, appLogger)
+	callSubjectSvc.SetChangeHook(func(ctx context.Context, callID uuid.UUID) {
+		factsSvc.Refresh(ctx, callID)
+		growthSvc.Reconcile(ctx, callID)
+	})
+	analysisSvc.SetFactsProjector(factsSvc)
+	analysisSvc.SetGrowth(growthSvc)
+	// Digests and alerts go to the bell for real; mail and Telegram only reach
+	// the queue, whose one sender for now logs the message.
+	teamAnalyticsSvc := teamAnalyticsService.NewService(sqlDB, appLogger)
+	deliverySvc := deliveryService.NewService(sqlDB, appLogger, config.AppConfig().Notify.PublicAppURL())
+	notificationSender, err := deliveryService.NewSender(config.AppConfig().Notify.Sender(), appLogger)
+	if err != nil {
+		appLogger.Error(ctx, "invalid notification sender", zap.Error(err))
+		return
+	}
+	processingSvc.SetSubjectRefresher(callSubjectSvc)
+	transcriptionEditor := transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository)
+	transcriptionEditor.SetSubjectResolver(callSubjectSvc)
 	callHandler := call.NewCallHandler(callSvc)
-	callHandler.SetTranscriptionEditor(transcriptionEditService.NewService(sqlDB, callRepository, transcriptionRepository))
+	callHandler.SetTranscriptionEditor(transcriptionEditor)
 	callHandler.SetPrivacyService(privacySvc)
+	callHandler.SetCallAccessReader(callRepository)
+	callHandler.SetCallSubjectsService(callSubjectSvc)
+	// Speech numbers come from word timings: no model, no credits.
+	speechSvc := speechService.NewService(sqlDB, transcriptionRepository, appLogger)
+	callHandler.SetSpeech(speechSvc)
 	callFolderHandler := callFolderAPI.NewHandler(callFolderSvc)
 	contactHandler := contactAPI.NewHandler(contactSvc)
 	authHandler := authAPI.NewAuthHandler(authSvc, config.AppConfig().Auth.AccessTokenTTL(), config.AppConfig().Auth.RefreshTokenTTL())
+	// The reset letter goes through the delivery queue. While its only sender is
+	// the mock one the page is hidden: nobody would receive the link.
+	authHandler.SetPasswordReset(passwordResetService.NewService(sqlDB, userRepository, config.AppConfig().Auth.PasswordPepper(),
+		config.AppConfig().Notify.PublicAppURL(), notificationSender.Name() != "mock", appLogger))
+	invitationSvc.SetMailer(deliverySvc)
 	companyHandler := companyAPI.NewCompanyHandler(companySvc)
 	departmentHandler := departmentAPI.NewDepartmentHandler(departmentSvc)
 	invitationHandler := invitationAPI.NewHandler(invitationSvc)
@@ -344,13 +390,20 @@ func main() {
 	analysisSvc.SetScorecardPlanner(scorecardSvc)
 	scorecardHandler := scorecardAPI.NewHandler(scorecardSvc)
 	// Compiling spends credits, so it runs only where calls are processed.
-	var scorecardWorkerDone <-chan struct{}
+	var scorecardWorkerDone, factsWorkerDone, outboxWorkerDone, digestWorkerDone, speechWorkerDone <-chan struct{}
+	scorecardSvc.SetAliasHook(analyticsFactsService.Rekey)
 	if config.AppConfig().Worker.Enabled() {
 		scorecardWorkerDone = scorecardService.NewWorker(scorecardSvc, 0).Run(ctx)
+		factsWorkerDone = analyticsFactsService.NewWorker(factsSvc, callSubjectSvc, 0, 0).Run(ctx)
+		outboxWorkerDone = deliveryService.NewWorker(sqlDB, notificationSender, appLogger, 0, 0).Run(ctx)
+		digestWorkerDone = deliveryService.NewDigests(deliverySvc, teamAnalyticsSvc).Run(ctx, 0)
+		// New and edited transcripts are measured within two minutes.
+		speechWorkerDone = speechSvc.RunBackfill(ctx, 2*time.Minute)
 	}
 	analysisContextHandler := analysisContextAPI.NewHandler(analysisContextSvc)
 	analysisHandler := analysisAPI.NewHandler(analysisSvc)
-	qualityReviewHandler := qualityReviewAPI.NewHandler(qualityReviewService.NewService(sqlDB))
+	qualityReviewSvc := qualityReviewService.NewService(sqlDB)
+	qualityReviewHandler := qualityReviewAPI.NewHandler(qualityReviewSvc)
 	actionSvc := actionService.NewService(sqlDB)
 	actionHandler := actionAPI.NewHandler(actionSvc)
 	actionWorkerDone := actionService.NewWorker(actionSvc, time.Hour, 500).Run(ctx)
@@ -366,6 +419,8 @@ func main() {
 	reportHandler := reportAPI.NewHandler(reportSvc)
 	billingHandler := billingAPI.NewHandler(billingSvc)
 	analyticsHandler := analyticsAPI.NewHandler(analyticsSvc)
+	analyticsHandler.SetTeamAnalytics(teamAnalyticsSvc)
+	analyticsHandler.SetGrowth(growthSvc)
 	monitoringHandler := monitoringAPI.NewHandler(monitoringSvc)
 	searchHandler := searchAPI.NewHandler(searchSvc)
 	embeddingKey := firstConfigured(os.Getenv("EMBEDDING_API_KEY"), os.Getenv("ANALYZER_API_KEY"))
@@ -382,6 +437,7 @@ func main() {
 		assistantIndexWorkerDone = assistantSvc.RunIndexWorker(ctx)
 	}
 	notificationHandler := notificationAPI.NewHandler(notificationSvc)
+	notificationHandler.SetSubscriptions(deliverySvc)
 	var integrationCipher *integrationcrypto.Cipher
 	if rawKey := os.Getenv("INTEGRATION_MASTER_KEY_BASE64"); rawKey != "" {
 		integrationCipher, err = integrationcrypto.NewFromBase64(rawKey, 1)
@@ -409,6 +465,12 @@ func main() {
 		RedirectURI: os.Getenv("BITRIX24_REDIRECT_URI"), TokenURL: os.Getenv("BITRIX24_TOKEN_URL"), PublicBaseURL: os.Getenv("PUBLIC_APP_URL"), EventToken: os.Getenv("BITRIX24_APPLICATION_TOKEN"),
 	})
 	integrationHandler.SetBitrix24Service(bitrixSvc)
+	bitrixSvc.SetAppURL(config.AppConfig().Notify.PublicAppURL())
+	// After an analysis: the alert about a failed call, and the summary in the
+	// CRM card of a call that came from Bitrix24. A published QA revision updates
+	// that summary too.
+	analysisSvc.SetAlerts(callHooks{deliverySvc.CallAnalyzed, bitrixSvc.QueueCRMNote})
+	qualityReviewSvc.SetFactsProjector(callHooks{factsSvc.Refresh, bitrixSvc.QueueCRMNote})
 	// A frozen company stops importing calls, and the portal only learns why if
 	// we tell it: its own event hook is one-way.
 	companySvc.SetFreezeNotifier(bitrixSvc)
@@ -493,6 +555,10 @@ func main() {
 		"department transfer worker":    departmentTransferWorkerDone,
 		"membership maintenance worker": membershipMaintenanceWorkerDone,
 		"scorecard worker":              scorecardWorkerDone,
+		"analytics facts worker":        factsWorkerDone,
+		"outbound message worker":       outboxWorkerDone,
+		"weekly digest worker":          digestWorkerDone,
+		"speech metrics worker":         speechWorkerDone,
 	} {
 		if workerDone == nil {
 			continue
@@ -613,4 +679,16 @@ func firstConfigured(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// callHooks runs several reactions to one event about a call, in order.
+type callHooks []func(context.Context, uuid.UUID)
+
+func (hooks callHooks) CallAnalyzed(ctx context.Context, callID uuid.UUID) { hooks.run(ctx, callID) }
+func (hooks callHooks) Refresh(ctx context.Context, callID uuid.UUID)      { hooks.run(ctx, callID) }
+
+func (hooks callHooks) run(ctx context.Context, callID uuid.UUID) {
+	for _, hook := range hooks {
+		hook(ctx, callID)
+	}
 }

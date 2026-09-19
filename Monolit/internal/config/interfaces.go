@@ -54,6 +54,11 @@ type TranscriberConfig interface {
 	AssemblyAIAPIKey() string
 }
 
+type NotifyConfig interface {
+	Sender() string
+	PublicAppURL() string
+}
+
 type AnalyzerConfig interface {
 	Provider() string
 	APIKey() string

@@ -16,6 +16,9 @@ type ReportData struct {
 	Analysis              models.CallAnalysis
 	TranscriptionText     string
 	GeneratedAt           time.Time
+	// SpeakerNames are the names given to transcript speakers by key; the
+	// analysis refers to speakers by key.
+	SpeakerNames map[string]string
 }
 
 func (d ReportData) AnalysisJSONText() string {

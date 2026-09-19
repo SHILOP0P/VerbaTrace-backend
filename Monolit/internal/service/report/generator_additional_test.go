@@ -93,13 +93,6 @@ func TestReportFormattingHelpers(t *testing.T) {
 	if got := splitParagraphs("one\r\ntwo"); len(got) != 2 {
 		t.Fatalf("splitParagraphs = %#v", got)
 	}
-	if optionalString(nil) != "" {
-		t.Fatal("nil optional string must be empty")
-	}
-	value := "value"
-	if optionalString(&value) != value {
-		t.Fatal("optional string mismatch")
-	}
 }
 
 func TestAnalysisHelpers(t *testing.T) {

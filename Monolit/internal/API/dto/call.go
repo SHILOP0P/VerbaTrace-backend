@@ -47,6 +47,37 @@ type CallResponse struct {
 	HasActions            bool                      `json:"has_actions"`
 	CreatedAt             string                    `json:"created_at"`
 	Privacy               *CallPrivacyResponse      `json:"privacy,omitempty"`
+	// Filled only for a single call: how the viewer reaches it and whom it
+	// counts for.
+	Access                  *CallAccessResponse   `json:"access,omitempty"`
+	Subjects                []CallSubjectResponse `json:"subjects,omitempty"`
+	IsShared                *bool                 `json:"is_shared,omitempty"`
+	IsInternal              *bool                 `json:"is_internal,omitempty"`
+	SubjectsChangedManually *bool                 `json:"subjects_changed_manually,omitempty"`
+	// Speech is the «Речь» block: numbers measured from word timings.
+	Speech any `json:"speech,omitempty"`
+}
+
+type CallAccessResponse struct {
+	CanEdit           bool   `json:"can_edit"`
+	CanManageSubjects bool   `json:"can_manage_subjects"`
+	Via               string `json:"via"`
+}
+
+type CallSubjectResponse struct {
+	UserUUID     string   `json:"user_uuid"`
+	FullName     string   `json:"full_name"`
+	Source       string   `json:"source"`
+	IsPrimary    bool     `json:"is_primary"`
+	GrantsAccess bool     `json:"grants_access"`
+	SpeakerKey   *string  `json:"speaker_key"`
+	TalkShare    *float64 `json:"talk_share"`
+	MatchSignals []string `json:"match_signals"`
+}
+
+type SetCallSubjectsRequest struct {
+	UserUUIDs       []string `json:"user_uuids"`
+	PrimaryUserUUID *string  `json:"primary_user_uuid"`
 }
 
 type CallPrivacyResponse struct {

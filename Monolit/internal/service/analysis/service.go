@@ -76,9 +76,36 @@ type Service struct {
 	privacyContextReader     PrivacyContextReader
 	notifications            NotificationSender
 	scorecards               ScorecardPlanner
+	facts                    FactsProjector
+	growth                   GrowthKeeper
+	alerts                   AlertRaiser
 }
 
 func (s *Service) SetScorecardPlanner(planner ScorecardPlanner) { s.scorecards = planner }
+
+// GrowthKeeper tells the summary step about an employee's open growth areas and
+// stores what it said about them.
+type GrowthKeeper interface {
+	ContextFor(ctx context.Context, callID uuid.UUID) (*models.GrowthContext, error)
+	Record(ctx context.Context, callID uuid.UUID, outcome models.GrowthOutcome) error
+}
+
+func (s *Service) SetGrowth(keeper GrowthKeeper) { s.growth = keeper }
+
+// AlertRaiser tells the people who answer for a call that it failed.
+type AlertRaiser interface {
+	CallAnalyzed(ctx context.Context, callID uuid.UUID)
+}
+
+func (s *Service) SetAlerts(alerts AlertRaiser) { s.alerts = alerts }
+
+// FactsProjector re-projects the analytics facts of a call once its analysis is
+// done.
+type FactsProjector interface {
+	Refresh(ctx context.Context, callID uuid.UUID)
+}
+
+func (s *Service) SetFactsProjector(projector FactsProjector) { s.facts = projector }
 
 // SetMembershipRepositories enables the rerun rules: without them the service
 // only knows about personal calls.

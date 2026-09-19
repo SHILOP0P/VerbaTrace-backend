@@ -3,14 +3,15 @@ package call
 import "fmt"
 
 // visibleToUserCondition is the one place that decides who sees a call: the
-// person who uploaded it, the owner and the deputy of its company, and the
-// leader of its department. A call in the bin is hidden from every normal read.
+// person who uploaded it, the owner and the deputy of its company, the leader of
+// its department, and an employee of the company a person or a system of record
+// marked in the call. A call in the bin is hidden from every normal read.
 func visibleToUserCondition(callAlias string, userParam string) string {
 	return fmt.Sprintf(`
 	(
 	    %s.deleted_at IS NULL
-	    AND %s
-	)`, callAlias, membershipReachCondition(callAlias, userParam))
+	    AND (%s OR %s)
+	)`, callAlias, membershipReachCondition(callAlias, userParam), markedSubjectCondition(callAlias, userParam))
 }
 
 // VisibleToUserCondition is the same predicate for every other package that has
@@ -18,6 +19,40 @@ func visibleToUserCondition(callAlias string, userParam string) string {
 // call the calls list itself would hide.
 func VisibleToUserCondition(callAlias string, userParam string) string {
 	return visibleToUserCondition(callAlias, userParam)
+}
+
+// editableByUserCondition is who may change a call: the circle that saw it
+// before employees could be marked in it. Seeing a call is not enough to edit
+// its transcript or speakers — a marked employee could otherwise mark others
+// and hand the call on.
+func editableByUserCondition(callAlias string, userParam string) string {
+	return fmt.Sprintf(`
+	(
+	    %s.deleted_at IS NULL
+	    AND %s
+	)`, callAlias, membershipReachCondition(callAlias, userParam))
+}
+
+// EditableByUserCondition is editableByUserCondition for other packages.
+func EditableByUserCondition(callAlias string, userParam string) string {
+	return editableByUserCondition(callAlias, userParam)
+}
+
+// markedSubjectCondition lets an employee read a company call they were marked
+// in. Membership is checked on every read, so leaving the company or losing the
+// mark takes the call away at once.
+func markedSubjectCondition(callAlias string, userParam string) string {
+	return fmt.Sprintf(`(
+	    %s.company_uuid IS NOT NULL
+	    AND EXISTS (
+	        SELECT 1
+	        FROM call_subjects cs
+	        JOIN company_members sm ON sm.company_uuid = %s.company_uuid AND sm.user_uuid = cs.user_uuid AND sm.status = 'active'
+	        WHERE cs.call_uuid = %s.call_uuid
+	          AND cs.user_uuid = %s
+	          AND cs.grants_access
+	    )
+	)`, callAlias, callAlias, callAlias, userParam)
 }
 
 // deletableByUserCondition is stricter than visibility: an employee cannot wipe

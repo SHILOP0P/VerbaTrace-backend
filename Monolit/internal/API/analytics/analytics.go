@@ -10,12 +10,15 @@ import (
 	"verbatrace/monolit/internal/httpserver/middleware"
 	"verbatrace/monolit/internal/models"
 	"verbatrace/monolit/internal/service"
+	"verbatrace/monolit/internal/service/teamanalytics"
 
 	"github.com/google/uuid"
 )
 
 type Handler struct {
 	service service.AnalyticsService
+	team    *teamanalytics.Service
+	growth  GrowthAreas
 }
 
 func NewHandler(service service.AnalyticsService) *Handler {

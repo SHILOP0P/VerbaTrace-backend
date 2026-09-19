@@ -199,6 +199,64 @@ func (_c *CallRepository_CreateCallWithProcessingJob_Call) RunAndReturn(run func
 	return _c
 }
 
+// GetAccess provides a mock function with given fields: ctx, id, userID
+func (_m *CallRepository) GetAccess(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.CallAccess, error) {
+	ret := _m.Called(ctx, id, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAccess")
+	}
+
+	var r0 models.CallAccess
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (models.CallAccess, error)); ok {
+		return rf(ctx, id, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) models.CallAccess); ok {
+		r0 = rf(ctx, id, userID)
+	} else {
+		r0 = ret.Get(0).(models.CallAccess)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, id, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CallRepository_GetAccess_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAccess'
+type CallRepository_GetAccess_Call struct {
+	*mock.Call
+}
+
+// GetAccess is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - userID uuid.UUID
+func (_e *CallRepository_Expecter) GetAccess(ctx interface{}, id interface{}, userID interface{}) *CallRepository_GetAccess_Call {
+	return &CallRepository_GetAccess_Call{Call: _e.mock.On("GetAccess", ctx, id, userID)}
+}
+
+func (_c *CallRepository_GetAccess_Call) Run(run func(ctx context.Context, id uuid.UUID, userID uuid.UUID)) *CallRepository_GetAccess_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *CallRepository_GetAccess_Call) Return(_a0 models.CallAccess, _a1 error) *CallRepository_GetAccess_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CallRepository_GetAccess_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.CallAccess, error)) *CallRepository_GetAccess_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByUUID provides a mock function with given fields: ctx, id, userID
 func (_m *CallRepository) GetByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error) {
 	ret := _m.Called(ctx, id, userID)
@@ -310,6 +368,64 @@ func (_c *CallRepository_GetByUUIDForProcessing_Call) Return(_a0 models.Call, _a
 }
 
 func (_c *CallRepository_GetByUUIDForProcessing_Call) RunAndReturn(run func(context.Context, uuid.UUID) (models.Call, error)) *CallRepository_GetByUUIDForProcessing_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetEditableByUUID provides a mock function with given fields: ctx, id, userID
+func (_m *CallRepository) GetEditableByUUID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (models.Call, error) {
+	ret := _m.Called(ctx, id, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetEditableByUUID")
+	}
+
+	var r0 models.Call
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (models.Call, error)); ok {
+		return rf(ctx, id, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) models.Call); ok {
+		r0 = rf(ctx, id, userID)
+	} else {
+		r0 = ret.Get(0).(models.Call)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = rf(ctx, id, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CallRepository_GetEditableByUUID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEditableByUUID'
+type CallRepository_GetEditableByUUID_Call struct {
+	*mock.Call
+}
+
+// GetEditableByUUID is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+//   - userID uuid.UUID
+func (_e *CallRepository_Expecter) GetEditableByUUID(ctx interface{}, id interface{}, userID interface{}) *CallRepository_GetEditableByUUID_Call {
+	return &CallRepository_GetEditableByUUID_Call{Call: _e.mock.On("GetEditableByUUID", ctx, id, userID)}
+}
+
+func (_c *CallRepository_GetEditableByUUID_Call) Run(run func(ctx context.Context, id uuid.UUID, userID uuid.UUID)) *CallRepository_GetEditableByUUID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID), args[2].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *CallRepository_GetEditableByUUID_Call) Return(_a0 models.Call, _a1 error) *CallRepository_GetEditableByUUID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CallRepository_GetEditableByUUID_Call) RunAndReturn(run func(context.Context, uuid.UUID, uuid.UUID) (models.Call, error)) *CallRepository_GetEditableByUUID_Call {
 	_c.Call.Return(run)
 	return _c
 }

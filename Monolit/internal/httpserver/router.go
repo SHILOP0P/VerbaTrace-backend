@@ -200,6 +200,13 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Post("/calls/{uuid}/transcription/revisions/{revision}/restore", callAPI.RestoreTranscriptionRevision)
 			r.With(authGuard).Get("/calls/{uuid}/transcription/speakers", callAPI.ListTranscriptionSpeakerAssignments)
 			r.With(authGuard).Put("/calls/{uuid}/transcription/speakers", callAPI.ReplaceTranscriptionSpeakerAssignments)
+			if subjectsAPI, ok := callAPI.(interface {
+				SetSubjects(http.ResponseWriter, *http.Request)
+				ListSubjectCandidates(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Put("/calls/{uuid}/subjects", subjectsAPI.SetSubjects)
+				r.With(authGuard).Get("/calls/{uuid}/subject-candidates", subjectsAPI.ListSubjectCandidates)
+			}
 			if privacyAPI, ok := callAPI.(interface {
 				GetPersonalPrivacyPolicy(http.ResponseWriter, *http.Request)
 				GetCompanyPrivacyPolicy(http.ResponseWriter, *http.Request)
@@ -325,6 +332,52 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 
 			//ANALYTICS
 			r.With(authGuard).Get("/analytics/overview", analyticsAPI.GetOverview)
+			if teamAPI, ok := analyticsAPI.(interface {
+				GetCapabilities(http.ResponseWriter, *http.Request)
+				GetSummary(http.ResponseWriter, *http.Request)
+				GetCriteria(http.ResponseWriter, *http.Request)
+				GetEmployees(http.ResponseWriter, *http.Request)
+				GetDepartments(http.ResponseWriter, *http.Request)
+				GetMatrix(http.ResponseWriter, *http.Request)
+				GetEmployeeProfile(http.ResponseWriter, *http.Request)
+				GetCriterionCalls(http.ResponseWriter, *http.Request)
+				GetCompanySettings(http.ResponseWriter, *http.Request)
+				UpdateCompanySettings(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/analytics/capabilities", teamAPI.GetCapabilities)
+				r.With(authGuard).Get("/analytics/summary", teamAPI.GetSummary)
+				r.With(authGuard).Get("/analytics/criteria", teamAPI.GetCriteria)
+				r.With(authGuard).Get("/analytics/criteria/{criterion_key}/calls", teamAPI.GetCriterionCalls)
+				r.With(authGuard).Get("/analytics/employees", teamAPI.GetEmployees)
+				r.With(authGuard).Get("/analytics/employees/{user_uuid}", teamAPI.GetEmployeeProfile)
+				r.With(authGuard).Get("/analytics/departments", teamAPI.GetDepartments)
+				r.With(authGuard).Get("/analytics/matrix", teamAPI.GetMatrix)
+				r.With(authGuard).Get("/companies/{uuid}/analytics-settings", teamAPI.GetCompanySettings)
+				r.With(authGuard).Patch("/companies/{uuid}/analytics-settings", teamAPI.UpdateCompanySettings)
+			}
+			if progressAPI, ok := analyticsAPI.(interface {
+				GetCallProgress(http.ResponseWriter, *http.Request)
+				GetEmployeeProgress(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/calls/{uuid}/progress", progressAPI.GetCallProgress)
+				r.With(authGuard).Get("/analytics/employees/{user_uuid}/progress", progressAPI.GetEmployeeProgress)
+			}
+			if personalAPI, ok := analyticsAPI.(interface {
+				GetPersonalSettings(http.ResponseWriter, *http.Request)
+				UpdatePersonalSettings(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/analytics/personal-settings", personalAPI.GetPersonalSettings)
+				r.With(authGuard).Patch("/analytics/personal-settings", personalAPI.UpdatePersonalSettings)
+			}
+			if growthAPI, ok := analyticsAPI.(interface {
+				GetEmployeeGrowthAreas(http.ResponseWriter, *http.Request)
+				DismissGrowthArea(http.ResponseWriter, *http.Request)
+				ReopenGrowthArea(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/analytics/employees/{user_uuid}/growth-areas", growthAPI.GetEmployeeGrowthAreas)
+				r.With(authGuard).Post("/growth-areas/{area_uuid}/dismiss", growthAPI.DismissGrowthArea)
+				r.With(authGuard).Post("/growth-areas/{area_uuid}/reopen", growthAPI.ReopenGrowthArea)
+			}
 			r.With(authGuard).With(authMiddleware.RequirePermission(models.AdminPermissionMonitoringRead)).Get("/monitoring/processing", monitoringAPI.GetProcessing)
 			r.With(authGuard).Get("/contacts/search", contactAPI.SearchContacts)
 			r.With(authGuard).Get("/contacts", contactAPI.ListContacts)
@@ -387,6 +440,11 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 					r.With(authGuard).Post("/action-external-sync-requests/{sync_uuid}/resolve", bitrixAPI.ResolveActionExternalSync)
 					r.With(authGuard).Get("/actions/{action_uuid}/external-sync", bitrixAPI.GetActionExternalSync)
 					r.With(authGuard).Get("/action-external-sync-requests/{sync_uuid}", bitrixAPI.GetActionExternalSyncRequest)
+					if crmAPI, ok := integrationAPI.(interface {
+						SetBitrix24CRMNotes(http.ResponseWriter, *http.Request)
+					}); ok {
+						r.With(authGuard).Put("/integrations/{connection_uuid}/crm-notes", crmAPI.SetBitrix24CRMNotes)
+					}
 					r.With(authGuard).Post("/integrations/{connection_uuid}/pause", bitrixAPI.PauseBitrix24Connection)
 					r.With(authGuard).Post("/integrations/{connection_uuid}/resume", bitrixAPI.ResumeBitrix24Connection)
 					r.With(authGuard).Post("/integrations/{connection_uuid}/backfills/preview", bitrixAPI.PreviewBitrix24Backfill)
@@ -445,6 +503,13 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Post("/notifications/{uuid}/read", notificationAPI.MarkRead)
 			r.With(authGuard).Post("/notifications/{uuid}/unread", notificationAPI.MarkUnread)
 			r.With(authGuard).Post("/notifications/read-all", notificationAPI.MarkAllRead)
+			if subscriptionsAPI, ok := notificationAPI.(interface {
+				GetSubscriptions(http.ResponseWriter, *http.Request)
+				PutSubscriptions(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.With(authGuard).Get("/notification-subscriptions", subscriptionsAPI.GetSubscriptions)
+				r.With(authGuard).Put("/notification-subscriptions", subscriptionsAPI.PutSubscriptions)
+			}
 
 			//BILLING
 			r.Get("/plans", billingAPI.ListPlans)
@@ -518,6 +583,15 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.Post("/auth/register", authAPI.Register)
 			r.Post("/auth/login", authAPI.Login)
 			r.Post("/auth/refresh", authAPI.Refresh)
+			if resetAPI, ok := authAPI.(interface {
+				Capabilities(http.ResponseWriter, *http.Request)
+				RequestPasswordReset(http.ResponseWriter, *http.Request)
+				ConfirmPasswordReset(http.ResponseWriter, *http.Request)
+			}); ok {
+				r.Get("/auth/capabilities", resetAPI.Capabilities)
+				r.Post("/auth/password-reset/request", resetAPI.RequestPasswordReset)
+				r.Post("/auth/password-reset/confirm", resetAPI.ConfirmPasswordReset)
+			}
 			r.With(authGuard).Get("/auth/me", authAPI.Me)
 			r.With(authGuard).Patch("/auth/me/password", authAPI.UpdatePassword)
 			r.With(authGuard).Get("/auth/me/sessions", authAPI.ListSessions)

@@ -238,6 +238,7 @@ type instructionRow struct {
 	ID              uuid.UUID
 	Scope           models.AnalysisInstructionScope
 	Title           string
+	FileName        string
 	UserID          uuid.NullUUID
 	CompanyID       uuid.NullUUID
 	DepartmentID    uuid.NullUUID
@@ -250,10 +251,10 @@ func loadInstruction(ctx context.Context, q queryer, instructionID uuid.UUID) (i
 	var i instructionRow
 	var scope string
 	err := q.QueryRowContext(ctx, `
-		SELECT instruction_uuid, scope, title, user_uuid, company_uuid, department_uuid, created_by_user_uuid,
+		SELECT instruction_uuid, scope, title, original_filename, user_uuid, company_uuid, department_uuid, created_by_user_uuid,
 		       scorecard_confirm_required, deleted_at IS NOT NULL
 		FROM analysis_instructions WHERE instruction_uuid = $1`, instructionID).
-		Scan(&i.ID, &scope, &i.Title, &i.UserID, &i.CompanyID, &i.DepartmentID, &i.CreatedBy, &i.ConfirmRequired, &i.Deleted)
+		Scan(&i.ID, &scope, &i.Title, &i.FileName, &i.UserID, &i.CompanyID, &i.DepartmentID, &i.CreatedBy, &i.ConfirmRequired, &i.Deleted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return i, models.ErrAnalysisInstructionNotFound
 	}

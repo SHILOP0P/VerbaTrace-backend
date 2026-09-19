@@ -289,6 +289,11 @@ func (s *Service) CreateAppeal(ctx context.Context, in AppealInput) (models.Qual
 		_ = tx.QueryRowContext(ctx, `SELECT uploaded_by_user_uuid FROM calls WHERE call_uuid=$1`, q.CallUUID).Scan(&uploader)
 		allowed = uploader.Valid && uploader.UUID == in.ActorUserUUID
 	}
+	if !allowed {
+		// Every employee the call counts for may dispute a score that lands in
+		// their numbers.
+		_ = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM call_subjects WHERE call_uuid=$1 AND user_uuid=$2)`, q.CallUUID, in.ActorUserUUID).Scan(&allowed)
+	}
 	if allowed {
 		var activeMember bool
 		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM company_members WHERE company_uuid=$1 AND user_uuid=$2 AND status='active')`, q.CompanyUUID.UUID, in.ActorUserUUID).Scan(&activeMember); err != nil || !activeMember {
@@ -415,6 +420,7 @@ func (s *Service) ResolveAppeal(ctx context.Context, in ResolveAppealInput) (mod
 	if err = tx.Commit(); err != nil {
 		return a, err
 	}
+	s.refreshFacts(ctx, q.CallUUID)
 	a.Status = in.Status
 	a.ResolutionComment = &comment
 	a.ResolvedByUserUUID = uuid.NullUUID{UUID: in.ActorUserUUID, Valid: true}

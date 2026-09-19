@@ -50,13 +50,21 @@ type Service struct {
 	client   *http.Client
 	resolver *net.Resolver
 	now      func() time.Time
+	// appURL is where links written into the portal point.
+	appURL string
+	// portalCall and tokenFor reach the portal; tests replace them with a stub.
+	portalCall func(ctx context.Context, domain, method, token string, params any, target any) error
+	tokenFor   func(ctx context.Context, id uuid.UUID) (connectionInfo, string, error)
 }
 
 func NewService(db *sql.DB, cipher *integrationcrypto.Cipher, config Config) *Service {
 	if config.TokenURL == "" {
 		config.TokenURL = "https://oauth.bitrix.info/oauth/token/"
 	}
-	return &Service{db: db, cipher: cipher, config: config, client: &http.Client{Timeout: 15 * time.Second}, resolver: net.DefaultResolver, now: time.Now}
+	s := &Service{db: db, cipher: cipher, config: config, client: &http.Client{Timeout: 15 * time.Second}, resolver: net.DefaultResolver, now: time.Now}
+	s.portalCall = s.call
+	s.tokenFor = s.systemConnectionToken
+	return s
 }
 
 func (s *Service) OAuthCallbackOrigin() string {
@@ -233,6 +241,11 @@ func (s *Service) TestConnection(ctx context.Context, connectionID, actor uuid.U
 	hasUsersMethod, usersMethodErr := s.methodAvailable(ctx, info.Domain, token, "user.get")
 	hasTaskMethod, taskMethodErr := s.methodAvailable(ctx, info.Domain, token, "tasks.task.add")
 	methodsErr := firstError(callsMethodErr, usersMethodErr, taskMethodErr)
+	// Comments in CRM cards need the crm scope, which connections authorised
+	// before it existed do not have. That is not an error of the connection.
+	hasCommentMethod, commentErr := s.methodAvailable(ctx, info.Domain, token, "crm.timeline.comment.add")
+	hasActivityMethod, activityErr := s.methodAvailable(ctx, info.Domain, token, "crm.activity.get")
+	crmNotesWritable := hasCommentMethod && hasActivityMethod && commentErr == nil && activityErr == nil
 	var callsResult []statisticRecord
 	callsErr := ErrUnavailable
 	if hasCallsMethod {
@@ -266,9 +279,13 @@ func (s *Service) TestConnection(ctx context.Context, connectionID, actor uuid.U
 	// accessible recording, can be imported, or that task write-back completes.
 	// connector_verified is reserved for the separately evidenced portal pilot.
 	connectorVerified := false
-	capabilities, _ := json.Marshal(map[string]any{"calls_readable": callsErr == nil, "users_readable": usersErr == nil, "tasks_writable": tasksWritable, "methods_discovered": methodsErr == nil, "call_observed": callObserved, "real_call_verified": false, "connector_verified": connectorVerified, "checked_at": now})
+	capabilities, _ := json.Marshal(map[string]any{"calls_readable": callsErr == nil, "users_readable": usersErr == nil, "tasks_writable": tasksWritable, "crm_notes_writable": crmNotesWritable, "methods_discovered": methodsErr == nil, "call_observed": callObserved, "real_call_verified": false, "connector_verified": connectorVerified, "checked_at": now})
 	_, _ = s.db.ExecContext(ctx, `UPDATE integration_connections SET status=$2,settings=jsonb_set(settings,'{capabilities}',$5::jsonb,true),last_health_at=$3,last_success_at=CASE WHEN $2='active' THEN $3 ELSE last_success_at END,last_error_code=$4,updated_at=$3,lock_version=lock_version+1 WHERE connection_uuid=$1`, connectionID, status, now, errorCode, string(capabilities))
-	return models.BitrixConnectionHealth{ConnectionID: connectionID, Status: status, PortalDomain: info.Domain, CallsReadable: callsErr == nil, UsersReadable: usersErr == nil, TasksWritable: tasksWritable, OAuthConfigured: true, ConnectorVerified: connectorVerified, LastErrorCode: errorCode}, nil
+	// The stored health also carries the settings, such as the CRM note switch.
+	if item, err := s.Health(ctx, connectionID, actor); err == nil {
+		return item, nil
+	}
+	return models.BitrixConnectionHealth{ConnectionID: connectionID, Status: status, PortalDomain: info.Domain, CallsReadable: callsErr == nil, UsersReadable: usersErr == nil, TasksWritable: tasksWritable, CRMNotesWritable: crmNotesWritable, CRMNoteMode: CRMNoteModeOff, OAuthConfigured: true, ConnectorVerified: connectorVerified, LastErrorCode: errorCode}, nil
 }
 
 func (s *Service) Health(ctx context.Context, connectionID, actor uuid.UUID) (models.BitrixConnectionHealth, error) {
@@ -294,6 +311,11 @@ func (s *Service) Health(ctx context.Context, connectionID, actor uuid.UUID) (mo
 		item.CallsReadable = boolValue(capabilities["calls_readable"])
 		item.UsersReadable = boolValue(capabilities["users_readable"])
 		item.ConnectorVerified = boolValue(capabilities["connector_verified"])
+		item.CRMNotesWritable = boolValue(capabilities["crm_notes_writable"])
+	}
+	item.CRMNoteMode = CRMNoteModeOff
+	if mode, ok := settings["crm_note_mode"].(string); ok && mode == CRMNoteModeAuto {
+		item.CRMNoteMode = CRMNoteModeAuto
 	}
 	return item, nil
 }

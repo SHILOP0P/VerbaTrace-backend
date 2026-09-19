@@ -42,7 +42,16 @@ type Service struct {
 	log                      logger.Logger
 	creditMeter              CreditMeter
 	privacyManager           PrivacyManager
+	subjects                 SubjectRefresher
 }
+
+// SubjectRefresher decides again whom a call counts for once its transcript,
+// and with it the speakers, is known.
+type SubjectRefresher interface {
+	Refresh(ctx context.Context, callID uuid.UUID, actor uuid.NullUUID, cause string)
+}
+
+func (s *Service) SetSubjectRefresher(refresher SubjectRefresher) { s.subjects = refresher }
 
 func (s *Service) SetCreditMeter(meter CreditMeter)         { s.creditMeter = meter }
 func (s *Service) SetPrivacyManager(manager PrivacyManager) { s.privacyManager = manager }
