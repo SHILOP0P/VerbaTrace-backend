@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // ws is the whitespace of JavaScript's \s: the frontend helper decides what
@@ -31,8 +32,25 @@ var (
 	speakerMarker = regexp.MustCompile(`(?i)\{\{speaker:([^{}]*)\}\}`)
 
 	// A field name after a noun that owns it reads as «части пункта».
-	schemaPhrase = regexp.MustCompile(`(?i)(части|элементы|элементов|содержания|содержание|требования|требований|условия|условий|формулировки)` + ws + `+assigned_units?`)
-	schemaTerms  = []replacement{
+	schemaPhrase = regexp.MustCompile(`(?i)(части|частям|частях|частями|частей|элементы|элементам|элементах|элементов|содержания|содержание|содержанию|требования|требованиям|требованиях|требований|условия|условиям|условий|формулировки|формулировке|формулировкам|текст|текста|тексту|тексте)` + ws + `+assigned_units?`)
+	// After a preposition the word takes the case the preposition asks for,
+	// otherwise «в assigned_unit» reads «в пункт». Order matters: the plural
+	// before the singular it starts with.
+	schemaAfterPreposition = []replacement{
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(в|во|на|о|об)` + ws + `+assigned_units`), "${1}${2} пунктах"},
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(в|во|на|о|об)` + ws + `+assigned_unit`), "${1}${2} пункте"},
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(из|для|до|от|у|без|кроме)` + ws + `+assigned_units`), "${1}${2} пунктов"},
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(из|для|до|от|у|без|кроме)` + ws + `+assigned_unit`), "${1}${2} пункта"},
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(по|к|ко)` + ws + `+assigned_units`), "${1}${2} пунктам"},
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(по|к|ко)` + ws + `+assigned_unit`), "${1}${2} пункту"},
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(по|к|ко)` + ws + `+source_segments`), "${1}${2} репликам"},
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(из|для|до|от|у|без|кроме)` + ws + `+source_segments`), "${1}${2} реплик"},
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(в|во|на|о|об)` + ws + `+source_segments`), "${1}${2} репликах"},
+		{regexp.MustCompile(`(?i)(^|` + ws + `|\()(в|во|на|о|об)` + ws + `+source_segment`), "${1}${2} реплике"},
+	}
+	// The model also transliterates the field: «вопрос юнита» is «вопрос пункта».
+	transliteratedUnit = regexp.MustCompile(`(?i)юнит(ами|ам|ах|ов|ом|а|у|е|ы)?`)
+	schemaTerms        = []replacement{
 		{regexp.MustCompile(`(?i)assigned_units`), "пункты"},
 		{regexp.MustCompile(`(?i)assigned_unit`), "пункт"},
 		{regexp.MustCompile(`(?i)source_segments?`), "реплики"},
@@ -133,6 +151,24 @@ func stripPiece(piece string, titles map[string]string) string {
 	}
 	piece = replaceMatches(piece, schemaPhrase, func(text string, match []int) (string, bool) {
 		return text[match[2]:match[3]] + " пункта", !isWordByte(byteAt(text, match[1]))
+	})
+	for _, term := range schemaAfterPreposition {
+		piece = replaceMatches(piece, term.pattern, func(text string, match []int) (string, bool) {
+			after := byteAt(text, match[1])
+			if isWordByte(after) || strings.ContainsRune("@/-", rune(after)) {
+				return "", false
+			}
+			return term.pattern.ReplaceAllString(text[match[0]:match[1]], term.with), true
+		})
+	}
+	piece = replaceMatches(piece, transliteratedUnit, func(text string, match []int) (string, bool) {
+		before, _ := utf8.DecodeLastRuneInString(text[:match[0]])
+		after, _ := utf8.DecodeRuneInString(text[match[1]:])
+		suffix := ""
+		if match[2] >= 0 {
+			suffix = text[match[2]:match[3]]
+		}
+		return "пункт" + suffix, !unicode.IsLetter(before) && !unicode.IsLetter(after)
 	})
 	for _, term := range schemaTerms {
 		piece = replaceMatches(piece, term.pattern, func(text string, match []int) (string, bool) {
