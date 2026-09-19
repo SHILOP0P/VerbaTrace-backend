@@ -89,6 +89,46 @@ func TestAnalysisSearchTextSupportsUniversalAndLegacyResults(t *testing.T) {
 	}
 }
 
+func TestReadableChunkCleansOnlyAnalysisChunks(t *testing.T) {
+	old := "Сохранённый анализ звонка. Общий вывод: {{speaker:A}} подтвердил бронь (u1.7,u1.4)."
+	if got := readableChunk("analysis", old); got != "Сохранённый анализ звонка. Общий вывод: Спикер A подтвердил бронь." {
+		t.Fatalf("analysis chunk = %q", got)
+	}
+	said := "Тариф S1, файл в s4.1 (u1.2)"
+	if got := readableChunk("transcription", said); got != said {
+		t.Fatalf("a transcript chunk is what was said, got %q", got)
+	}
+}
+
+func TestAnalysisSearchTextCarriesNoReferenceIDs(t *testing.T) {
+	text := analysisSearchText([]byte(`{"schema_version":3,
+		"summary":"Бронь оформлена и подтверждена (u1.7,u1.4).","outcome":"{{speaker:B}} подтвердил итог (r16,r17).",
+		"items":[
+			{"id":"u1.4","title":"Какая дата? (s4.1)","answer_summary":"Назвал дату в s4.1.","explanation":"{{speaker:A}} ответил, см. u1.7.","improvement":null},
+			{"id":"u1.7","title":"Подтверждение","explanation":"Частично.","improvement":"Сверить с u1.4 (рекомендация rec1)."},
+			{"id":"r1","title":"Тариф S1 назван","criterion_key":"k","explanation":"Назван (r1)."}
+		],
+		"recommendations":[{"id":"rec1","title":"Назвать цену"}]}`))
+	for _, want := range []string{
+		"Общий вывод: Бронь оформлена и подтверждена.",
+		"Результат: Спикер B подтвердил итог.",
+		"Пункт анализа: Какая дата?",
+		"Назвал дату.",
+		"Спикер A ответил, см. «Подтверждение».",
+		"Сверить с «Какая дата?».",
+		"Пункт анализа: Тариф S1 назван",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("index text misses %q: %s", want, text)
+		}
+	}
+	for _, id := range []string{"u1.", "r16", "rec1", "s4.1", "(r1)", "{{speaker"} {
+		if strings.Contains(text, id) {
+			t.Fatalf("index text carries %q: %s", id, text)
+		}
+	}
+}
+
 func TestLongSegmentChunkingIsBounded(t *testing.T) {
 	text := strings.Repeat("я", 5000)
 	chunks := chunkPayload(revisionPayload{Segments: []models.TranscriptionSegment{{Text: text, Speaker: "A"}}})

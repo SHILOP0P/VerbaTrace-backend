@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"verbatrace/monolit/internal/analysistext"
 	"verbatrace/monolit/internal/companystate"
 	"verbatrace/monolit/internal/models"
 
@@ -830,8 +831,10 @@ func parseSourceCriteria(raw []byte) ([]sourceCriterion, error) {
 		return nil, ErrInvalidInput
 	}
 	items, ok := payload["criteria_results"].([]any)
+	cards := false
 	if !ok && numberValue(payload["schema_version"], 0) == 3 {
 		items, ok = payload["items"].([]any)
+		cards = ok
 	}
 	if !ok || len(items) == 0 {
 		return nil, ErrInvalidInput
@@ -857,6 +860,11 @@ func parseSourceCriteria(raw []byte) ([]sourceCriterion, error) {
 		title := stringValue(m["title"])
 		if title == "" {
 			title = stringValue(m["topic"])
+		}
+		// A card of an analysis made before its titles were cleaned may cite
+		// other cards by ID; a scorecard criterion keeps its author's title.
+		if cards && stringValue(m["criterion_key"]) == "" {
+			title = analysistext.StripReferenceIDs(title, nil)
 		}
 		if title == "" {
 			title = key

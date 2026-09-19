@@ -130,6 +130,29 @@ func TestGrowthAreasFollowTheSeriesRules(t *testing.T) {
 	require.Equal(t, 2, occurrences)
 }
 
+func TestGrowthTextIsStoredWithoutReferenceIDs(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	titles := map[string]string{"u1.2": "Опыт работы"}
+	first := w.call(2, w.ivan)
+	require.NoError(t, w.service.Record(ctx, first, models.GrowthOutcome{ItemTitles: titles, NewAreas: []models.NewGrowthArea{{
+		Title: "Отвечает общими словами (u1.2)", Description: "Не приводит примеров, как в u1.2 (r1).", ItemIDs: []string{"u1.2"},
+	}}}))
+	var area uuid.UUID
+	var title, description string
+	require.NoError(t, w.db.QueryRow(`SELECT area_uuid, title, description FROM growth_areas`).Scan(&area, &title, &description))
+	require.Equal(t, "Отвечает общими словами", title)
+	require.Equal(t, "Не приводит примеров, как в «Опыт работы».", description)
+
+	second := w.call(1, w.ivan)
+	require.NoError(t, w.service.Record(ctx, second, models.GrowthOutcome{ItemTitles: titles, Observations: []models.GrowthObservation{{
+		AreaID: area.String(), Verdict: models.GrowthVerdictRepeated, ItemIDs: []string{"u1.2"}, Note: "{{speaker:A}} снова без примеров в u1.2 (s4.1)",
+	}}}))
+	var note string
+	require.NoError(t, w.db.QueryRow(`SELECT note FROM growth_area_observations WHERE call_uuid = $1`, second).Scan(&note))
+	require.Equal(t, "{{speaker:A}} снова без примеров в «Опыт работы»", note, "a note names this call's card and keeps the marker")
+}
+
 func TestGrowthAreasAreKeptOnlyForOneEmployeesCalls(t *testing.T) {
 	w := newWorld(t)
 	ctx := context.Background()

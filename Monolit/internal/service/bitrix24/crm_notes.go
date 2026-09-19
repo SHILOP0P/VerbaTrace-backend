@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"verbatrace/monolit/internal/analysistext"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
@@ -34,7 +34,6 @@ const (
 var (
 	// Bitrix24 CRM owner types of an activity.
 	crmEntityTypes     = map[string]string{"1": "lead", "2": "deal", "3": "contact", "4": "company"}
-	crmSpeakerMarker   = regexp.MustCompile(`\{\{speaker:([^{}]*)\}\}`)
 	errCRMNoteSkipped  = errors.New("crm note is not wanted")
 	errCRMNoteNotFound = errors.New("crm comment not found")
 )
@@ -229,23 +228,11 @@ func (s *Service) crmNoteText(ctx context.Context, callID uuid.UUID) (string, uu
 	if err != nil {
 		return "", uuid.Nil, err
 	}
-	var parsed struct {
-		Outcome any   `json:"outcome"`
-		WorkOn  []any `json:"work_on"`
-	}
-	_ = json.Unmarshal([]byte(result), &parsed)
 	names, err := s.speakerNames(ctx, callID)
 	if err != nil {
 		return "", uuid.Nil, err
 	}
-	name := func(text string) string {
-		return crmSpeakerMarker.ReplaceAllStringFunc(text, func(marker string) string {
-			if display := names[crmSpeakerMarker.FindStringSubmatch(marker)[1]]; display != "" {
-				return display
-			}
-			return "участник"
-		})
-	}
+	outcome, work := crmSummary([]byte(result), names)
 	moscow, _ := time.LoadLocation("Europe/Moscow")
 	if moscow == nil {
 		moscow = time.UTC
@@ -258,17 +245,8 @@ func (s *Service) crmNoteText(ctx context.Context, callID uuid.UUID) (string, uu
 		}
 		lines = append(lines, line)
 	}
-	if outcome := strings.TrimSpace(name(textOf(parsed.Outcome))); outcome != "" {
-		if utf8.RuneCountInString(outcome) > crmOutcomeRunes {
-			outcome = strings.TrimSpace(string([]rune(outcome)[:crmOutcomeRunes])) + "…"
-		}
+	if outcome != "" {
 		lines = append(lines, "Итог: "+outcome)
-	}
-	var work []string
-	for _, item := range parsed.WorkOn {
-		if value := strings.TrimSpace(name(textOf(item))); value != "" && len(work) < 2 {
-			work = append(work, value)
-		}
 	}
 	if len(work) > 0 {
 		lines = append(lines, "Над чем поработать: "+strings.Join(work, "; "))
@@ -281,6 +259,36 @@ func (s *Service) crmNoteText(ctx context.Context, callID uuid.UUID) (string, uu
 	}
 	lines = append(lines, "Подробнее: "+s.appURL+"/app/calls?call="+callID.String())
 	return strings.Join(lines, "\n"), analysis, nil
+}
+
+// crmSummary is the outcome and the first two things to work on, as a person in
+// the CRM should read them: the model's reference IDs gone or named by their
+// titles, speakers by name.
+func crmSummary(result []byte, names map[string]string) (outcome string, work []string) {
+	var parsed struct {
+		Outcome any   `json:"outcome"`
+		WorkOn  []any `json:"work_on"`
+	}
+	_ = json.Unmarshal(result, &parsed)
+	titles := analysistext.ResultTitles(result)
+	readable := func(text string) string {
+		return analysistext.ResolveSpeakerMarkersFunc(analysistext.StripReferenceIDs(text, titles), func(key string) string {
+			if display := names[key]; display != "" {
+				return display
+			}
+			return "участник"
+		})
+	}
+	outcome = strings.TrimSpace(readable(textOf(parsed.Outcome)))
+	if utf8.RuneCountInString(outcome) > crmOutcomeRunes {
+		outcome = strings.TrimSpace(string([]rune(outcome)[:crmOutcomeRunes])) + "…"
+	}
+	for _, item := range parsed.WorkOn {
+		if value := strings.TrimSpace(readable(textOf(item))); value != "" && len(work) < 2 {
+			work = append(work, value)
+		}
+	}
+	return outcome, work
 }
 
 // textOf reads a summary field that is a string or an object with a text.

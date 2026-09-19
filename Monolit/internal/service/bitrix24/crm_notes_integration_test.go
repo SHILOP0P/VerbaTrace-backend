@@ -79,7 +79,7 @@ func TestCRMNoteIsWrittenOnceAndUpdatedAfterwards(t *testing.T) {
 		VALUES ($1,'Звонок','analyzed','a.mp3','a.mp3','audio/mpeg',1,$2,$3,'company',$4,'2026-09-15T10:30:00Z')`, call, owner, company, item)
 	exec(t, db, `INSERT INTO call_analyses (analysis_uuid, call_uuid, status, provider, result_json, created_at, updated_at)
 		VALUES ($1,$2,'done','mock_staged',$3::jsonb,now(),now())`, uuid.New(), call,
-		`{"schema_version":3,"outcome":"{{speaker:B}} согласился на демонстрацию","work_on":["Назвать срок","Уточнить бюджет","Лишнее"]}`)
+		`{"schema_version":3,"outcome":"{{speaker:B}} согласился на демонстрацию (u1.7,u1.4)","work_on":["Назвать срок (рекомендация rec1)","Уточнить бюджет","Лишнее"]}`)
 	exec(t, db, `INSERT INTO call_transcription_speaker_assignments (call_uuid, speaker_key, display_name, role, updated_by_user_uuid) VALUES ($1,'B','Клиент Пётр','client',$2)`, call, owner)
 	exec(t, db, `INSERT INTO analytics_call_facts (call_uuid, analysis_uuid, occurred_at, schema_version, scorecard_mode, ai_overall_score, criteria_score, coverage_status) VALUES ($1,$2,'2026-09-15T10:30:00Z',3,'fixed',64,58,'complete')`, call, uuid.New())
 
@@ -100,6 +100,9 @@ func TestCRMNoteIsWrittenOnceAndUpdatedAfterwards(t *testing.T) {
 	require.Contains(t, comment, "Итог: Клиент Пётр согласился на демонстрацию", "speakers are named, not marked")
 	require.Contains(t, comment, "Над чем поработать: Назвать срок; Уточнить бюджет")
 	require.NotContains(t, comment, "Лишнее")
+	for _, id := range []string{"u1.7", "u1.4", "rec1"} {
+		require.NotContains(t, comment, id, "the model's reference IDs never reach the CRM")
+	}
 	require.NotContains(t, comment, "Оценку проверил человек")
 	require.Contains(t, comment, "https://app.example/app/calls?call="+call.String())
 

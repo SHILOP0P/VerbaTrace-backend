@@ -17,29 +17,21 @@ func generateXLSXReport(data ReportData) ([]byte, error) {
 	if err := file.SetSheetName("Sheet1", metaSheet); err != nil {
 		return nil, fmt.Errorf("rename metadata sheet: %w", err)
 	}
-	setRows(file, metaSheet, [][]any{
+	meta := [][]any{
 		{"Поле", "Значение"},
-		{"ID звонка", data.Call.ID.String()},
 		{"Название", data.Call.Title},
 		{"Статус звонка", string(data.Call.Status)},
 		{"Длительность, сек.", data.Call.DurationSeconds},
 		{"Создан", data.Call.CreatedAt.Format(timeLayout)},
 		{"Отчет создан", data.GeneratedAt.Format(timeLayout)},
-		{"ID анализа", data.Analysis.ID.String()},
-		{"Статус анализа", string(data.Analysis.Status)},
-		{"Провайдер", data.Analysis.Provider},
-		{"Модель", optionalString(data.Analysis.Model)},
-	})
-
-	if data.TranscriptionOnly {
-		for row := 12; row >= 8; row-- {
-			if err := file.RemoveRow(metaSheet, row); err != nil {
-				return nil, err
-			}
-		}
-		_ = file.SetCellValue(metaSheet, "A8", "Версия транскрипции")
-		_ = file.SetCellValue(metaSheet, "B8", data.TranscriptionRevision)
 	}
+	if data.TranscriptionOnly {
+		meta = append(meta, []any{"Версия транскрипции", data.TranscriptionRevision})
+	} else {
+		meta = append(meta, []any{"Статус анализа", string(data.Analysis.Status)})
+	}
+	setRows(file, metaSheet, meta)
+
 	if !data.TranscriptionOnly {
 		analysisSheet := "Анализ"
 		if _, err := file.NewSheet(analysisSheet); err != nil {
@@ -87,7 +79,7 @@ func generateXLSXReport(data ReportData) ([]byte, error) {
 			if _, err := file.NewSheet(itemsSheet); err != nil {
 				return nil, fmt.Errorf("create items sheet: %w", err)
 			}
-			setRows(file, itemsSheet, universalItemRows(analysis.Items))
+			setRows(file, itemsSheet, universalItemRows(analysis.Items, data.analysisReader()))
 		}
 	}
 	if data.TranscriptionText != "" {
@@ -154,16 +146,9 @@ func sectionRows(sections []reportSection) [][]any {
 	return rows
 }
 
-func universalItemRows(items []universalItem) [][]any {
+func universalItemRows(items []universalItem, reader analysisReader) [][]any {
 	rows := [][]any{{"Вид", "Пункт", "Статус", "Оценка", "Вес", "Разбор", "Цитаты"}}
 	for index, item := range items {
-		title := item.Title
-		if title == "" {
-			title = item.Topic
-		}
-		if title == "" {
-			title = fmt.Sprintf("Пункт %d", index+1)
-		}
 		score, weight := any(""), any("")
 		if item.Score != nil {
 			score = *item.Score
@@ -173,13 +158,9 @@ func universalItemRows(items []universalItem) [][]any {
 		}
 		quotes := make([]string, 0, len(item.Evidence))
 		for _, proof := range item.Evidence {
-			text := proof.Quote
-			if proof.Speaker != "" {
-				text = proof.Speaker + ": " + text
-			}
-			quotes = append(quotes, text)
+			quotes = append(quotes, reader.quote(proof))
 		}
-		rows = append(rows, []any{itemKindLabel(item.Kind), title, criterionStatusLabel(item.Status), score, weight, item.Explanation, strings.Join(quotes, "\n")})
+		rows = append(rows, []any{itemKindLabel(item.Kind), reader.itemTitle(item, index), criterionStatusLabel(item.Status), score, weight, reader.text(item.Explanation), strings.Join(quotes, "\n")})
 	}
 	return rows
 }
@@ -195,11 +176,4 @@ func itemKindLabel(kind string) string {
 	default:
 		return kind
 	}
-}
-
-func optionalString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }

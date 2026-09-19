@@ -41,7 +41,6 @@ func documentXML(data ReportData) string {
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`)
 	b.WriteString(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>`)
 	docxHeading(&b, data.Title(), 36)
-	docxParagraph(&b, "ID звонка: "+data.Call.ID.String())
 	docxParagraph(&b, "Статус звонка: "+string(data.Call.Status))
 	docxParagraph(&b, fmt.Sprintf("Длительность: %d сек.", data.Call.DurationSeconds))
 	docxParagraph(&b, "Создан: "+data.Call.CreatedAt.Format(timeLayout))
@@ -49,13 +48,7 @@ func documentXML(data ReportData) string {
 	docxParagraph(&b, "")
 	if !data.TranscriptionOnly {
 		docxParagraph(&b, "Анализ")
-		docxParagraph(&b, "ID анализа: "+data.Analysis.ID.String())
 		docxParagraph(&b, "Статус анализа: "+string(data.Analysis.Status))
-		docxParagraph(&b, "Провайдер: "+data.Analysis.Provider)
-		if data.Analysis.Model != nil {
-			docxParagraph(&b, "Модель: "+*data.Analysis.Model)
-		}
-
 	}
 
 	for _, section := range data.Sections() {

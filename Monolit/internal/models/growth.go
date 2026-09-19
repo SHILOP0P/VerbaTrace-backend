@@ -42,6 +42,9 @@ type NewGrowthArea struct {
 type GrowthOutcome struct {
 	Observations []GrowthObservation
 	NewAreas     []NewGrowthArea
+	// ItemTitles are the titles of the analysis cards by ID, so a note that
+	// cites a card by its ID can name it instead.
+	ItemTitles map[string]string
 }
 
 // Growth observation verdicts.

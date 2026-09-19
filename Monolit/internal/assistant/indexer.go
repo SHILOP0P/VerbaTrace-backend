@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/analysistext"
 	"verbatrace/monolit/internal/models"
 
 	"github.com/google/uuid"
@@ -220,24 +221,38 @@ func analysisSearchText(raw []byte) string {
 		return ""
 	}
 	parts := make([]string, 0)
-	appendString := func(label string, value any) {
-		if text, ok := value.(string); ok && strings.TrimSpace(text) != "" {
-			parts = append(parts, label+": "+strings.TrimSpace(text))
+	appendString := func(label string, value string) {
+		if text := strings.TrimSpace(value); text != "" {
+			parts = append(parts, label+": "+text)
 		}
 	}
-	appendString("Общий вывод", payload["summary"])
-	appendString("Результат", payload["outcome"])
-	if items, ok := payload["items"].([]any); ok {
+	items, universal := payload["items"].([]any)
+	readable := func(value any) string { text, _ := value.(string); return text }
+	var titles map[string]string
+	if universal {
+		// A chunk is quoted to people and to the assistant as it is stored, so it
+		// carries none of the model's reference IDs. Speakers are «Спикер A», not
+		// names: a name may change later without the call being indexed again.
+		titles = analysistext.ResultTitles(raw)
+		readable = func(value any) string {
+			text, _ := value.(string)
+			return analysistext.ResolveSpeakerMarkers(analysistext.StripReferenceIDs(text, titles), nil)
+		}
+	}
+	appendString("Общий вывод", readable(payload["summary"]))
+	appendString("Результат", readable(payload["outcome"]))
+	if universal {
 		for _, rawItem := range items {
 			item, ok := rawItem.(map[string]any)
 			if !ok {
 				continue
 			}
-			title, _ := item["title"].(string)
-			answer, _ := item["answer_summary"].(string)
-			explanation, _ := item["explanation"].(string)
-			improvement, _ := item["improvement"].(string)
-			text := strings.TrimSpace(strings.Join([]string{title, answer, explanation, improvement}, ". "))
+			id, _ := item["id"].(string)
+			title := titles[id]
+			if title == "" {
+				title = readable(item["title"])
+			}
+			text := strings.TrimSpace(strings.Join([]string{title, readable(item["answer_summary"]), readable(item["explanation"]), readable(item["improvement"])}, ". "))
 			if text != "" {
 				parts = append(parts, "Пункт анализа: "+text)
 			}
@@ -258,6 +273,16 @@ func analysisSearchText(raw []byte) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+// readableChunk cleans an analysis chunk indexed before chunks were written
+// without reference IDs; no re-index is needed for it. A transcript chunk is
+// what was said and stays as it is.
+func readableChunk(kind, text string) string {
+	if kind != "analysis" {
+		return text
+	}
+	return analysistext.ResolveSpeakerMarkers(analysistext.StripReferenceIDs(text, nil), nil)
 }
 
 const maxChunkRunes = 1800

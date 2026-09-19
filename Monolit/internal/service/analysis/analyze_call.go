@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/analysistext"
 	"verbatrace/monolit/internal/analyzer"
 	"verbatrace/monolit/internal/instructioncontent"
 	"verbatrace/monolit/internal/models"
@@ -369,6 +370,7 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		return models.CallAnalysis{}, fmt.Errorf("mark call analyzed: %w", err)
 	}
 	if growth != nil && s.growth != nil {
+		growth.ItemTitles = analysistext.ResultTitles(result.ResultJSON)
 		if err := s.growth.Record(ctx, call.ID, *growth); err != nil {
 			s.log.Warn(ctx, "growth areas not recorded", zap.String("call_id", call.ID.String()), zap.Error(err))
 		}

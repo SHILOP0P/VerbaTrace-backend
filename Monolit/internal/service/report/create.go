@@ -50,6 +50,16 @@ func (s *Service) Create(ctx context.Context, input models.CreateReportInput) (m
 	transcriptText := ""
 	revision := 0
 
+	// The transcript and the analysis both name speakers by these names.
+	var names map[string]string
+	if speakers, ok := s.transcriptionRepository.(interface {
+		GetReportSpeakerNames(context.Context, uuid.UUID) (map[string]string, error)
+	}); ok {
+		names, err = speakers.GetReportSpeakerNames(ctx, input.CallUUID)
+		if err != nil {
+			return models.ReportExport{}, err
+		}
+	}
 	loader, supportsVersions := s.transcriptionRepository.(interface {
 		GetReportTranscription(context.Context, uuid.UUID, int) (models.Transcription, int, error)
 	})
@@ -57,15 +67,6 @@ func (s *Service) Create(ctx context.Context, input models.CreateReportInput) (m
 		transcript, selectedRevision, loadErr := loader.GetReportTranscription(ctx, input.CallUUID, input.TranscriptionRevision)
 		if loadErr != nil {
 			return models.ReportExport{}, loadErr
-		}
-		var names map[string]string
-		if speakers, ok := s.transcriptionRepository.(interface {
-			GetReportSpeakerNames(context.Context, uuid.UUID) (map[string]string, error)
-		}); ok {
-			names, err = speakers.GetReportSpeakerNames(ctx, input.CallUUID)
-			if err != nil {
-				return models.ReportExport{}, err
-			}
 		}
 		transcriptText = formatTranscriptWithSpeakers(transcript, names)
 		revision = selectedRevision
@@ -106,6 +107,7 @@ func (s *Service) Create(ctx context.Context, input models.CreateReportInput) (m
 		Analysis:              analysis,
 		TranscriptionText:     transcriptText,
 		GeneratedAt:           now,
+		SpeakerNames:          names,
 	}
 
 	content, err := generateReport(format, data)

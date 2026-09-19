@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"verbatrace/monolit/internal/analysistext"
 )
 
 type analysisReport struct {
@@ -35,6 +37,7 @@ type analysisReport struct {
 }
 
 type universalItem struct {
+	ID                 string              `json:"id"`
 	Kind               string              `json:"kind"`
 	Weight             *float64            `json:"weight"`
 	Title              string              `json:"title"`
@@ -47,6 +50,7 @@ type universalItem struct {
 	Gaps               []universalGap      `json:"gaps"`
 	Improvement        *string             `json:"improvement"`
 	InstructionSources []string            `json:"instruction_sources"`
+	InstructionTitles  []string            `json:"instruction_titles"`
 	Evidence           []universalEvidence `json:"evidence"`
 }
 
@@ -59,6 +63,7 @@ type universalEvidence struct {
 	Speaker string `json:"speaker"`
 }
 type recommendation struct {
+	ID             string   `json:"id"`
 	Title          string   `json:"title"`
 	Action         string   `json:"action"`
 	Reason         string   `json:"reason"`
@@ -145,7 +150,7 @@ func (d ReportData) Sections() []reportSection {
 	}
 	analysis := d.StructuredAnalysis()
 	if analysis.SchemaVersion == 3 {
-		return universalSections(analysis, d.TranscriptionText)
+		return universalSections(analysis, d.TranscriptionText, d.analysisReader())
 	}
 	sections := []reportSection{
 		{
@@ -212,29 +217,22 @@ func (d ReportData) Sections() []reportSection {
 	return sections
 }
 
-func universalSections(analysis analysisReport, transcription string) []reportSection {
+func universalSections(analysis analysisReport, transcription string, reader analysisReader) []reportSection {
 	score := analysis.OverallScoreLabel
 	if score == "" && analysis.OverallScore != nil {
 		score = scoreLabel(*analysis.OverallScore)
 	}
 	sections := []reportSection{
-		{Title: "Общий вывод", Rows: []reportRow{{Value: analysis.Summary}, {Label: "Результат разговора", Value: withFallback(analysis.Outcome)}, {Label: "Оценка", Value: withFallback(score)}, {Label: "Сильные стороны", List: withFallbackList(analysis.Strengths)}, {Label: "Над чем работать", List: withFallbackList(analysis.WorkOn)}}},
+		{Title: "Общий вывод", Rows: []reportRow{{Value: withFallback(reader.text(analysis.Summary))}, {Label: "Результат разговора", Value: withFallback(reader.text(analysis.Outcome))}, {Label: "Оценка", Value: withFallback(score)}, {Label: "Сильные стороны", List: withFallbackList(reader.list(analysis.Strengths))}, {Label: "Над чем работать", List: withFallbackList(reader.list(analysis.WorkOn))}}},
 	}
 	for index, item := range analysis.Items {
-		title := item.Title
-		if title == "" {
-			title = item.Topic
-		}
-		if title == "" {
-			title = fmt.Sprintf("Пункт %d", index+1)
-		}
 		answer := ""
 		if item.AnswerSummary != nil {
-			answer = *item.AnswerSummary
+			answer = reader.text(*item.AnswerSummary)
 		}
 		improvement := ""
 		if item.Improvement != nil {
-			improvement = *item.Improvement
+			improvement = reader.text(*item.Improvement)
 		}
 		itemScore := "Не оценивается"
 		if item.Score != nil {
@@ -242,28 +240,35 @@ func universalSections(analysis analysisReport, transcription string) []reportSe
 		}
 		gaps, evidence := make([]string, 0, len(item.Gaps)), make([]string, 0, len(item.Evidence))
 		for _, gap := range item.Gaps {
-			text := gap.Text
-			if gap.Explanation != "" {
-				text += ": " + gap.Explanation
+			text := reader.text(gap.Text)
+			if explanation := reader.text(gap.Explanation); explanation != "" {
+				text += ": " + explanation
 			}
 			gaps = append(gaps, text)
 		}
 		for _, proof := range item.Evidence {
-			text := proof.Quote
-			if proof.Speaker != "" {
-				text = proof.Speaker + ": " + text
-			}
-			evidence = append(evidence, text)
+			evidence = append(evidence, reader.quote(proof))
 		}
-		sections = append(sections, reportSection{Title: title, Rows: []reportRow{{Label: "Статус", Value: criterionStatusLabel(item.Status)}, {Label: "Оценка", Value: itemScore}, {Label: "Ответ или действие", Value: withFallback(answer)}, {Label: "Разбор", Value: withFallback(item.Explanation)}, {Label: "Сильные стороны", List: withFallbackList(item.Strengths)}, {Label: "Что не раскрыто", List: withFallbackList(gaps)}, {Label: "Эталонный ответ или совет", Value: withFallback(improvement)}, {Label: "Основания инструкции", List: withFallbackList(item.InstructionSources)}, {Label: "Цитаты", List: withFallbackList(evidence)}}})
+		sections = append(sections, reportSection{Title: reader.itemTitle(item, index), Rows: []reportRow{{Label: "Статус", Value: criterionStatusLabel(item.Status)}, {Label: "Оценка", Value: itemScore}, {Label: "Ответ или действие", Value: withFallback(answer)}, {Label: "Разбор", Value: withFallback(reader.text(item.Explanation))}, {Label: "Сильные стороны", List: withFallbackList(reader.list(item.Strengths))}, {Label: "Что не раскрыто", List: withFallbackList(gaps)}, {Label: "Эталонный ответ или совет", Value: withFallback(improvement)}, {Label: "Основания инструкции", List: instructionBasis(item)}, {Label: "Цитаты", List: withFallbackList(evidence)}}})
 	}
 	rows := make([]reportRow, 0, len(analysis.Recommendations))
-	for _, rec := range analysis.Recommendations {
-		priority := rec.Priority
+	for index, rec := range analysis.Recommendations {
+		priority := priorityLabel(rec.Priority)
 		if rec.PriorityScore != nil {
 			priority = fmt.Sprintf("%s · %.0f/100", priority, *rec.PriorityScore)
 		}
-		rows = append(rows, reportRow{Label: rec.Title, Value: strings.TrimSpace(rec.Action + " " + rec.Reason + " " + rec.ExpectedResult + " [приоритет: " + priority + "]")})
+		title := reader.text(rec.Title)
+		if title == "" {
+			title = fmt.Sprintf("Рекомендация %d", index+1)
+		}
+		parts := make([]string, 0, 4)
+		for _, text := range []string{reader.text(rec.Action), reader.text(rec.Reason), reader.text(rec.ExpectedResult)} {
+			if text != "" {
+				parts = append(parts, text)
+			}
+		}
+		parts = append(parts, "[приоритет: "+priority+"]")
+		rows = append(rows, reportRow{Label: title, Value: strings.Join(parts, " ")})
 	}
 	sections = append(sections, reportSection{Title: "Приоритетные рекомендации", Rows: rows})
 	if transcription != "" {
@@ -345,21 +350,125 @@ func withFallbackList(values []string) []string {
 	return out
 }
 
+// criterionStatusLabel never prints a status code: one it does not know reads
+// as not given.
 func criterionStatusLabel(status string) string {
 	switch status {
 	case "met":
 		return "Выполнено"
+	case "mostly_met":
+		return "В основном выполнено"
 	case "partially_met":
 		return "Частично выполнено"
+	case "minimally_met":
+		return "Минимально выполнено"
 	case "missed":
 		return "Не выполнено"
 	case "not_applicable":
 		return "Не применимо"
 	case "unclear":
 		return "Неясно"
+	case "conflict":
+		return "Конфликт требований"
+	case "not_assessed":
+		return "Не оценено"
 	default:
-		return status
+		return "Не указано"
 	}
+}
+
+func priorityLabel(priority string) string {
+	switch priority {
+	case "high":
+		return "высокий"
+	case "medium":
+		return "средний"
+	case "low":
+		return "низкий"
+	case "unresolved":
+		return "не определён"
+	default:
+		return "не указан"
+	}
+}
+
+// instructionBasis names the instructions a card rests on by their titles,
+// never by their IDs.
+func instructionBasis(item universalItem) []string {
+	titles := make([]string, 0, len(item.InstructionTitles))
+	for _, title := range item.InstructionTitles {
+		if title = strings.TrimSpace(title); title != "" {
+			titles = append(titles, title)
+		}
+	}
+	if len(titles) == 0 && len(item.InstructionSources) > 0 {
+		// Cards analysed before titles were stamped on them carry only the IDs.
+		titles = append(titles, "Инструкция звонка")
+	}
+	return withFallbackList(titles)
+}
+
+// analysisReader makes the model's text of a v3 analysis readable: reference
+// IDs go or become the titles they stand for, and speakers are named.
+type analysisReader struct {
+	titles map[string]string
+	names  map[string]string
+}
+
+func (d ReportData) analysisReader() analysisReader {
+	return analysisReader{titles: analysistext.ResultTitles(d.Analysis.ResultJSON), names: d.SpeakerNames}
+}
+
+func (r analysisReader) text(value string) string {
+	return analysistext.ResolveSpeakerMarkersFunc(analysistext.StripReferenceIDs(value, r.titles), r.speaker)
+}
+
+// list cleans every entry; an entry that was only a list of IDs goes.
+func (r analysisReader) list(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if text := r.text(value); text != "" {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+// itemTitle is the title the card is cited by, which keeps a scorecard
+// criterion's title as its author wrote it.
+func (r analysisReader) itemTitle(item universalItem, index int) string {
+	if title := r.titles[strings.TrimSpace(item.ID)]; title != "" {
+		return analysistext.ResolveSpeakerMarkersFunc(title, r.speaker)
+	}
+	title := r.text(item.Title)
+	if title == "" {
+		title = r.text(item.Topic)
+	}
+	if title == "" {
+		title = fmt.Sprintf("Пункт %d", index+1)
+	}
+	return title
+}
+
+// speaker names a speaker key as the report's transcript does, except that a
+// bare key reads «Спикер A» rather than a lone letter.
+func (r analysisReader) speaker(key string) string {
+	key = strings.TrimSpace(key)
+	if name := strings.TrimSpace(r.names[key]); name != "" {
+		return name
+	}
+	if label := reportSpeakerLabel(key, nil); label != key {
+		return label
+	}
+	return "Спикер " + key
+}
+
+// quote is a quote of the transcript, left as said, after its speaker's name.
+func (r analysisReader) quote(proof universalEvidence) string {
+	if strings.TrimSpace(proof.Speaker) == "" {
+		return proof.Quote
+	}
+	return r.speaker(proof.Speaker) + ": " + proof.Quote
 }
 
 func answerStatusLabel(status string) string {

@@ -31,7 +31,7 @@ func TestXLSXListsSchemaV3Cards(t *testing.T) {
 	rows, err := workbook.GetRows("Карточки")
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
-	require.Equal(t, []string{"Требование", "Выяснил бюджет", criterionStatusLabel("missed"), "0", "2", "Бюджет не обсуждали", "A: Когда удобно?"}, rows[1])
+	require.Equal(t, []string{"Требование", "Выяснил бюджет", criterionStatusLabel("missed"), "0", "2", "Бюджет не обсуждали", "Спикер A: Когда удобно?"}, rows[1])
 	require.Equal(t, "Вопрос", rows[2][0])
 	require.Equal(t, "100", rows[2][3])
 }

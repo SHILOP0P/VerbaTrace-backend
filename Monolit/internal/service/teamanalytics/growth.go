@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
+	"verbatrace/monolit/internal/analysistext"
 	callRepo "verbatrace/monolit/internal/repository/call"
 
 	"github.com/google/uuid"
@@ -17,15 +17,18 @@ import (
 // about where the person is now.
 const maxObservations = 20
 
-var speakerMarker = regexp.MustCompile(`\{\{speaker:[^{}]*\}\}`)
-
 // withName shows the employee in a note: the model marks them by speaker ID.
+// Notes stored before reference IDs were cleaned on write lose them here.
 func withName(note, name string) string {
 	if name == "" {
 		name = "сотрудник"
 	}
-	return speakerMarker.ReplaceAllString(note, name)
+	return analysistext.ResolveSpeakerMarkersFunc(readable(note), func(string) string { return name })
 }
+
+// readable takes the model's reference IDs out of growth text; the titles of
+// the cards they cite are not at hand here, so the IDs simply go.
+func readable(text string) string { return analysistext.StripReferenceIDs(text, nil) }
 
 type GrowthAreasView struct {
 	Areas []EmployeeGrowthArea `json:"areas"`
@@ -78,6 +81,7 @@ func (s *Service) employeeGrowth(ctx context.Context, scope Scope, target uuid.U
 			return nil, fmt.Errorf("scan growth area: %w", err)
 		}
 		area.AreaUUID, area.Observations = id.String(), []GrowthObservationView{}
+		area.Title, area.Description = readable(area.Title), readable(area.Description)
 		index[id] = len(areas)
 		areas = append(areas, area)
 	}
@@ -149,7 +153,7 @@ func (s *Service) callGrowth(ctx context.Context, callID uuid.UUID, name string)
 		if err := rows.Scan(&id, &area.Title, &area.Verdict, &area.Note, &items); err != nil {
 			return nil, fmt.Errorf("scan call growth: %w", err)
 		}
-		area.AreaUUID, area.ItemIDs, area.Note = id.String(), []string(items), withName(area.Note, name)
+		area.AreaUUID, area.ItemIDs, area.Title, area.Note = id.String(), []string(items), readable(area.Title), withName(area.Note, name)
 		out = append(out, area)
 	}
 	return out, rows.Err()

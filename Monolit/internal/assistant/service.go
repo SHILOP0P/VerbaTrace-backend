@@ -341,6 +341,7 @@ func (s *Service) ContentSearch(ctx context.Context, in models.ContentSearchInpu
 		if err = rows.Scan(&x.ChunkUUID, &x.CallUUID, &x.Title, &x.Quote, &x.Speaker, &x.StartSeconds, &x.EndSeconds, &x.CreatedAt, &x.UpdatedAt, &x.Revision, &x.Score, &x.SourceKind); err != nil {
 			return models.ContentSearchResult{}, err
 		}
+		x.Quote = readableChunk(x.SourceKind, x.Quote)
 		x.RetrievalMode = mode
 		items = append(items, x)
 	}
@@ -402,6 +403,7 @@ func (s *Service) fullSelectedContent(ctx context.Context, in models.ContentSear
 		if err = rows.Scan(&item.ChunkUUID, &item.CallUUID, &item.Title, &item.Quote, &item.Speaker, &item.StartSeconds, &item.EndSeconds, &item.CreatedAt, &item.UpdatedAt, &item.Revision, &item.Score, &item.SourceKind); err != nil {
 			return models.ContentSearchResult{}, err
 		}
+		item.Quote = readableChunk(item.SourceKind, item.Quote)
 		item.RetrievalMode = "full_selected_calls"
 		items = append(items, item)
 		indexed[item.CallUUID] = true

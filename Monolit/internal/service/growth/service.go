@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"verbatrace/monolit/internal/analysistext"
 	"verbatrace/monolit/internal/logger"
 	"verbatrace/monolit/internal/models"
 
@@ -188,7 +189,7 @@ func (s *Service) observe(ctx context.Context, tx *sql.Tx, callID uuid.UUID, sh 
 			// while it was analysed.
 			continue
 		}
-		if err := insertObservation(ctx, tx, areaID, callID, o.Verdict, o.ItemIDs, o.Note); err != nil {
+		if err := insertObservation(ctx, tx, areaID, callID, o.Verdict, o.ItemIDs, callNote(o.Note, outcome)); err != nil {
 			return nil, err
 		}
 		seen[areaID] = true
@@ -198,8 +199,11 @@ func (s *Service) observe(ctx context.Context, tx *sql.Tx, callID uuid.UUID, sh 
 		if i == maxNewAreas {
 			break
 		}
-		title := clip(strings.TrimSpace(area.Title), maxTitleRunes)
-		if title == "" || strings.TrimSpace(area.Description) == "" {
+		// The title names the shortcoming for every later call and is matched by
+		// its text, so no card of this call gets into it.
+		title := clip(analysistext.StripReferenceIDs(area.Title, nil), maxTitleRunes)
+		description := callNote(area.Description, outcome)
+		if title == "" || description == "" {
 			continue
 		}
 		// A shortcoming that was resolved and is now seen again comes back as the
@@ -215,7 +219,7 @@ func (s *Service) observe(ctx context.Context, tx *sql.Tx, callID uuid.UUID, sh 
 			if seen[existing] {
 				continue
 			}
-			if err := insertObservation(ctx, tx, existing, callID, models.GrowthVerdictRepeated, area.ItemIDs, area.Description); err != nil {
+			if err := insertObservation(ctx, tx, existing, callID, models.GrowthVerdictRepeated, area.ItemIDs, description); err != nil {
 				return nil, err
 			}
 			seen[existing] = true
@@ -227,7 +231,7 @@ func (s *Service) observe(ctx context.Context, tx *sql.Tx, callID uuid.UUID, sh 
 		id := uuid.New()
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO growth_areas (area_uuid, subject_user_uuid, company_uuid, title, description, first_call_uuid)
-			VALUES ($1, $2, $3, $4, $5, $6)`, id, sh.subject.UUID, sh.company, title, strings.TrimSpace(area.Description), callID); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6)`, id, sh.subject.UUID, sh.company, title, description, callID); err != nil {
 			return nil, fmt.Errorf("create growth area: %w", err)
 		}
 		if err := insertObservation(ctx, tx, id, callID, models.GrowthVerdictNew, area.ItemIDs, ""); err != nil {
@@ -237,6 +241,12 @@ func (s *Service) observe(ctx context.Context, tx *sql.Tx, callID uuid.UUID, sh 
 		affected = append(affected, id)
 	}
 	return affected, nil
+}
+
+// callNote is what the analysis said about an area in this call. It speaks of
+// this call's cards, so a card cited by its ID is named by its title.
+func callNote(note string, outcome models.GrowthOutcome) string {
+	return analysistext.StripReferenceIDs(note, outcome.ItemTitles)
 }
 
 func insertObservation(ctx context.Context, tx *sql.Tx, areaID, callID uuid.UUID, verdict string, itemIDs []string, note string) error {

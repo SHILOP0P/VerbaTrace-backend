@@ -122,6 +122,21 @@ func TestParseSourceCriteriaSupportsNormalizedAnalysis(t *testing.T) {
 	require.Equal(t, 10.0, criteria[0].Max)
 }
 
+func TestParseSourceCriteriaTitlesCardsWithoutReferenceIDs(t *testing.T) {
+	criteria, err := parseSourceCriteria([]byte(`{"schema_version":3,"items":[
+		{"id":"u1.4","title":"Какая дата? (s4.1)","score":75},
+		{"id":"r1","title":"Тариф S1 назван","criterion_key":"8f0c7c2e-3c55-4f5a-9d0e-4e8b7f2a1c10","score":100}]}`))
+	require.NoError(t, err)
+	require.Len(t, criteria, 2)
+	require.Equal(t, "u1.4", criteria[0].Key, "the card ID stays the key")
+	require.Equal(t, "Какая дата?", criteria[0].Title)
+	require.Equal(t, "Тариф S1 назван", criteria[1].Title, "a scorecard criterion keeps its author's title")
+
+	legacy, err := parseSourceCriteria([]byte(`{"criteria_results":[{"code":"tariff","title":"Тариф S1 назван"}]}`))
+	require.NoError(t, err)
+	require.Equal(t, "Тариф S1 назван", legacy[0].Title, "legacy criteria were never cited by ID")
+}
+
 func TestBuildEffectiveAnalysisUsesLatestPublishedRevisionAndKeepsAllSources(t *testing.T) {
 	aiGreeting, aiNeeds := 8.0, 6.0
 	humanGreeting, humanNeeds := 9.0, 4.0
