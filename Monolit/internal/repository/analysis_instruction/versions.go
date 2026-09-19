@@ -41,6 +41,41 @@ func (r *Repository) GetVersion(ctx context.Context, id uuid.UUID, versionID uui
 	return item, err
 }
 
+// ReadableVersion names the stored version whose file an analysis is about to
+// read. The instruction row only says what is current now; another save can land
+// between reading the file and writing the snapshot, so the version is fixed at
+// read time by the file it points to. A rename keeps the file, so the title
+// breaks the tie between such versions.
+func (r *Repository) ReadableVersion(ctx context.Context, instruction models.AnalysisInstruction) (models.InstructionVersionText, error) {
+	var item models.InstructionVersionText
+	var text sql.NullString
+	err := r.db.QueryRowContext(ctx, `
+		SELECT instruction_version_uuid, content_text
+		FROM analysis_instruction_versions
+		WHERE instruction_uuid=$1 AND file_path=$2 AND content_sha256=$3
+		ORDER BY (title_snapshot=$4) DESC, version DESC
+		LIMIT 1`, instruction.ID, instruction.FilePath, instruction.ContentSHA256, instruction.Title).Scan(&item.VersionID, &text)
+	if errors.Is(err, sql.ErrNoRows) {
+		return item, models.ErrAnalysisInstructionNotFound
+	}
+	if err != nil {
+		return item, fmt.Errorf("resolve readable instruction version: %w", err)
+	}
+	if text.Valid {
+		item.Text = &text.String
+	}
+	return item, nil
+}
+
+// SaveVersionText keeps the first extraction. A version is immutable, so a
+// second writer would store the same text and is simply ignored.
+func (r *Repository) SaveVersionText(ctx context.Context, versionID uuid.UUID, text string) error {
+	if _, err := r.db.ExecContext(ctx, `UPDATE analysis_instruction_versions SET content_text=$2 WHERE instruction_version_uuid=$1 AND content_text IS NULL`, versionID, text); err != nil {
+		return fmt.Errorf("save instruction version text: %w", err)
+	}
+	return nil
+}
+
 type versionScanner interface{ Scan(...any) error }
 
 func scanInstructionVersion(row versionScanner) (models.AnalysisInstructionVersion, error) {

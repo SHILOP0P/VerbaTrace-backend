@@ -127,6 +127,7 @@ func overviewToAPI(overview models.AnalyticsOverview) dto.AnalyticsOverviewRespo
 		RisksCount:           overview.RisksCount,
 		RecommendationsCount: overview.RecommendationsCount,
 		Charts:               analyticsChartsToAPI(overview.Charts),
+		TeamAnalyticsEnabled: overview.TeamAnalyticsEnabled,
 	}
 }
 

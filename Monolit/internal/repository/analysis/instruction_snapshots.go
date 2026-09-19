@@ -21,9 +21,13 @@ func (r *Repository) SaveInstructionSnapshots(ctx context.Context, analysisID uu
 		return err
 	}
 	for position, instruction := range instructions {
-		var versionID uuid.UUID
-		if err = tx.QueryRowContext(ctx, `SELECT instruction_version_uuid FROM analysis_instruction_versions WHERE instruction_uuid=$1 ORDER BY version DESC LIMIT 1`, instruction.ID).Scan(&versionID); err != nil {
-			return fmt.Errorf("resolve instruction version: %w", err)
+		versionID := instruction.VersionID
+		if versionID == uuid.Nil {
+			// Only an instruction whose version could not be resolved when it was
+			// read gets here; the latest version is the best remaining guess.
+			if err = tx.QueryRowContext(ctx, `SELECT instruction_version_uuid FROM analysis_instruction_versions WHERE instruction_uuid=$1 ORDER BY version DESC LIMIT 1`, instruction.ID).Scan(&versionID); err != nil {
+				return fmt.Errorf("resolve instruction version: %w", err)
+			}
 		}
 		source := string(instruction.Scope)
 		if source != "personal" && source != "company" && source != "department" {

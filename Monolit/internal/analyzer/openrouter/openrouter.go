@@ -132,6 +132,13 @@ func (a *Analyzer) MaximumCompletionTokens(request models.AnalysisRequest) int64
 }
 
 func (a *Analyzer) AnalysisSchema() map[string]any {
+	return AnalysisResponseSchema()
+}
+
+// AnalysisResponseSchema is the staged pipeline's result schema. A
+// deterministic analyzer runs the same pipeline, so it must hand it the same
+// schema rather than a copy that could drift.
+func AnalysisResponseSchema() map[string]any {
 	return universalAnalysisResponseFormat().JSONSchema.Schema
 }
 

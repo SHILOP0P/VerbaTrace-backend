@@ -45,6 +45,9 @@ type AnalyticsOverview struct {
 	RisksCount             *int
 	RecommendationsCount   *int
 	Charts                 AnalyticsCharts
+	// TeamAnalyticsEnabled is false when a company's plan does not include team
+	// analytics: the counters and the overall score stay, the breakdowns go.
+	TeamAnalyticsEnabled bool
 }
 
 type AnalyticsScoreDistribution struct {

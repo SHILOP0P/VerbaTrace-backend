@@ -14,6 +14,19 @@ import (
 
 const Version = "universal-staged-v6"
 
+// Step kinds travel in AnalysisTask.Name. A provider sees them as the name of
+// the JSON schema, so they are plain identifiers; a deterministic analyzer
+// needs them to tell the steps apart without reading the prompt text.
+const (
+	StepInventory         = "inventory"
+	StepInventoryAudit    = "inventory_audit"
+	StepInventoryRecovery = "inventory_recovery"
+	StepRequirements      = "requirements"
+	StepAssessment        = "assessment"
+	StepAssessmentAudit   = "assessment_audit"
+	StepSummary           = "summary"
+)
+
 type Segment struct {
 	ID      string   `json:"id"`
 	Speaker string   `json:"speaker"`

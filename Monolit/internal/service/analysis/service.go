@@ -38,6 +38,13 @@ type attemptRepository interface {
 	CurrentTranscriptionRevision(context.Context, uuid.UUID) (int, error)
 }
 
+// instructionTextCache is implemented by the instruction repository. Without it
+// the service reads and extracts the current file on every analysis.
+type instructionTextCache interface {
+	ReadableVersion(context.Context, models.AnalysisInstruction) (models.InstructionVersionText, error)
+	SaveVersionText(context.Context, uuid.UUID, string) error
+}
+
 type instructionSnapshotRepository interface {
 	SaveInstructionSnapshots(context.Context, uuid.UUID, []models.AnalysisInstructionContent) error
 	ListInstructionSnapshots(context.Context, uuid.UUID) ([]models.AppliedInstruction, error)

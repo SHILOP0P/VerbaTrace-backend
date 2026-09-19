@@ -139,6 +139,13 @@ func companyFromRequest(ctx context.Context, db *sql.DB, r *http.Request) (uuid.
 		return lookupCompany(ctx, db, `SELECT company_uuid FROM calls WHERE call_uuid=$1`, chi.URLParam(r, "uuid"))
 	}
 
+	// Under /instructions/{uuid} the bare parameter is an instruction. Without
+	// this an instruction of a frozen company could still be edited, replaced
+	// and deleted, and so could its scorecard.
+	if strings.HasPrefix(pattern, "/api/v1/instructions/{uuid}") {
+		return lookupCompany(ctx, db, `SELECT company_uuid FROM analysis_instructions WHERE instruction_uuid=$1`, chi.URLParam(r, "uuid"))
+	}
+
 	for _, lookup := range companyEntityLookups {
 		raw := chi.URLParam(r, lookup.param)
 		if raw == "" {
