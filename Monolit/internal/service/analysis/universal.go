@@ -17,7 +17,11 @@ func isUniversalAnalysis(payload map[string]any) bool {
 }
 
 func normalizeUniversalAnalysisResult(result models.AnalysisResult, payload map[string]any) (models.AnalysisResult, error) {
-	if stringField(payload, "prompt_version") != "universal-v3.1" {
+	// Stored results and analyses resumed across a deploy carry the version
+	// they were started with, so every version still in the database is read.
+	switch stringField(payload, "prompt_version") {
+	case "universal-v3.1", "universal-v3.2":
+	default:
 		return models.AnalysisResult{}, errors.New("unsupported universal analysis prompt version")
 	}
 	summary := stringField(payload, "summary")

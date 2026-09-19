@@ -197,6 +197,17 @@ type AnalysisInstructionAPI interface {
 	GetVersionFile(w http.ResponseWriter, r *http.Request)
 }
 
+type ScorecardAPI interface {
+	Get(w http.ResponseWriter, r *http.Request)
+	GetForVersion(w http.ResponseWriter, r *http.Request)
+	Edit(w http.ResponseWriter, r *http.Request)
+	Ensure(w http.ResponseWriter, r *http.Request)
+	Recompile(w http.ResponseWriter, r *http.Request)
+	Confirm(w http.ResponseWriter, r *http.Request)
+	SameAs(w http.ResponseWriter, r *http.Request)
+	Split(w http.ResponseWriter, r *http.Request)
+}
+
 type AnalysisAPI interface {
 	AnalyzeCall(w http.ResponseWriter, r *http.Request)
 	GetByCallUUID(w http.ResponseWriter, r *http.Request)

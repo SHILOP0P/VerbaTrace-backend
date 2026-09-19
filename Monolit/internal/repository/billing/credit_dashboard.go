@@ -89,9 +89,21 @@ func (r *Repository) walletEntries(ctx context.Context, accountID uuid.UUID, lim
 		FROM usage_operations o
 		WHERE o.billing_account_uuid=$1 AND o.environment='production' AND o.operation_type<>'analysis'
 		  AND o.status IN ('reserved','provider_running','settled','reconciling')
+		UNION ALL
+		-- Compiling a scorecard is billed as an analysis but belongs to no call,
+		-- so it is listed on its own. The model may be asked several times for one
+		-- scorecard; the customer asked for it once and sees one charge.
+		SELECT split_part(o.idempotency_key,':',2)::uuid,'usage_group',
+		       -sum(CASE WHEN o.status='settled' THEN o.settled_credits ELSE o.reserved_credits END),
+		       max(o.mode),min(o.started_at)
+		FROM usage_operations o
+		WHERE o.billing_account_uuid=$1 AND o.environment='production' AND o.operation_type='analysis'
+		  AND o.mode=$3 AND o.idempotency_key LIKE 'scorecard:%'
+		  AND o.status IN ('reserved','provider_running','settled','reconciling')
+		GROUP BY split_part(o.idempotency_key,':',2)
 		) history
 		ORDER BY created_at DESC LIMIT $2
-	`, accountID, limit)
+	`, accountID, limit, models.ScorecardCompileUsageMode)
 	if err != nil {
 		return nil, fmt.Errorf("list wallet entries: %w", err)
 	}

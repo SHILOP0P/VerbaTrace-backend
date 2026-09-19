@@ -27,6 +27,7 @@ import (
 
 	"verbatrace/monolit/internal/analyzer/analysisflow"
 	"verbatrace/monolit/internal/analyzer/openrouter"
+	"verbatrace/monolit/internal/analyzer/scorecardflow"
 	"verbatrace/monolit/internal/models"
 )
 
@@ -56,14 +57,9 @@ func New(model string) *Analyzer {
 		analysisflow.StepAssessment:        assessment,
 		analysisflow.StepAssessmentAudit:   assessmentAudit,
 		analysisflow.StepSummary:           summary,
+		scorecardflow.StepCompile:          compileScorecard,
 	}
 	return a
-}
-
-// Handle registers an answer for a step kind that is not part of the analysis
-// pipeline itself, such as scorecard compilation.
-func (a *Analyzer) Handle(kind string, step func(models.AnalysisRequest, *models.AnalysisTask) (any, error)) {
-	a.steps[kind] = step
 }
 
 func (a *Analyzer) Provider() string { return ProviderName }
@@ -437,4 +433,48 @@ func summary(_ models.AnalysisRequest, task *models.AnalysisTask) (any, error) {
 		"recommendations":             recommendations,
 		"priority_recommendation_ids": []any{},
 	}, nil
+}
+
+var (
+	criticalMarker = regexp.MustCompile(`\[\[\s*critical\s*\]\]`)
+	weightMarker   = regexp.MustCompile(`\[\[\s*weight\s*:\s*([123])\s*\]\]`)
+)
+
+// compileScorecard stands in for the model when an instruction is compiled into
+// a scorecard: every bulleted or numbered line becomes a criterion. [[critical]]
+// and [[weight:3]] in a line set those fields, and a line whose title matches a
+// criterion of the previous scorecard keeps its key.
+func compileScorecard(_ models.AnalysisRequest, task *models.AnalysisTask) (any, error) {
+	var input scorecardflow.Input
+	if err := decode(task.Input, &input); err != nil {
+		return nil, err
+	}
+	previous := map[string]string{}
+	for _, criterion := range input.PreviousCriteria {
+		previous[NormalizeTitle(criterion.Title)] = criterion.Key
+	}
+	criteria := []scorecardflow.Criterion{}
+	for _, line := range ListItems(input.InstructionText) {
+		weight := 1
+		if match := weightMarker.FindStringSubmatch(line); match != nil {
+			weight = int(match[1][0] - '0')
+		}
+		title := CleanTitle(weightMarker.ReplaceAllString(criticalMarker.ReplaceAllString(line, ""), ""))
+		if title == "" {
+			continue
+		}
+		criterion := scorecardflow.Criterion{
+			Title: title, Requirement: line, SourceExcerpt: line, Weight: weight,
+			IsCritical: criticalMarker.MatchString(line), Warnings: []string{},
+		}
+		if key, ok := previous[NormalizeTitle(title)]; ok {
+			criterion.SameAs = &key
+			delete(previous, NormalizeTitle(title))
+		}
+		criteria = append(criteria, criterion)
+	}
+	if len(criteria) == 0 {
+		return scorecardflow.Output{Criteria: criteria, NoCriteriaReason: "В тексте нет списка требований."}, nil
+	}
+	return scorecardflow.Output{Criteria: criteria}, nil
 }

@@ -38,6 +38,11 @@ type attemptRepository interface {
 	CurrentTranscriptionRevision(context.Context, uuid.UUID) (int, error)
 }
 
+// ScorecardPlanner picks the scorecard criteria an analysis is scored on.
+type ScorecardPlanner interface {
+	PlanForAnalysis(ctx context.Context, instructions []models.AnalysisInstructionContent) (models.ScorecardPlan, error)
+}
+
 // instructionTextCache is implemented by the instruction repository. Without it
 // the service reads and extracts the current file on every analysis.
 type instructionTextCache interface {
@@ -70,7 +75,10 @@ type Service struct {
 	creditMeter              CreditMeter
 	privacyContextReader     PrivacyContextReader
 	notifications            NotificationSender
+	scorecards               ScorecardPlanner
 }
+
+func (s *Service) SetScorecardPlanner(planner ScorecardPlanner) { s.scorecards = planner }
 
 // SetMembershipRepositories enables the rerun rules: without them the service
 // only knows about personal calls.

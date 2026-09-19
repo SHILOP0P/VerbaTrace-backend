@@ -47,6 +47,9 @@ type AnalysisInstructionContent struct {
 	// stays out of JSON because instructions are serialized into provider input,
 	// which must not change when only the storage bookkeeping does.
 	VersionID uuid.UUID `json:"-"`
+	// ScorecardID is the scorecard revision the analysis scored this instruction
+	// by, recorded in the instruction snapshot.
+	ScorecardID uuid.UUID `json:"-"`
 }
 
 // InstructionVersionText is the version an analysis reads and, when it has
@@ -63,6 +66,20 @@ type AnalysisRequest struct {
 	Personalization []string
 	Redaction       *AnalysisRedactionContext
 	Task            *AnalysisTask
+	// Scorecards is set when the instructions went through their scorecards.
+	// The pipeline then scores Requirements as they are and asks the model to
+	// break into requirements only the instructions listed in AdhocInstructions.
+	// Without it every instruction is broken down by the model, as before
+	// scorecards existed.
+	Scorecards *AnalysisScorecards
+}
+
+type AnalysisScorecards struct {
+	Requirements      []AnalysisRequirement
+	AdhocInstructions []uuid.UUID
+	Applied           []AppliedScorecard
+	Mode              string
+	LimitApplied      bool
 }
 
 // AnalysisTask is a bounded, structured step of the server-owned analysis flow.

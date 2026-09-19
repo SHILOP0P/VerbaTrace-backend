@@ -237,6 +237,21 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 			activeAnalyzer = s.sandboxAnalyzer
 		}
 	}
+	// Only the staged pipeline scores requirements one by one. The sandbox
+	// analyzer returns a fixed result and must never cause a paid compile.
+	var scorecards *models.AnalysisScorecards
+	if _, staged := activeAnalyzer.(interface{ AnalysisSchema() map[string]any }); staged && s.scorecards != nil {
+		plan, planErr := s.scorecards.PlanForAnalysis(ctx, instructions)
+		if planErr != nil {
+			return models.CallAnalysis{}, fmt.Errorf("plan scorecards: %w", planErr)
+		}
+		instructions = plan.Instructions
+		adhoc := make([]uuid.UUID, 0, len(plan.Adhoc))
+		for _, instruction := range plan.Adhoc {
+			adhoc = append(adhoc, instruction.ID)
+		}
+		scorecards = &models.AnalysisScorecards{Requirements: plan.Requirements, AdhocInstructions: adhoc, Applied: plan.Scorecards, Mode: plan.Mode, LimitApplied: plan.LimitApplied}
+	}
 	analysis, err := s.createPendingAnalysis(ctx, call.ID, activeAnalyzer.Provider())
 	if err != nil {
 		return models.CallAnalysis{}, fmt.Errorf("create analysis: %w", err)
@@ -256,6 +271,7 @@ func (s *Service) analyzeCall(ctx context.Context, call models.Call, userID uuid
 		Transcription:   *transcription.Text,
 		Instructions:    instructions,
 		Personalization: personalization,
+		Scorecards:      scorecards,
 	}
 	if s.privacyContextReader != nil {
 		analysisRequest.Redaction, err = s.privacyContextReader.AnalysisContext(ctx, call.ID)

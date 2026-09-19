@@ -33,7 +33,8 @@ func (r *Repository) SaveInstructionSnapshots(ctx context.Context, analysisID uu
 		if source != "personal" && source != "company" && source != "department" {
 			source = "explicit"
 		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO call_analysis_instruction_snapshots(analysis_uuid,instruction_version_uuid,instruction_uuid,position,selection_source,title_snapshot,scope_snapshot,content_sha256,content_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, analysisID, versionID, instruction.ID, position, source, instruction.Title, string(instruction.Scope), instruction.ContentSHA256, instruction.Content); err != nil {
+		scorecard := uuid.NullUUID{UUID: instruction.ScorecardID, Valid: instruction.ScorecardID != uuid.Nil}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO call_analysis_instruction_snapshots(analysis_uuid,instruction_version_uuid,instruction_uuid,position,selection_source,title_snapshot,scope_snapshot,content_sha256,content_snapshot,scorecard_uuid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, analysisID, versionID, instruction.ID, position, source, instruction.Title, string(instruction.Scope), instruction.ContentSHA256, instruction.Content, scorecard); err != nil {
 			return fmt.Errorf("insert instruction snapshot: %w", err)
 		}
 	}

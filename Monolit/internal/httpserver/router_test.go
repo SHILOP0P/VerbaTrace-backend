@@ -21,6 +21,7 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 		apiMocks.NewCompanyAPI(t),
 		apiMocks.NewDepartmentAPI(t),
 		apiMocks.NewAnalysisInstructionAPI(t),
+		stubScorecardAPI{},
 		stubAnalysisContextAPI{},
 		apiMocks.NewAnalysisAPI(t),
 		stubQualityReviewAPI{},
@@ -78,10 +79,27 @@ func TestNewRouterRegistersPublicAndProtectedRoutes(t *testing.T) {
 	router.ServeHTTP(cancelSubscriptionRecorder, httptest.NewRequest(http.MethodPost, "/api/v1/companies/00000000-0000-0000-0000-000000000001/subscription/cancel", nil))
 	require.Equal(t, http.StatusUnauthorized, cancelSubscriptionRecorder.Code)
 
+	// Scorecard routes live under the instruction; the handler must implement the
+	// whole interface for them to exist at all.
+	scorecardRecorder := httptest.NewRecorder()
+	router.ServeHTTP(scorecardRecorder, httptest.NewRequest(http.MethodPost, "/api/v1/instructions/00000000-0000-0000-0000-000000000001/scorecard/ensure", nil))
+	require.Equal(t, http.StatusUnauthorized, scorecardRecorder.Code)
+
 	notFoundRecorder := httptest.NewRecorder()
 	router.ServeHTTP(notFoundRecorder, httptest.NewRequest(http.MethodGet, "/missing", nil))
 	require.Equal(t, http.StatusNotFound, notFoundRecorder.Code)
 }
+
+type stubScorecardAPI struct{}
+
+func (stubScorecardAPI) Get(http.ResponseWriter, *http.Request)           {}
+func (stubScorecardAPI) GetForVersion(http.ResponseWriter, *http.Request) {}
+func (stubScorecardAPI) Edit(http.ResponseWriter, *http.Request)          {}
+func (stubScorecardAPI) Ensure(http.ResponseWriter, *http.Request)        {}
+func (stubScorecardAPI) Recompile(http.ResponseWriter, *http.Request)     {}
+func (stubScorecardAPI) Confirm(http.ResponseWriter, *http.Request)       {}
+func (stubScorecardAPI) SameAs(http.ResponseWriter, *http.Request)        {}
+func (stubScorecardAPI) Split(http.ResponseWriter, *http.Request)         {}
 
 type stubSearchAPI struct{}
 

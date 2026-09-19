@@ -97,6 +97,15 @@ Supported result-ready events include `transcription.completed` and
 `analysis.completed`. A failed delivery can be placed onto a fresh delivery cycle with
 the replay route; the replay action is audited.
 
+Analysis results use `schema_version: 3`. Within a schema version fields are only
+added, never renamed or removed, so consumers must ignore fields they do not know.
+Since pipeline `universal-staged-v7` (`prompt_version: universal-v3.2`) a result may
+carry `scorecard_mode` (`fixed`, `partial`, `adhoc`, `none`), `scorecards` and
+`scorecard_limit_applied`, and a requirement item may carry `criterion_key`,
+`also_criterion_keys`, `scorecard_uuid` and `is_critical`. `criterion_key` is stable
+across calls and instruction versions, so it is the key to aggregate requirement
+results by; items without it were scored ad hoc and are not comparable between calls.
+
 ## Error envelope
 
 ```json

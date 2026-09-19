@@ -98,6 +98,40 @@ func (s *Service) SettleEmbedding(ctx context.Context, operationID uuid.UUID, in
 	return err
 }
 
+// ReserveInstructionCompile books the compile of an instruction into a
+// scorecard. It is priced as an analysis step and paid from the wallet that
+// pays for the analyses the scorecard serves; the mode tells it apart in the
+// usage history.
+func (s *Service) ReserveInstructionCompile(ctx context.Context, owner models.InstructionOwner, key string, input string, maxOutputTokens int64) (uuid.UUID, error) {
+	if strings.TrimSpace(key) == "" || maxOutputTokens <= 0 || (owner.UserID == uuid.Nil && owner.CompanyID == uuid.Nil) {
+		return uuid.Nil, models.ErrInvalidBillingInput
+	}
+	subscription, err := s.subscriptionForScope(ctx, owner.UserID, owner.CompanyID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	inputTokens := (len([]byte(input)) + 2) / 3
+	maximum, err := s.creditOperations.MaximumAnalysisCredits(ctx, int64(inputTokens), maxOutputTokens, s.now())
+	if err != nil {
+		return uuid.Nil, err
+	}
+	operationID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(key))
+	_, err = s.creditOperations.ReserveCredits(ctx, subscription, models.ReserveCreditsInput{
+		OperationUUID:  operationID,
+		CompanyUUID:    uuid.NullUUID{UUID: owner.CompanyID, Valid: owner.CompanyID != uuid.Nil},
+		DepartmentUUID: uuid.NullUUID{UUID: owner.DepartmentID, Valid: owner.DepartmentID != uuid.Nil},
+		OperationType:  "analysis", Environment: "production",
+		Provider: "openrouter", Model: "openai/gpt-5-mini", Mode: ScorecardCompileMode,
+		IdempotencyKey: key, MaximumCharge: maximum,
+	}, s.now())
+	if err == nil {
+		err = s.creditOperations.MarkCreditOperationProviderRunning(ctx, operationID)
+	}
+	return operationID, err
+}
+
+const ScorecardCompileMode = models.ScorecardCompileUsageMode
+
 func (s *Service) subscriptionForScope(ctx context.Context, userID, companyID uuid.UUID) (models.Subscription, error) {
 	if companyID != uuid.Nil {
 		return s.repository.GetActiveBusinessSubscription(ctx, companyID)

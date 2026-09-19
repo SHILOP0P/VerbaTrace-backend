@@ -12,7 +12,11 @@ import (
 	"verbatrace/monolit/internal/models"
 )
 
-const Version = "universal-staged-v6"
+const Version = "universal-staged-v7"
+
+// PromptVersion names the prompt texts. v3.2 described every status level and
+// took the weight of scorecard requirements away from the model.
+const PromptVersion = "universal-v3.2"
 
 // Step kinds travel in AnalysisTask.Name. A provider sees them as the name of
 // the JSON schema, so they are plain identifiers; a deterministic analyzer
@@ -80,18 +84,21 @@ type Runner struct {
 	// every assessment and audit step, so the provider can cache it once.
 	assessmentContext string
 
-	index          map[string]Segment
-	windows        [][]Segment
-	windowUnits    [][]Unit
-	windowDone     []bool
-	requirements   []Unit
-	contextReady   bool
-	requirementsOn bool
-	scheduled      map[unitRef]bool
-	assessed       map[string]map[string]any
-	tasks          *taskGroup
-	inventorySlots chan struct{}
-	assessSlots    chan struct{}
+	index        map[string]Segment
+	windows      [][]Segment
+	windowUnits  [][]Unit
+	windowDone   []bool
+	requirements []Unit
+	// requirementMeta holds the scorecard identity of requirement units built
+	// from scorecards, keyed by unit ID.
+	requirementMeta map[string]models.AnalysisRequirement
+	contextReady    bool
+	requirementsOn  bool
+	scheduled       map[unitRef]bool
+	assessed        map[string]map[string]any
+	tasks           *taskGroup
+	inventorySlots  chan struct{}
+	assessSlots     chan struct{}
 }
 
 // unitRef addresses inventory unit index of window, before cross-window merging.

@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI API.ContactAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, qualityReviewAPI API.QualityReviewAPI, actionAPI API.ActionAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, integrationAPI API.IntegrationAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, companyFreezeGuard func(http.Handler) http.Handler, log logger.Logger) http.Handler {
+func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI API.ContactAPI, authAPI API.AuthAPI, companyAPI API.CompanyAPI, departmentAPI API.DepartmentAPI, instructionAPI API.AnalysisInstructionAPI, scorecardAPI API.ScorecardAPI, analysisContextAPI API.AnalysisContextAPI, analysisAPI API.AnalysisAPI, qualityReviewAPI API.QualityReviewAPI, actionAPI API.ActionAPI, reportAPI API.ReportAPI, billingAPI API.BillingAPI, invitationAPI API.InvitationAPI, analyticsAPI API.AnalyticsAPI, monitoringAPI API.MonitoringAPI, searchAPI API.SearchAPI, notificationAPI API.NotificationAPI, adminAPI API.AdminAPI, integrationAPI API.IntegrationAPI, healthHandler *health.Handler, jwtSecret string, refreshSessionRepository repository.RefreshSessionRepository, companyFreezeGuard func(http.Handler) http.Handler, log logger.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	// The freeze guard is part of the authenticated chain rather than a router
@@ -595,6 +595,18 @@ func NewRouter(callAPI API.CallAPI, callFolderAPI API.CallFolderAPI, contactAPI 
 			r.With(authGuard).Get("/instructions/{uuid}/versions", instructionAPI.ListVersions)
 			r.With(authGuard).Get("/instructions/{uuid}/versions/{version_uuid}/file", instructionAPI.GetVersionFile)
 			r.With(authGuard).Delete("/instructions/{uuid}", instructionAPI.Delete)
+
+			// SCORECARDS
+			if scorecardAPI != nil {
+				r.With(authGuard).Get("/instructions/{uuid}/scorecard", scorecardAPI.Get)
+				r.With(authGuard).Patch("/instructions/{uuid}/scorecard", scorecardAPI.Edit)
+				r.With(authGuard).Post("/instructions/{uuid}/scorecard/ensure", scorecardAPI.Ensure)
+				r.With(authGuard).Post("/instructions/{uuid}/scorecard/recompile", scorecardAPI.Recompile)
+				r.With(authGuard).Post("/instructions/{uuid}/scorecard/confirm", scorecardAPI.Confirm)
+				r.With(authGuard).Post("/instructions/{uuid}/scorecard/criteria/{criterion_key}/same-as", scorecardAPI.SameAs)
+				r.With(authGuard).Post("/instructions/{uuid}/scorecard/criteria/{criterion_key}/split", scorecardAPI.Split)
+				r.With(authGuard).Get("/instructions/{uuid}/versions/{version_uuid}/scorecard", scorecardAPI.GetForVersion)
+			}
 		})
 	})
 

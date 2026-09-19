@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -362,6 +363,102 @@ func (w *Worker) runInstructions(ctx context.Context) {
 		}
 	}
 	w.service.log.Info(ctx, "instruction retention run completed", zap.Int("selected", len(items)))
+	w.sweepUnusedVersions(ctx, run)
+}
+
+// versionGrace covers the window between an analysis reading an instruction
+// and writing its snapshot, with a wide margin, and leaves the owner time to
+// put a text back before its version goes.
+const versionGrace = "6 hours"
+
+// sweepableVersion is a version that was replaced, that no call was analysed
+// with, and that no scorecard in force or waiting to be applied depends on.
+// Only versions used by calls, plus the current one, are worth keeping: every
+// save makes a version, and most of them are drafts.
+const sweepableVersion = `
+	v.superseded_at IS NOT NULL AND v.superseded_at < now() - interval '` + versionGrace + `'
+	AND NOT EXISTS (SELECT 1 FROM call_analysis_instruction_snapshots s WHERE s.instruction_version_uuid = v.instruction_version_uuid)
+	AND NOT EXISTS (
+		SELECT 1 FROM instruction_scorecards c
+		WHERE c.instruction_version_uuid = v.instruction_version_uuid
+		  AND (c.is_current OR c.awaiting_confirmation
+		       OR EXISTS (SELECT 1 FROM call_analysis_instruction_snapshots s WHERE s.scorecard_uuid = c.scorecard_uuid)))`
+
+func (w *Worker) sweepUnusedVersions(ctx context.Context, run uuid.UUID) {
+	rows, err := w.service.db.QueryContext(ctx, `
+		SELECT v.instruction_version_uuid, v.instruction_uuid, v.file_path
+		FROM analysis_instruction_versions v
+		WHERE `+sweepableVersion+`
+		ORDER BY v.superseded_at, v.instruction_version_uuid LIMIT $1`, w.batch)
+	if err != nil {
+		w.service.log.Warn(ctx, "instruction version sweep selection failed", zap.Error(err))
+		return
+	}
+	type candidate struct {
+		id, instruction uuid.UUID
+		path            string
+	}
+	var items []candidate
+	for rows.Next() {
+		var c candidate
+		if rows.Scan(&c.id, &c.instruction, &c.path) == nil {
+			items = append(items, c)
+		}
+	}
+	_ = rows.Close()
+	// The count is written before anything is removed, so the scale of a first
+	// run over versions saved before the sweep existed is visible in advance.
+	_ = audit(ctx, w.service.db, run, uuid.Nil, "instruction_version", uuid.Nil, "instruction_versions_selected_for_sweep", int64(len(items)), -1, nil)
+	swept := 0
+	for _, item := range items {
+		var shared bool
+		err := w.service.db.QueryRowContext(ctx, `
+			WITH removed AS (
+				DELETE FROM analysis_instruction_versions v
+				WHERE v.instruction_version_uuid = $1 AND `+sweepableVersion+`
+				RETURNING v.file_path)
+			SELECT EXISTS (SELECT 1 FROM analysis_instruction_versions o WHERE o.file_path = $2 AND o.instruction_version_uuid <> $1)
+			    OR EXISTS (SELECT 1 FROM analysis_instructions i WHERE i.file_path = $2)
+			FROM removed`, item.id, item.path).Scan(&shared)
+		if errors.Is(err, sql.ErrNoRows) {
+			// It was used or applied since it was selected.
+			continue
+		}
+		if err != nil {
+			w.service.log.Warn(ctx, "instruction version sweep failed", zap.String("instruction_version_id", item.id.String()), zap.Error(err))
+			continue
+		}
+		// A rename keeps the file, so it may still belong to another version.
+		if !shared && w.service.instructions != nil {
+			if err := w.service.instructions.Delete(ctx, item.path); err != nil {
+				w.service.log.Warn(ctx, "instruction version file not removed", zap.String("instruction_version_id", item.id.String()), zap.Error(err))
+			}
+		}
+		_ = audit(ctx, w.service.db, run, uuid.Nil, "instruction_version", item.id, "instruction_version_swept", 1, -1, map[string]any{"instruction_uuid": item.instruction.String(), "file_removed": !shared})
+		swept++
+	}
+	w.sweepUnusedScorecardRevisions(ctx, run)
+	w.service.log.Info(ctx, "instruction version sweep completed", zap.Int("selected", len(items)), zap.Int("swept", swept))
+}
+
+// sweepUnusedScorecardRevisions drops hand-edited revisions nobody scored a call
+// by. The newest revision of every version stays, so each kept version keeps
+// its scorecard.
+func (w *Worker) sweepUnusedScorecardRevisions(ctx context.Context, run uuid.UUID) {
+	res, err := w.service.db.ExecContext(ctx, `
+		DELETE FROM instruction_scorecards c
+		WHERE c.superseded_at IS NOT NULL AND c.superseded_at < now() - interval '`+versionGrace+`'
+		  AND NOT c.is_current AND NOT c.awaiting_confirmation
+		  AND NOT EXISTS (SELECT 1 FROM call_analysis_instruction_snapshots s WHERE s.scorecard_uuid = c.scorecard_uuid)
+		  AND EXISTS (SELECT 1 FROM instruction_scorecards n WHERE n.instruction_version_uuid = c.instruction_version_uuid AND n.revision > c.revision)`)
+	if err != nil {
+		w.service.log.Warn(ctx, "scorecard revision sweep failed", zap.Error(err))
+		return
+	}
+	count, _ := res.RowsAffected()
+	if count > 0 {
+		_ = audit(ctx, w.service.db, run, uuid.Nil, "scorecard", uuid.Nil, "scorecard_revisions_swept", count, -1, nil)
+	}
 }
 
 func (s *Service) String() string { return fmt.Sprintf("retention service %p", s) }

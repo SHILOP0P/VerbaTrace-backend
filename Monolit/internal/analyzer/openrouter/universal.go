@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"verbatrace/monolit/internal/analyzer/analysisflow"
 	"verbatrace/monolit/internal/models"
 )
 
-const universalPromptVersion = "universal-v3.1"
+const universalPromptVersion = analysisflow.PromptVersion
 
 func universalSystemPrompt() string {
 	return strings.Join([]string{
