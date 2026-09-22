@@ -396,7 +396,7 @@ func (s *Service) progressAccess(ctx context.Context, viewer uuid.UUID, company,
 		if !own {
 			return ErrForbidden
 		}
-		flags, err := s.plan(ctx, `s.type = 'personal' AND s.user_uuid = $1`, viewer)
+		flags, err := s.personalPlan(ctx, viewer)
 		if err != nil {
 			return err
 		}

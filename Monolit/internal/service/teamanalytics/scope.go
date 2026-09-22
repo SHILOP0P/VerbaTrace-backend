@@ -100,7 +100,7 @@ func (s *Service) resolve(ctx context.Context, req Request) (Scope, error) {
 	scope.Timezone, scope.Location = s.timezone(ctx, req.UserID)
 	if req.Personal || !req.CompanyID.Valid {
 		scope.Kind, scope.Role = "personal", rolePersonal
-		flags, err := s.plan(ctx, `s.type = 'personal' AND s.user_uuid = $1`, req.UserID)
+		flags, err := s.personalPlan(ctx, req.UserID)
 		if err != nil {
 			return Scope{}, err
 		}
@@ -190,6 +190,39 @@ func (s Scope) requireOwn() error {
 type planFlags struct {
 	team, personal bool
 	retention      int
+}
+
+// personalPlan is the plan behind a personal workspace. The owner of a company
+// is given a personal plan by their business one (billing's manager benefit),
+// and the sidebar already names that plan, so analytics has to honour it too —
+// otherwise the same person reads "Personal Pro" and "available on Plus and Pro"
+// on one screen. The mapping mirrors billing.managerPersonalBenefitPlanCode.
+func (s *Service) personalPlan(ctx context.Context, userID uuid.UUID) (planFlags, error) {
+	var flags planFlags
+	err := s.db.QueryRowContext(ctx, `
+		WITH granted AS (
+			SELECT p.personal_progress_enabled AS personal, p.history_retention_days AS retention
+			FROM subscriptions s JOIN plans p ON p.plan_uuid = s.plan_uuid
+			WHERE s.status = 'active' AND s.starts_at <= now() AND (s.ends_at IS NULL OR s.ends_at > now())
+			  AND s.type = 'personal' AND s.user_uuid = $1
+			UNION ALL
+			SELECT benefit.personal_progress_enabled, benefit.history_retention_days
+			FROM subscriptions s
+			JOIN plans business ON business.plan_uuid = s.plan_uuid
+			JOIN plans benefit ON benefit.code = CASE business.code
+				WHEN 'business_pro' THEN 'personal_pro'
+				WHEN 'business_plus' THEN 'personal_plus'
+				WHEN 'business_start' THEN 'personal_plus'
+			END
+			WHERE s.status = 'active' AND s.starts_at <= now() AND (s.ends_at IS NULL OR s.ends_at > now())
+			  AND s.type = 'business' AND s.user_uuid = $1
+		)
+		SELECT COALESCE(bool_or(personal), false), COALESCE(max(retention), 0) FROM granted`, userID).
+		Scan(&flags.personal, &flags.retention)
+	if err != nil {
+		return planFlags{}, fmt.Errorf("read personal plan: %w", err)
+	}
+	return flags, nil
 }
 
 func (s *Service) plan(ctx context.Context, condition string, arg any) (planFlags, error) {

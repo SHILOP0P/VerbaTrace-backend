@@ -25,6 +25,26 @@ func progressOf(t *testing.T, progress CallProgress, key uuid.UUID) ProgressCrit
 	return ProgressCriterion{}
 }
 
+// A business plan is sold with a personal one, and billing shows the owner
+// that personal plan. Analytics reads the plan itself, so without the same
+// benefit the owner saw "Personal Pro" in the sidebar and "available on Plus
+// and Pro" on the analytics page at the same time.
+func TestOwnerOfACompanyGetsThePersonalPlanOfTheirBusinessPlan(t *testing.T) {
+	tm := newTeam(t, "business_pro")
+	ctx := context.Background()
+
+	owner, err := tm.service.Capabilities(ctx, Request{UserID: tm.owner, Personal: true})
+	require.NoError(t, err)
+	require.Equal(t, "personal", owner.Scope)
+	require.True(t, owner.PersonalProgressEnabled)
+	require.Equal(t, 365, owner.RetentionDays)
+
+	// An employee of that company has no plan of their own and no benefit.
+	employee, err := tm.service.Capabilities(ctx, Request{UserID: tm.ivan, Personal: true})
+	require.NoError(t, err)
+	require.False(t, employee.PersonalProgressEnabled)
+}
+
 func TestWorkOnMistakesFollowsTheEmployeesChain(t *testing.T) {
 	tm := newTeam(t, "business_plus")
 	ctx := context.Background()
