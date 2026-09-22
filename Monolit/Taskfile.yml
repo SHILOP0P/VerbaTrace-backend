@@ -64,11 +64,13 @@ tasks:
       - go build -o ./bin/verbatrace.exe ./cmd
 
   # Сборка Docker-образа backend без публикации куда-либо.
+  # Тег совпадает с образом, который собирает Compose, чтобы проверка
+  # Dockerfile не плодила второй образ рядом с рабочим.
   image:
     desc: Build backend Docker image locally.
     cmds:
-      - echo "==> Building local Docker image verbatrace-backend"
-      - docker build -f deploy/Dockerfile -t verbatrace-backend .
+      - echo "==> Building local Docker image verbatrace-api"
+      - docker build -f deploy/Dockerfile -t verbatrace-api .
 
   # Локальный production-like стек: backend + PostgreSQL + persistent uploads volume.
   up:

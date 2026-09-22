@@ -1,12 +1,19 @@
+# syntax=docker/dockerfile:1
 FROM golang:1.25.7-bookworm AS builder
 
 WORKDIR /src
 
+# Module and compiler caches live in BuildKit cache mounts instead of image
+# layers: the image stays slim and every rebuild reuses the previous compile
+# instead of leaving another full snapshot behind in the build cache.
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/verbatrace ./cmd
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/verbatrace ./cmd
 
 FROM debian:bookworm-slim
 
