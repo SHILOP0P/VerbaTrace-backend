@@ -53,7 +53,32 @@ Monolit/logs/
 
 # Local product notes and sketches
 Sketches and ideas/
-docs/specs/
+
+# Documentation stays local; only README files may be tracked.
+*.[mM][dD]
+*.[mM][dD][xX]
+*.[mM][aA][rR][kK][dD][oO][wW][nN]
+*.[rR][sS][tT]
+*.[aA][dD][oO][cC]
+*.[pP][dD][fF]
+*.[dD][oO][cC]
+*.[dD][oO][cC][xX]
+*.[oO][dD][tT]
+*.[rR][tT][fF]
+**/docs/**
+**/documentation/**
+**/specs/**
+**/specifications/**
+**/.specify/**
+**/.spec-kit/**
+!**/docs/**/
+!**/documentation/**/
+!**/specs/**/
+!**/specifications/**/
+!**/.specify/**/
+!**/.spec-kit/**/
+![rR][eE][aA][dD][mM][eE]
+![rR][eE][aA][dD][mM][eE].*
 
 # Docker/local database data
 postgres-data/

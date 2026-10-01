@@ -1,0 +1,15 @@
+name: Repository documentation policy
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  documentation-policy:
+    name: Only README documentation is tracked
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check committed files
+        run: sh scripts/check-repository-docs.sh --tree HEAD

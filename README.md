@@ -65,7 +65,7 @@ Set-Location C:\projects\VerbaTrace\Monolit
 - Retention звонков по тарифу и фоновое удаление просроченных записей.
 - SSE-события статуса обработки звонка (`/calls/{uuid}/events`).
 - Смена пароля и управление собственными сессиями.
-- Семантический поиск по содержимому звонков и AI-ассистент с цитатами (**в разработке**, не готово к релизу; без `EMBEDDING_API_KEY` используется лексический поиск PostgreSQL). Статус: [implementation-status](docs/verification/semantic-search-ai-workspace/implementation-status.md).
+- Семантический поиск по содержимому звонков и AI-ассистент с цитатами (**в разработке**, не готово к релизу; без `EMBEDDING_API_KEY` используется лексический поиск PostgreSQL).
 - Создание компании.
 - Создание отдела.
 - Управление участниками компании и отдела, включая независимую должность `company_members.job_title`.
@@ -426,9 +426,6 @@ health-check отдаёт `crm_notes_writable`, старым подключен�
 переавторизация. Текст собирается шаблоном — оценка, итог, что поработать,
 критичные пропуски, ссылка на звонок; цитат разговора и служебных ссылок модели
 (`u1.7`, `rec2`) нет.
-
-Операционные детали и порядок приёмки описаны в
-[runbook](docs/runbooks/bitrix24-connector.md).
 
 ## API
 
@@ -836,7 +833,7 @@ Search:
 
 `GET /api/v1/search` принимает обязательный `q` (минимум 2 символа), optional `types=calls,companies,reports,instructions` и optional `limit` (по умолчанию 10, максимум 50). Пустой или слишком короткий `q` возвращает `400 invalid_search_input`. Поиск не обращается к CRM-клиентам, потому что таких сущностей в backend-контракте нет.
 
-AI-ассистент по звонкам (**в разработке**, см. [implementation-status](docs/verification/semantic-search-ai-workspace/implementation-status.md)):
+AI-ассистент по звонкам (**в разработке**):
 
 | Method | Path | Auth | Описание |
 | --- | --- | --- | --- |
@@ -1325,7 +1322,7 @@ Billing:
 
 Личные звонки и персональные инструкции проверяются по персональной подписке пользователя. Звонки, отделы, участники, приглашения и инструкции компании проверяются по подписке её владельца. Бизнес-подписка дает персональный бонус самому владельцу: `business_start` и `business_plus` дают эффективный `personal_plus`, `business_pro` дает эффективный `personal_pro`.
 
-Каждый вызов провайдера (транскрибация, шаги анализа, ассистент) сначала резервирует максимальную стоимость в credit ledger с детерминированным idempotency-ключом, а после ответа провайдера списывает фактическую стоимость; неоднозначные результаты уходят в `reconciling` и разбираются reconciliation worker. Операционные инварианты описаны в [runbook](docs/runbooks/credit-integration-platform.md).
+Каждый вызов провайдера (транскрибация, шаги анализа, ассистент) сначала резервирует максимальную стоимость в credit ledger с детерминированным idempotency-ключом, а после ответа провайдера списывает фактическую стоимость; неоднозначные результаты уходят в `reconciling` и разбираются reconciliation worker.
 
 Developer platform и интеграции:
 
@@ -1353,7 +1350,7 @@ Developer platform и интеграции:
 | POST | `/api/v1/ingest-items/{ingest_item_uuid}/{retry\|cancel}` | Да | Повторить / отменить ingest |
 | GET | `/api/v1/integrations/{connection_uuid}/audit-events` | Да | Аудит подключения |
 
-Machine API по API key (`Authorization: Bearer vt_test_...`/`vt_live_...`) живёт вне `/api/v1`: `/api/sandbox/v1|v2/...` для тестовых ключей и `/api/production/v1|v2/...` для боевых. v1: `auth/validate`, `ingest/calls`, `ingest/calls/upload`, `ingest/items/{id}`; v2 дополнительно: `destinations`, `folders`, `calls`, `calls/{call_uuid}`, `calls/by-source-ref/{source_ref}`, `calls/{call_uuid}/transcription`, `calls/{call_uuid}/analysis`, `usage`. Swagger UI: `/docs/integrations`, OpenAPI 3.1: `/docs/integrations/openapi`. Подробности — [developer-integrations-v1](docs/api/developer-integrations-v1.md).
+Machine API по API key (`Authorization: Bearer vt_test_...`/`vt_live_...`) живёт вне `/api/v1`: `/api/sandbox/v1|v2/...` для тестовых ключей и `/api/production/v1|v2/...` для боевых. v1: `auth/validate`, `ingest/calls`, `ingest/calls/upload`, `ingest/items/{id}`; v2 дополнительно: `destinations`, `folders`, `calls`, `calls/{call_uuid}`, `calls/by-source-ref/{source_ref}`, `calls/{call_uuid}/transcription`, `calls/{call_uuid}/analysis`, `usage`. Swagger UI: `/docs/integrations`, OpenAPI 3.1: `/docs/integrations/openapi`.
 
 Bitrix24 (при заданных `BITRIX24_*` и `INTEGRATION_MASTER_KEY_BASE64`): `POST /api/v1/integrations/bitrix24/oauth/start`, публичные `GET /api/v1/integrations/bitrix24/oauth/callback` и `POST /api/v1/integrations/bitrix24/events`, а также `/api/v1/integrations/{connection_uuid}/test|health|pause|resume|external-users|external-user-mappings[/bulk|/{external_user_id}]|mapping-preview|backfills[/preview|/{backfill_uuid}]` и синхронизация действий `/api/v1/actions/{action_uuid}/external-sync[-requests|-preview]`, `/api/v1/action-external-sync-requests/{sync_uuid}[/approve|/reject|/resolve]`.
 
@@ -2024,10 +2021,14 @@ internal/username/              Правила username
 В корне репозитория:
 
 ```text
-docs/api/                       Справочная документация integration API
-docs/runbooks/                  Операционные инструкции и real-portal checklist
-docs/verification/              Статусы проверки крупных фич
-scripts/                        verify-ci.ps1 и установка git hooks
-.githooks/                      pre-commit hook
+scripts/                        Проверки CI, запрет локальной документации, установка git hooks
+.githooks/                      pre-commit и pre-push hooks
 .github/workflows/              GitHub Actions
+```
+
+Документация и спеки хранятся локально; в Git разрешены только README-файлы.
+Для защиты от случайного коммита или push включите hooks:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-git-hooks.ps1
 ```
